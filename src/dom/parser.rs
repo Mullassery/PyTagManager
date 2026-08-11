@@ -13,7 +13,14 @@ pub fn parse_html(html: &str, url: &str) -> SemanticGraph {
     let mut nodes = Vec::new();
     let mut next_id: usize = 0;
 
-    walk(document.root_element(), None, "", "", &mut nodes, &mut next_id);
+    walk(
+        document.root_element(),
+        None,
+        "",
+        "",
+        &mut nodes,
+        &mut next_id,
+    );
 
     SemanticGraph {
         url: url.to_string(),
@@ -124,7 +131,10 @@ mod tests {
 
         let buttons = graph.find_by_tag("button");
         assert_eq!(buttons.len(), 1);
-        assert_eq!(buttons[0].stable_selector.as_deref(), Some("[data-testid=\"buy-now\"]"));
+        assert_eq!(
+            buttons[0].stable_selector.as_deref(),
+            Some("[data-testid=\"buy-now\"]")
+        );
 
         let links = graph.find_by_tag("a");
         assert_eq!(links.len(), 1);

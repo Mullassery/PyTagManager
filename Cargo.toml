@@ -6,16 +6,24 @@ description = "Rust core (crawler + semantic DOM graph engine) for PyTagManager"
 
 [lib]
 name = "_core"
-crate-type = ["cdylib"]
+# "rlib" is added alongside "cdylib" so `cargo test`'s integration tests
+# (tests/*.rs) can link against and directly exercise the crawler/dom
+# modules (e.g. orchestrator::crawl against a local mock server) without
+# going through the PyO3/Python boundary. maturin only uses the cdylib
+# artifact, so this is additive and does not change the built wheel.
+crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 pyo3 = { version = "0.22", features = ["extension-module"] }
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
 scraper = "0.20"
 roxmltree = "0.20"
 url = "2"
 futures = "0.3"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }
 
 [profile.release]
 lto = true

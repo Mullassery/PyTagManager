@@ -6,6 +6,9 @@ use std::fmt;
 pub enum AppError {
     Http(String),
     InvalidUrl(String),
+    /// Rejected by the SSRF guard: the target URL resolves to a
+    /// loopback/private/link-local/cloud-metadata address.
+    Blocked(String),
 }
 
 impl fmt::Display for AppError {
@@ -13,6 +16,7 @@ impl fmt::Display for AppError {
         match self {
             AppError::Http(msg) => write!(f, "HTTP error: {}", msg),
             AppError::InvalidUrl(msg) => write!(f, "Invalid URL: {}", msg),
+            AppError::Blocked(msg) => write!(f, "Blocked by SSRF guard: {}", msg),
         }
     }
 }

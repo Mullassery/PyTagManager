@@ -39,7 +39,10 @@ impl RobotsRules {
     }
 
     pub fn is_allowed(&self, path: &str) -> bool {
-        !self.disallow.iter().any(|rule| path.starts_with(rule.as_str()))
+        !self
+            .disallow
+            .iter()
+            .any(|rule| path.starts_with(rule.as_str()))
     }
 }
 

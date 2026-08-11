@@ -27,7 +27,12 @@ pub struct Page {
 #[pymethods]
 impl Page {
     fn __repr__(&self) -> String {
-        format!("Page(url='{}', status={}, nodes={})", self.url, self.status, self.graph.nodes.len())
+        format!(
+            "Page(url='{}', status={}, nodes={})",
+            self.url,
+            self.status,
+            self.graph.nodes.len()
+        )
     }
 }
 
@@ -37,7 +42,30 @@ pub async fn crawl(
     concurrency: usize,
     respect_robots: bool,
 ) -> Result<Vec<Page>, AppError> {
-    let fetcher = Arc::new(Fetcher::new());
+    crawl_with_fetcher(
+        Fetcher::new(),
+        start_url,
+        max_pages,
+        concurrency,
+        respect_robots,
+    )
+    .await
+}
+
+/// Same as `crawl`, but with an explicit `Fetcher`. `crawl` above is the
+/// only real (CLI/Python-facing) entry point and always passes
+/// `Fetcher::new()`, which has the SSRF guard enabled. This variant is
+/// exposed so integration tests can pass a `Fetcher::with_ssrf_guard(false)`
+/// to exercise the BFS/batching loop against a local mock HTTP server on
+/// loopback, which the guard would otherwise correctly refuse to fetch.
+pub async fn crawl_with_fetcher(
+    fetcher: Fetcher,
+    start_url: &str,
+    max_pages: usize,
+    concurrency: usize,
+    respect_robots: bool,
+) -> Result<Vec<Page>, AppError> {
+    let fetcher = Arc::new(fetcher);
     let mut frontier = Frontier::new(start_url, max_pages)?;
     let base = Url::parse(start_url)?;
 

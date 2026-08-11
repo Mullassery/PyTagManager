@@ -22,7 +22,7 @@ pub fn compute_stable_selector(tag: &str, attributes: &HashMap<String, String>) 
         .iter()
         .filter(|(k, v)| k.starts_with("data-") && !v.is_empty())
         .collect();
-    data_attrs.sort_by(|(k1, _), (k2, _)| k1.cmp(k2));
+    data_attrs.sort_by_key(|(k1, _)| *k1);
     if let Some((k, v)) = data_attrs.first() {
         return Some(format!("[{}=\"{}\"]", k, v));
     }
@@ -47,19 +47,28 @@ mod tests {
     use super::*;
 
     fn attrs(pairs: &[(&str, &str)]) -> HashMap<String, String> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
     }
 
     #[test]
     fn prefers_data_testid_over_id() {
         let a = attrs(&[("data-testid", "buy-now"), ("id", "btn-1")]);
-        assert_eq!(compute_stable_selector("button", &a).as_deref(), Some("[data-testid=\"buy-now\"]"));
+        assert_eq!(
+            compute_stable_selector("button", &a).as_deref(),
+            Some("[data-testid=\"buy-now\"]")
+        );
     }
 
     #[test]
     fn falls_back_to_sorted_data_attr() {
         let a = attrs(&[("data-zeta", "z"), ("data-alpha", "a")]);
-        assert_eq!(compute_stable_selector("div", &a).as_deref(), Some("[data-alpha=\"a\"]"));
+        assert_eq!(
+            compute_stable_selector("div", &a).as_deref(),
+            Some("[data-alpha=\"a\"]")
+        );
     }
 
     #[test]

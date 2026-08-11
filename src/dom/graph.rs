@@ -61,7 +61,11 @@ impl SemanticGraph {
     }
 
     fn __repr__(&self) -> String {
-        format!("SemanticGraph(url='{}', nodes={})", self.url, self.nodes.len())
+        format!(
+            "SemanticGraph(url='{}', nodes={})",
+            self.url,
+            self.nodes.len()
+        )
     }
 
     /// Case-insensitive lookup of all nodes with the given tag name.
