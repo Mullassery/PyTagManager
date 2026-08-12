@@ -6,7 +6,7 @@ platform, described in full in Appendix A (web-focused) and Appendix B
 slice of that vision** — everything else is roadmap, not vaporware claimed
 as done.
 
-## What v1 actually implements
+## What's implemented
 
 | Capability | Status | Where |
 |---|---|---|
@@ -14,39 +14,99 @@ as done.
 | Semantic DOM graph (static HTML structure, selectors, ARIA) | **Implemented** | `src/dom/` (Rust) |
 | Selector resilience (data-testid / data-* / aria-label / id priority) | **Implemented** | `src/dom/selectors.rs` |
 | Rule-based tracking recommendations (keyword-driven, deterministic) | **Implemented** | `python/pytagmanager/recommend/heuristics.py` |
-| GTM JSON export | **Implemented** | `python/pytagmanager/export/gtm.py` |
-| CLI (`pytagmanager crawl ...`) | **Implemented** | `python/pytagmanager/cli.py` |
-| AI business intent classification (LLM-backed, e.g. Claude) | Interface stub only, not implemented | `python/pytagmanager/intent/base.py` |
-| Visual understanding (screenshots, computer vision) | Not started | — |
-| Runtime behavior capture (real browser, clicks/hovers/network) | Not started | — |
-| XDM-native event modeling (Adobe) | Not started | — |
-| Enterprise audit engine (GTM/Adobe/Tealium/Segment/Snowplow import + gap analysis) | Not started | — |
-| Version control / change detection across crawls | Not started | — |
-| Non-GTM exporters (Adobe Tags, GA4, Segment, Snowplow, Tealium, RudderStack) | Not started | — |
-| Any non-web platform (Android, iOS, kiosk, desktop, IoT, AR/VR, wearables, voice) | Not started | — |
+| CLI (`pytagmanager crawl ...`, `pytagmanager diff ...`) | **Implemented** | `python/pytagmanager/cli.py` |
+| Non-GTM exporters (GA4, Segment, Snowplow, Tealium, RudderStack, Adobe Tags) | **Implemented** | `python/pytagmanager/export/{gtm,ga4,segment,snowplow,tealium,rudderstack,adobe_tags}.py`, registered in `export/base.py`'s `EXPORTERS` |
+| Version control / change detection across crawls | **Implemented** | `python/pytagmanager/version_control/{snapshot,diff}.py`, wired into the CLI as `crawl --save-snapshot` / `pytagmanager diff` |
+| AI business intent classification (LLM-backed) | **Implemented** (local model via Ollama, not a hosted API — see note below) | `python/pytagmanager/intent/ollama_classifier.py` |
+| Visual understanding (screenshots, computer vision) | **Deliberately deferred** — see note below | — |
+| Runtime behavior capture (real browser, clicks/hovers/network) | **Deliberately deferred** — see note below | — |
+| XDM-native event modeling (Adobe) | **Deliberately deferred** — see note below | — |
+| Enterprise audit engine (GTM/Adobe/Tealium/Segment/Snowplow import + gap analysis) | **Deliberately deferred** — see note below | — |
+| Any non-web platform (Android, iOS, kiosk, desktop, IoT, AR/VR, wearables, voice) | **Deliberately deferred** — see note below | — |
 
-Notably: v1's DOM graph is built from **static HTML only**. Fields the
+Notably: the DOM graph is built from **static HTML only**. Fields the
 original spec calls for that require a real browser renderer — bounding
 box, z-index, visibility state, scroll position, shadow DOM, iframe
 context — are not derivable from a static parse and are out of scope until
 a Python-side Playwright layer (Phase 3/4 in Appendix A) hands rendered
 HTML back through `parse_html()`, which is already designed to accept it.
 
-v1's "AI explainability" is a rule-based stand-in: every recommendation
-carries a `rationale` string naming exactly which signals fired (text,
-class, id, aria-label). This gives the same *shape* of output the AI
-intent classifier will eventually produce, so swapping in a real
-classifier later doesn't require changing callers — see
-`pytagmanager.intent.base.IntentClassifier`.
+The rule-based recommendation engine's "AI explainability" (every
+recommendation carries a `rationale` string naming exactly which signals
+fired — text, class, id, aria-label) gives the same *shape* of output the
+AI intent classifier produces, so `heuristics.py`'s deterministic engine
+and `OllamaIntentClassifier`'s model-backed one are interchangeable from a
+caller's perspective — see `pytagmanager.intent.base.IntentClassifier`.
+
+### AI business intent classification: what's actually running
+
+`python/pytagmanager/intent/ollama_classifier.py`'s `OllamaIntentClassifier`
+is a real, working `IntentClassifier` implementation backed by a **locally
+running Ollama model** (default `qwen2.5:0.5b`), not the Anthropic API —
+this development environment has no Anthropic API credentials, and calling
+a local open-weights model "Claude" would misrepresent what's running. It
+talks to Ollama's HTTP API (`http://localhost:11434`) via the standard
+library only, using Ollama's structured-output mode (`format: "json"`) to
+get a parseable `{business_objective, confidence, rationale}` classification
+constrained to the same taxonomy `heuristics.py` uses. If Ollama isn't
+running, isn't serving the requested model, or returns something that
+doesn't parse, `classify()` falls back to the deterministic keyword
+heuristic (`recommend.heuristics.classify_node_keywords`) rather than
+raising, and the returned `rationale` always says which path was taken.
+
+`pytagmanager.intent.base.ClaudeIntentClassifier` is kept as-is (still
+raising `NotImplementedError`) as the named seam for a *real* Claude API
+integration later, once API credentials are available — it is intentionally
+not renamed or repurposed to mean "the Ollama one."
+
+### Deliberately deferred (not built this pass, and why)
+
+These five items are genuinely out of scope for this pass — not silently
+dropped, but each deferred for a distinct, specific reason:
+
+- **Visual understanding (screenshots, computer vision)** — this is a
+  fundamentally different crawling paradigm (rendered-page/pixel analysis
+  vs. the static-HTML DOM graph this project builds today) that would need
+  its own rendering pipeline, its own test/validation approach (visual
+  regression, not JSON-shape assertions), and a multimodal model — a new
+  subsystem, not an extension of the existing one.
+- **Runtime behavior capture (real browser clicks/hovers/network
+  simulation)** — same underlying reason: it requires driving a real
+  browser (Playwright/Chromium) and observing live JS execution, event
+  listeners, and network traffic, an entirely different execution model
+  from parsing static HTML, with a correspondingly larger and different
+  testing surface (flaky-by-nature browser automation vs. deterministic
+  parsing).
+- **XDM-native event modeling (Adobe)** — Adobe Experience Platform's XDM
+  schema system (identity fields, commerce/product/cart objects, mixins,
+  schema registries) is a deep, Adobe-proprietary modeling layer distinct
+  from the tag/rule authoring surface `export/adobe_tags.py` targets;
+  correctly enterprise-tier and out of scope here.
+- **Enterprise audit engine** (importing and gap-analyzing existing
+  GTM/Adobe/Tealium/Segment/Snowplow configurations against discovered
+  interactions) — this is explicitly named "enterprise" in this doc's own
+  Phase 9/Appendix A spec, and is architecturally a different feature
+  (import + compare + gap-report) from what this pass built (generate +
+  export forward). Building it would mean writing an importer/parser for
+  five different platforms' live configuration formats, not just their
+  documented export schemas.
+- **Non-web platforms** (Android, iOS, kiosk, desktop, IoT, AR/VR,
+  wearables, voice) — an entirely different product surface (native app
+  instrumentation, hardware peripherals, platform-specific SDKs) with no
+  shared code path with the Rust/Python web crawler core; correctly out of
+  scope for a web-focused tool.
 
 ## Extension points for future work
 
-- **New exporter**: implement the `Exporter` protocol in
-  `python/pytagmanager/export/base.py`, following the pattern in `gtm.py`.
-- **AI intent classification**: implement `IntentClassifier` in
-  `python/pytagmanager/intent/base.py` (a `ClaudeIntentClassifier` stub
-  already exists, targeting the Anthropic API per the project's stated
-  provider preference — it currently raises `NotImplementedError`).
+- **New exporter**: implement `build_<platform>_config(recommendations) ->
+  dict` following the pattern in `export/gtm.py` (or any of the newer
+  exporters), and register it in `export/base.py`'s `EXPORTERS` dict — the
+  CLI's `--export` choice list is generated from that dict, so no CLI
+  changes are needed.
+- **AI intent classification**: `IntentClassifier` in
+  `python/pytagmanager/intent/base.py` now has a real implementation
+  (`OllamaIntentClassifier`, see above); a future real Claude API
+  integration would fill in `ClaudeIntentClassifier` the same way.
 - **Browser rendering / runtime behavior**: a Python layer using Playwright
   can call `pytagmanager._core.parse_html(rendered_html, url)` directly to
   get a semantic graph from rendered (not just static) HTML, and layer

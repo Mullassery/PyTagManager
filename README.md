@@ -1,22 +1,25 @@
 # PyTagManager
 
 An AI-native analytics implementation platform: crawl a website, build a
-semantic DOM graph, generate tracking recommendations, and export a
-ready-to-review GTM container — without hand-inspecting the DOM or writing
-CSS selectors by hand.
+semantic DOM graph, generate tracking recommendations, export to seven
+analytics/tag-management platforms, track how a site's tracking surface
+changes over time, and (optionally) classify business intent with a local
+LLM — without hand-inspecting the DOM or writing CSS selectors by hand.
 
-**v1 scope**: web crawling + semantic DOM graph (Rust) → rule-based tracking
-recommendations + GTM export (Python). This is a deliberately scoped first
-slice of a much larger long-term vision — see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for what's implemented today
-versus the full roadmap (visual AI, runtime behavior capture, LLM-based
-intent classification, XDM modeling, an audit engine, and non-web
-platforms).
+**Current scope**: web crawling + semantic DOM graph (Rust) → rule-based
+tracking recommendations (Python) → export to GTM, GA4, Segment, Snowplow,
+Tealium, RudderStack, and Adobe Tags → crawl-to-crawl diffing → optional
+Ollama-backed AI intent classification. This is a deliberately scoped slice
+of a much larger long-term vision — see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full capability
+table and what's deliberately deferred (visual AI, runtime behavior
+capture, XDM modeling, an enterprise audit engine, and non-web platforms —
+each with a specific reason, not a blanket "not yet").
 
 ## Architecture
 
 - **Rust core** (`src/`, via [PyO3](https://pyo3.rs)/[maturin](https://www.maturin.rs)): async crawler (link discovery, sitemap.xml, robots.txt, BFS with dedup) and a semantic DOM graph engine (XPath/CSS/stable-selector generation per element).
-- **Python layer** (`python/pytagmanager/`): orchestration, rule-based tracking recommendations, and exporters, built on top of the compiled Rust extension.
+- **Python layer** (`python/pytagmanager/`): orchestration, rule-based tracking recommendations, exporters, crawl-snapshot diffing, and an optional local-LLM intent classifier, built on top of the compiled Rust extension.
 
 ```
 pytagmanager crawl <url>
@@ -26,9 +29,11 @@ pytagmanager crawl <url>
         │
         ▼
   Python: recommend_for_graph() — rule-based CTA/form detection
+    (or, optionally: intent.OllamaIntentClassifier — local-LLM-backed)
         │
-        ▼
-  Python: build_gtm_container() — GTM JSON export
+        ├──▶ export/{gtm,ga4,segment,snowplow,tealium,rudderstack,adobe_tags}.py
+        │
+        └──▶ version_control/snapshot.py — save a snapshot for `pytagmanager diff`
 ```
 
 ## Quickstart
@@ -42,11 +47,50 @@ maturin develop          # builds the Rust extension, installs pytagmanager edit
 pytagmanager crawl https://example.com --max-pages 20 --export gtm -o out.json
 ```
 
+`--export` accepts `gtm`, `ga4`, `segment`, `snowplow`, `tealium`,
+`rudderstack`, or `adobe_tags` (see `python/pytagmanager/export/base.py`'s
+`EXPORTERS` registry).
+
+### Tracking crawl-to-crawl changes
+
+```bash
+pytagmanager crawl https://example.com --save-snapshot baseline.json
+# ... site changes, or crawl again later ...
+pytagmanager crawl https://example.com --save-snapshot latest.json
+pytagmanager diff baseline.json latest.json
+```
+
+Reports added/removed pages, added/removed/changed DOM elements (matched by
+stable selector where available), and added/removed tracking
+recommendations. See `python/pytagmanager/version_control/`.
+
+### AI business intent classification (optional, local-only)
+
+`pytagmanager.intent.ollama_classifier.OllamaIntentClassifier` implements
+the same `IntentClassifier` interface as the deterministic heuristics
+engine, but backed by a locally running [Ollama](https://ollama.com) model
+(default `qwen2.5:0.5b`) instead of keyword matching:
+
+```python
+from pytagmanager.intent.ollama_classifier import OllamaIntentClassifier
+from pytagmanager.intent.base import PageContext
+
+classifier = OllamaIntentClassifier()  # talks to http://localhost:11434
+result = classifier.classify(node, PageContext(url=page_url, page_title=title))
+```
+
+Requires `ollama serve` running locally with the model pulled (`ollama pull
+qwen2.5:0.5b`). If Ollama isn't reachable, `classify()` falls back
+automatically to the deterministic keyword heuristic rather than raising —
+this is **not** the Anthropic API (no credentials are used or required);
+see `docs/ARCHITECTURE.md` for why it's named `Ollama...` rather than
+`Claude...`, and where a real Claude-backed classifier would plug in later.
+
 ## Development
 
 ```bash
 cargo test               # Rust unit tests (selectors, robots.txt, sitemap parsing, DOM parsing)
-pytest tests/python -v   # Python tests (heuristics, GTM export)
+pytest tests/python -v   # Python tests (heuristics, exporters, diffing, intent classification)
 ```
 
 macOS note: this repo includes `.cargo/config.toml` with the linker flags
@@ -59,7 +103,7 @@ doesn't).
 ```
 Cargo.toml / pyproject.toml   # Rust crate + maturin/Python packaging
 src/                          # Rust: crawler/ + dom/ (semantic graph, selectors)
-python/pytagmanager/          # Python: discovery/ recommend/ intent/ export/ cli.py
+python/pytagmanager/          # Python: discovery/ recommend/ intent/ export/ version_control/ cli.py
 tests/python/                 # Python tests + HTML fixtures (Rust tests live next to their modules)
-docs/ARCHITECTURE.md          # v1-implemented vs. planned, plus the full long-term spec
+docs/ARCHITECTURE.md          # implemented vs. deliberately deferred, plus the full long-term spec
 ```

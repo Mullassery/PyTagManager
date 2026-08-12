@@ -53,6 +53,20 @@ def _classify(node: SemanticNode) -> Optional[Tuple[str, str, str, List[str]]]:
     return None
 
 
+def classify_node_keywords(node: SemanticNode) -> Optional[Tuple[str, str, str, List[str]]]:
+    """Public wrapper around the deterministic keyword classifier used by
+    `recommend_for_graph`. Exposed so other callers needing a
+    single-element (rather than whole-graph) deterministic classification
+    can reuse it instead of reimplementing keyword matching -- notably
+    `pytagmanager.intent.ollama_classifier.OllamaIntentClassifier`, which
+    falls back to this when the local Ollama model is unavailable.
+
+    Returns `(matched_keyword, business_objective, event_category, signals)`
+    or `None` if no CTA keyword matched.
+    """
+    return _classify(node)
+
+
 def _selector_fallbacks(node: SemanticNode) -> List[str]:
     fallbacks = []
     if node.stable_selector:
