@@ -82,9 +82,9 @@ result = classifier.classify(node, PageContext(url=page_url, page_title=title))
 Requires `ollama serve` running locally with the model pulled (`ollama pull
 qwen2.5:0.5b`). If Ollama isn't reachable, `classify()` falls back
 automatically to the deterministic keyword heuristic rather than raising —
-this is **not** the Anthropic API (no credentials are used or required);
-see `docs/ARCHITECTURE.md` for why it's named `Ollama...` rather than
-`Claude...`, and where a real Claude-backed classifier would plug in later.
+this runs entirely locally, with no cloud LLM API calls or credentials
+required; see `docs/ARCHITECTURE.md` for where a future cloud-LLM-backed
+classifier would plug in via the same `IntentClassifier` interface.
 
 ## Development
 
@@ -97,6 +97,23 @@ macOS note: this repo includes `.cargo/config.toml` with the linker flags
 PyO3 extension-module crates need for plain `cargo build`/`cargo test` to
 work outside of maturin (maturin sets these automatically; raw `cargo`
 doesn't).
+
+## Known Issues
+
+- No LICENSE file is currently committed to this repository. The package
+  metadata does not declare a license either — this should be resolved
+  before relying on this repo's licensing terms for anything.
+- No open GitHub issues and no `TODO`/`FIXME` markers in `src/` or
+  `python/` as of this pass — the gaps that exist are the deliberately
+  deferred phases tracked in `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`
+  (runtime/visual grounding, AI intent classification beyond the local
+  Ollama fallback, multi-platform data-layer export, XDM modeling, the
+  audit engine, and non-web platforms), not undocumented rot.
+- `ClaudeIntentClassifier` referenced in `docs/ROADMAP.md`'s Phase 2 is
+  planned, not implemented; `python/pytagmanager/intent/base.py`'s
+  `IntentClassifier` protocol has only one real implementation today
+  (`OllamaIntentClassifier`), plus the deterministic rule-based heuristics
+  used by default.
 
 ## Project layout
 
