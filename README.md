@@ -1,5 +1,10 @@
 # PyTagManager
 
+[![CI](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.1.2-blue)](https://github.com/Mullassery/PyTagManager/releases)
+[![License](https://img.shields.io/badge/license-Proprietary-blue)](LICENSE)
+[![PyPI](https://img.shields.io/badge/PyPI-pytagmanager-blue)](https://pypi.org/project/pytagmanager/)
+
 An AI-native analytics implementation platform: crawl a website, build a
 semantic DOM graph, generate tracking recommendations, export to seven
 analytics/tag-management platforms, track how a site's tracking surface
@@ -100,9 +105,6 @@ doesn't).
 
 ## Known Issues
 
-- No LICENSE file is currently committed to this repository. The package
-  metadata does not declare a license either — this should be resolved
-  before relying on this repo's licensing terms for anything.
 - No open GitHub issues and no `TODO`/`FIXME` markers in `src/` or
   `python/` as of this pass — the gaps that exist are the deliberately
   deferred phases tracked in `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`

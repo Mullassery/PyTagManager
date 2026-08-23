@@ -3,6 +3,7 @@ name = "pytagmanager"
 version = "0.1.2"
 edition = "2021"
 description = "Rust core (crawler + semantic DOM graph engine) for PyTagManager"
+license = "Proprietary"
 
 [lib]
 name = "_core"
