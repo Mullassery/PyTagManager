@@ -6,6 +6,7 @@ build-backend = "maturin"
 name = "pytagmanager"
 version = "0.1.2"
 description = "AI-native analytics implementation platform (v1: crawl -> semantic DOM graph -> rule-based tracking recommendations -> GTM export)"
+readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "Proprietary License — Free to use with explicit attribution"}
 dependencies = ["click>=8.0"]
