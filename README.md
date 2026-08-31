@@ -1,7 +1,7 @@
 # PyTagManager
 
 [![CI](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.1.2-blue)](https://github.com/Mullassery/PyTagManager/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0-blue)](https://github.com/Mullassery/PyTagManager/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-pytagmanager-blue)](https://pypi.org/project/pytagmanager/)
 
