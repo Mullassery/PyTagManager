@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head><title>SPA Tracking Fixture</title></head>
+<body>
+<button data-testid="nav-products">Go to Products</button>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.querySelector('[data-testid="nav-products"]').addEventListener('click', function () {
+    // Route changes but deliberately never pushes the page_view event a
+    // real SPA analytics integration should fire on navigation.
+    history.pushState({}, '', '/products');
+  });
+</script>
+</body>
+</html>

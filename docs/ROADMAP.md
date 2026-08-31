@@ -86,7 +86,9 @@ unlocks the next rather than requiring a big-bang integration.
 | # | Phase | Status | Size | Builds on | Spec reference |
 |---|---|---|---|---|---|
 | 0 | Foundation: crawl + DOM graph + rule-based recommendations + GTM export | **Shipped** | — | — | Appendix A, Phases 1, 2, 6 (partial) |
-| 1 | Runtime & visual grounding | Planned | L | 0 | Appendix A, Phases 3–4 |
+| 0.5 | Tracking Observability & Diagnostics (real-browser interaction → dataLayer → GTM → GA4 correlation + rule-based diagnosis) | **Shipped** | — | 0 (reuses `recommend_for_graph` for auto-scenario discovery) | not in original spec; see "Tracking Observability" note below |
+| 1 | Runtime & visual grounding | **Partially shipped** (runtime interaction/network verification landed as Phase 0.5; visual/screenshot grounding for *discovering new* recommendations is still planned) | L | 0 | Appendix A, Phases 3–4 |
+| 1.5 | Site-Wide Tagging QA & Runtime Observer Audit | **Shipped** | — | 0.5 | not in original spec; see note below |
 | 2 | AI business intent classification | Planned | M/L | 0, 1 | Appendix A, Phase 5 |
 | 3 | Data layer recommendations + multi-platform export | Planned | M | 0, 2 | Appendix A, Phases 6–7 |
 | 4 | Adobe XDM & enterprise schema modeling | Planned | M | 3 | Appendix A, Phase 8 |
@@ -110,6 +112,122 @@ Rust crawler (sitemap/robots/BFS/dedup) + semantic DOM graph engine
 architecture end-to-end and to give every later phase a real base to
 extend rather than a diagram. See `docs/ARCHITECTURE.md` for exact
 implementation status.
+
+### Phase 0.5 — Tracking Observability & Diagnostics *(shipped)*
+
+Not part of the original 10-phase spec (Appendices A/B) — added because
+knowing *what should be tracked* (Phase 0) is only half the problem;
+knowing *whether it's actually working right now* is the other half, and
+enterprises lose more to silently-broken tracking than to undiscovered
+CTAs. Drives a real headless browser (Playwright), observes the full
+interaction → DOM mutation → dataLayer → GTM → GA4 → network chain via a
+lightweight injected agent, correlates it into per-interaction
+`TrackingJourney` records, and runs 11 deterministic rules (10 from the
+design spec plus a content-pattern PII scan) to produce a plain-language
+root-cause diagnosis — not a raw event log. Optionally cross-checks
+against the *live* GTM Management API and GA4 Admin/Data API when the
+caller supplies their own credentials. See `docs/ARCHITECTURE.md`'s
+"Tracking Observability & Diagnostics: what's actually running" section
+for the full architecture and `pytagmanager diagnose --help` / the
+README's Tracking Observability section for usage.
+
+Phase 0.5 answers "is *this* interaction tracked correctly"; Phase 1.5
+(below) answers "is the *entire site* consistently tracked correctly."
+
+### Phase 1.5 — Site-Wide Tagging QA & Runtime Observer Audit *(shipped)*
+
+**Goal:** extend Phase 0.5 from "diagnose one journey" to "diagnose an
+entire site and tell me which failures are isolated pages vs. systemic
+template/component regressions" — without changing Phase 0.5's
+architecture, only building on top of it.
+
+- **More observer types**, added to the same `observability/agent.js`
+  (not a parallel subsystem): `fetch()`/`XMLHttpRequest` interception
+  (app-level API calls, source `application_api`, correlated via a new
+  `rule_api_call_without_tracking_event` against whether a corresponding
+  tracking event followed), `console.error` + `unhandledrejection`
+  capture (supplementing the existing `window.onerror` hook), and an
+  opt-in `IntersectionObserver`-based visibility watcher
+  (`startVisibilityObserver`/`stopVisibilityObserver`) for
+  impression/viewability tracking.
+- **Page-type/template detection** (`sitewide/templates.py`): clusters
+  crawled pages using two signals — URL path pattern (numeric/UUID/slug
+  segments generalized to `{param}`) as the primary key, with a
+  DOM-class-fingerprint similarity merge for pages that share a structure
+  without a shared URL pattern. This is a heuristic, documented as such;
+  it groups *likely*-related pages, not a site's authoritative information
+  architecture.
+- **Cross-page consistency + site-wide tracking matrix**
+  (`sitewide/aggregation.py`, `sitewide/report.py`): aggregates
+  `TrackingJourney`/`Diagnosis` results across a crawl by template,
+  surfaces pass/fail rates per event (the spec's own "51/342 product pages
+  missing `add_to_cart`" example is a direct unit test), and renders a
+  page/template/site tracking-health matrix with 0–100 health scores.
+  Coverage metrics that have no supporting observations (e.g. no consent
+  events seen anywhere) report `None`/"N/A", never a fabricated number.
+- **Statistical anomaly detection** (`sitewide/anomalies.py`): flags
+  outliers *within* an otherwise-healthy template population, distinct
+  from the pass/fail regressions above — a page firing an event far more
+  than its template's own observed average (e.g. "one page firing 4× the
+  template's normal `page_view` count"), and a page whose GTM
+  container/GA4 measurement ID disagrees with the rest of its template.
+  Both computed relative to what was actually observed on other pages in
+  the same template, never a hardcoded threshold.
+- **Ecommerce-specific validation** (`rule_ecommerce_missing_parameters`,
+  `find_duplicate_purchases`): required-parameter checks per GA4 ecommerce
+  event (`transaction_id`/`currency`/`items`/`value`), and a cross-journey
+  check for the same `transaction_id` firing `purchase` more than once
+  anywhere in a session.
+- **Confidence-labeled root cause**: `Diagnosis` now carries a
+  `confidence` field (Confirmed/Highly likely/Possible/Needs
+  investigation) alongside `severity`, so e.g. a JS-error correlation is
+  labeled "Possible" while a directly-observed missing event is
+  "Confirmed" — severity says how bad it is, confidence says how sure the
+  rule is *why*.
+
+- **Semantic page-type classification** (`sitewide/page_type.py`,
+  `--semantic-labels`): relabels templates using a locally running Ollama
+  model instead of the URL-segment heuristic, following exactly the
+  pattern `intent/ollama_classifier.py` established for element-level
+  intent — a fixed page-type taxonomy, a privacy-conscious page summary
+  (title/headings/CTA text, never full HTML), and a deterministic
+  URL-keyword fallback when Ollama isn't reachable. Off by default; the
+  original URL-segment labels are unchanged unless `--semantic-labels` is
+  passed.
+
+- **Historical scores + regression alerting** (`sitewide/history.py`,
+  `sitewide/notify.py`, `--history`/`--alert-webhook`/`--alert-threshold`):
+  appends each `--site-wide` run's overall + per-template scores to a
+  plain JSON file (same append-and-diff philosophy as
+  `version_control.snapshot`), flags a >= threshold point drop versus the
+  immediately preceding recorded run, and optionally POSTs a
+  Slack-compatible `{"text": ...}` webhook alert when one fires. This is
+  the ObservePoint-inspired "weekly audits; alert on decline" idea from
+  the original design, minus the scheduler: `diagnose --site-wide
+  --history ...` still runs once and exits, so *triggering* it on a
+  cadence is the caller's own cron/CI, not something PyTagManager embeds.
+
+Wired into the CLI as `pytagmanager diagnose <url> --site-wide` (crawls
+via the existing `discovery.crawl_site`, incompatible with `--scenario`
+since site-wide aggregation needs more than one page). See
+`docs/ARCHITECTURE.md`'s Tracking Observability section and the README
+for usage.
+
+**Still deferred:** the scheduler that decides *when* to run `diagnose
+--site-wide --history ...` again — deliberately the caller's cron/CI, not
+something this CLI tool embeds itself.
+
+**Bug fixed during this phase's own testing:** the default (`--scenario`-
+less) auto-discovery path was asserting that a clicked element's runtime
+dataLayer event must exactly match `recommend.heuristics`'s own invented
+label (e.g. `"purchase_intent"`) — a label real sites never literally
+push — so `rule_event_name_mismatch` fired on essentially every
+auto-discovered page. A history-based regression test requiring two
+*genuinely different* scores between a healthy and a broken fixture page
+surfaced that both scored 0. Fixed by having auto-derived expectations
+assert only "some dataLayer event fired," not a specific name; hand-
+authored `--scenario` expectations are unaffected (see
+`docs/ARCHITECTURE.md` for the detailed before/after).
 
 ### Phase 1 — Runtime & Visual Grounding
 

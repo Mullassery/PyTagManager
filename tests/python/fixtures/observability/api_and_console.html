@@ -1,0 +1,25 @@
+<!doctype html>
+<html>
+<head><title>API + Console Fixture</title></head>
+<body>
+<button data-testid="cart-with-tracking">Add (tracked)</button>
+<button data-testid="cart-without-tracking">Add (gap)</button>
+<button data-testid="throw-console-error">Trigger console error</button>
+<div style="margin-top: 2000px;" data-testid="impression-target">Below the fold</div>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.querySelector('[data-testid="cart-with-tracking"]').addEventListener('click', function () {
+    fetch('/api/cart', { method: 'POST' }).then(function () {
+      dataLayer.push({ event: 'add_to_cart', value: 9.99 });
+    });
+  });
+  document.querySelector('[data-testid="cart-without-tracking"]').addEventListener('click', function () {
+    // API call happens but the app never generates the expected tracking event.
+    fetch('/api/cart', { method: 'POST' });
+  });
+  document.querySelector('[data-testid="throw-console-error"]').addEventListener('click', function () {
+    console.error('Something went wrong in checkout');
+  });
+</script>
+</body>
+</html>

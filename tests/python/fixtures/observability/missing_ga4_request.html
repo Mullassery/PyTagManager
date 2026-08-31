@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+<head><title>Missing GA4 Request Fixture</title></head>
+<body>
+<button data-testid="add-to-cart">Add to Cart</button>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.querySelector('[data-testid="add-to-cart"]').addEventListener('click', function () {
+    // Pushes to dataLayer but never actually sends a network request --
+    // simulates a GTM tag that's misconfigured/disabled downstream.
+    dataLayer.push({ event: 'add_to_cart', value: 19.99 });
+  });
+</script>
+</body>
+</html>

@@ -16,8 +16,16 @@ pytagmanager = "pytagmanager.cli:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+diagnostics = [
+    "playwright>=1.40",
+    "pyyaml>=6.0",
+    "google-api-python-client>=2.100",
+    "google-auth>=2.23",
+    "google-auth-oauthlib>=1.1",
+]
 
 [tool.maturin]
 python-source = "python"
 module-name = "pytagmanager._core"
 features = ["pyo3/extension-module"]
+include = ["LICENSE"]

@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head><title>Duplicate Tracking Fixture</title></head>
+<body>
+<button data-testid="add-to-cart">Add to Cart</button>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.querySelector('[data-testid="add-to-cart"]').addEventListener('click', function () {
+    dataLayer.push({ event: 'add_to_cart', value: 19.99 });
+    dataLayer.push({ event: 'add_to_cart', value: 19.99 });
+    fetch('https://www.google-analytics.com/g/collect?v=2&en=add_to_cart&tid=G-TEST123');
+    fetch('https://www.google-analytics.com/g/collect?v=2&en=add_to_cart&tid=G-TEST123');
+  });
+</script>
+</body>
+</html>

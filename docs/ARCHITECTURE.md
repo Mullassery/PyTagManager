@@ -18,8 +18,19 @@ as done.
 | Non-GTM exporters (GA4, Segment, Snowplow, Tealium, RudderStack, Adobe Tags) | **Implemented** | `python/pytagmanager/export/{gtm,ga4,segment,snowplow,tealium,rudderstack,adobe_tags}.py`, registered in `export/base.py`'s `EXPORTERS` |
 | Version control / change detection across crawls | **Implemented** | `python/pytagmanager/version_control/{snapshot,diff}.py`, wired into the CLI as `crawl --save-snapshot` / `pytagmanager diff` |
 | AI business intent classification (LLM-backed) | **Implemented** (local model via Ollama, not a hosted API — see note below) | `python/pytagmanager/intent/ollama_classifier.py` |
+| Tracking Observability & Diagnostics: real-browser interaction/DOM-mutation/dataLayer/SPA-navigation/consent capture | **Implemented** | `python/pytagmanager/observability/{agent.js,session.py,scenario.py}` |
+| Tracking Observability: event correlation into per-interaction journeys | **Implemented** | `python/pytagmanager/correlation/journey.py` |
+| Tracking Observability: live GTM Management API + GA4 Admin/Data API config & realtime-ingestion cross-check | **Implemented** (requires the caller's own GCP credentials — see note below) | `python/pytagmanager/analytics_api/{gtm_client,ga4_client}.py` |
+| Tracking Observability: rule-based diagnostic engine + terminal/JSON reporting | **Implemented** (deterministic, no LLM) | `python/pytagmanager/diagnostics/rules.py`, `python/pytagmanager/reporting/` |
+| Site-Wide Tagging QA: fetch/XHR/console-error/visibility observers | **Implemented** | `python/pytagmanager/observability/agent.js` |
+| Site-Wide Tagging QA: page-template detection (URL pattern + DOM fingerprint clustering) | **Implemented** (heuristic — see note below) | `python/pytagmanager/sitewide/templates.py` |
+| Site-Wide Tagging QA: semantic page-type classification (LLM-backed, optional relabeling of templates) | **Implemented** (local model via Ollama, deterministic URL-keyword fallback) | `python/pytagmanager/sitewide/page_type.py`, `diagnose --site-wide --semantic-labels` |
+| Site-Wide Tagging QA: cross-page consistency, tracking matrix, template/site health scoring | **Implemented** | `python/pytagmanager/sitewide/{aggregation,report}.py`, wired into `diagnose --site-wide` |
+| Site-Wide Tagging QA: ecommerce parameter validation, duplicate-purchase detection, confidence-labeled diagnoses | **Implemented** | `diagnostics/rules.py`'s `rule_ecommerce_missing_parameters`/`find_duplicate_purchases`, `Diagnosis.confidence` |
+| Runtime/client-rendered DOM discovery for *generating new* recommendations (SPA content invisible to the static crawler) | **Deliberately deferred** — see note below | — |
+| Statistical anomaly detection across a site-wide crawl (unusual event repetition, GTM/GA4 config drift relative to a template's own norm) | **Implemented** | `python/pytagmanager/sitewide/anomalies.py`, wired into `diagnose --site-wide` |
+| Historical tracking-health scores + regression detection + webhook alerting across runs | **Implemented** (recurring invocation itself is left to the caller's cron/CI — see note below) | `python/pytagmanager/sitewide/{history,notify}.py`, `diagnose --site-wide --history ... --alert-webhook ...` |
 | Visual understanding (screenshots, computer vision) | **Deliberately deferred** — see note below | — |
-| Runtime behavior capture (real browser, clicks/hovers/network) | **Deliberately deferred** — see note below | — |
 | XDM-native event modeling (Adobe) | **Deliberately deferred** — see note below | — |
 | Enterprise audit engine (GTM/Adobe/Tealium/Segment/Snowplow import + gap analysis) | **Deliberately deferred** — see note below | — |
 | Any non-web platform (Android, iOS, kiosk, desktop, IoT, AR/VR, wearables, voice) | **Deliberately deferred** — see note below | — |
@@ -59,24 +70,159 @@ raising `NotImplementedError`) as the named seam for a *real* Claude API
 integration later, once API credentials are available — it is intentionally
 not renamed or repurposed to mean "the Ollama one."
 
+### Tracking Observability & Diagnostics: what's actually running
+
+This is a genuinely working real-browser subsystem, not a stub — it
+requires `pip install pytagmanager[diagnostics]` (Playwright, PyYAML,
+`google-api-python-client`) and, once, `playwright install chromium`.
+Architecture, deliberately separated per stage so no diagnostic logic
+leaks into browser instrumentation:
+
+```
+observability/agent.js + session.py   -- COLLECTION (browser observes; never diagnoses)
+        │  TrackingEvent stream (observability/events.py)
+        ▼
+correlation/journey.py                -- CORRELATION ("X appears related to Y")
+        │  TrackingJourney per interaction
+        ▼
+diagnostics/rules.py                  -- DIAGNOSIS ("given X+Y+Z, the likely failure is A")
+        │  Diagnosis (severity, root_cause, message)
+        ▼
+reporting/{terminal,json_report}.py   -- REPORTING ("explain A to the user")
+```
+
+`analytics_api/{gtm_client,ga4_client}.py` are real, complete
+implementations of the GTM Management API v2 and GA4 Admin/Data API
+clients (request shaping, response normalization, and the GTM
+`customEventFilter` → literal-event-name extraction that
+`diagnostics.rules.rule_event_name_mismatch` depends on) — what's
+credential-gated is *live* verification against a real account, not the
+implementation itself; both clients are unit-tested against injected fake
+API resources (`tests/python/test_analytics_api_clients.py`) precisely so
+correctness doesn't depend on having those credentials. Without
+`--gtm-container`/`--ga4-property` + credentials, `diagnose` still runs
+fully on hand-authored scenario expectations (`observability/scenario.py`)
+or the crawl's own static recommendations — the live-config cross-check is
+additive evidence, not a hard requirement.
+
+The 10 spec-defined diagnostic rules plus an 11th
+(`rule_pii_leak`, content-pattern PII detection inspired by ObservePoint's
+PII Detection feature — distinct from `events.redact_payload`'s
+key-name-based redaction, which runs earlier and unconditionally on every
+collected payload) are all deterministic; no LLM is in this path,
+matching the spec's own "must work without an LLM" requirement. See
+`diagnostics/rules.py`'s `REGISTRY` list to add a new one — same registry
+pattern as `export/base.py`'s `EXPORTERS`.
+
+**Auto-discovered expectations use a weaker claim than hand-authored
+ones, on purpose.** `observability/scenario.py`'s
+`auto_scenario_from_recommendations()` (the default, `--scenario`-less
+path) asserts `any_datalayer_event`, not `datalayer_event`: the
+recommendation's `event_name` (e.g. `"purchase_intent"`) is a label
+`recommend.heuristics` invented for PyTagManager's own taxonomy, not a
+prediction of the literal name a real site pushes (almost always
+something else, like `"add_to_cart"`). An earlier version of this
+asserted an exact-name match here, which meant `rule_event_name_mismatch`
+fired on essentially every auto-discovered page on a real site — a bug
+caught by `test_diagnose_site_wide_history_detects_regression_and_alerts`
+requiring two *genuinely different* health scores between a healthy and a
+broken fixture, which surfaced that both were scoring 0. `expected_datalayer_event()`
+returns a name only for real (`datalayer_event`-kind) hand-authored
+assertions; `expects_any_datalayer_event()` is the weaker "some event
+fired" check the rules that must work for both paths
+(`rule_missing_datalayer_event`, `rule_js_error_blocking`,
+`rule_api_call_without_tracking_event`) use instead.
+
+### Site-Wide Tagging QA: what's actually running
+
+Builds on Tracking Observability without changing its architecture:
+`sitewide/templates.py` clusters the pages a `diagnose --site-wide` crawl
+visits into templates (URL-pattern generalization, with a DOM-class-
+fingerprint similarity merge for pages that share a structure without a
+shared URL shape); `sitewide/aggregation.py` regroups the same
+`TrackingJourney`/`Diagnosis` objects Phase 0.5 already produces by
+template to compute pass/fail rates per event
+(`analyze_template_consistency` — the spec's own "51 of 342 product pages
+missing `add_to_cart`" example is a direct unit test,
+`test_analyze_template_consistency_flags_minority_regression`) and
+0–100 health scores (`compute_template_health`/`compute_site_health`);
+`sitewide/report.py` renders the tracking matrix. `observability/agent.js`
+gained `fetch()`/`XMLHttpRequest` wrapping (source `application_api`,
+event type `api_call`) and `console.error`/`unhandledrejection` capture,
+both feeding the same `TrackingEvent` stream and `REGISTRY` rule engine
+Phase 0.5 already had — no parallel pipeline. `Diagnosis` gained a
+`confidence` field (Confirmed/Highly likely/Possible/Needs investigation)
+alongside `severity`, so e.g. `rule_js_error_blocking`'s correlation-based
+finding is labeled "Possible" rather than presented with the same
+certainty as a directly-observed `rule_missing_datalayer_event` ("Confirmed").
+
+Template labels default to a **naming heuristic, not semantic
+understanding**: a `/deals` page labeled "Deals" is accurate because
+that's literally its URL segment, not because PyTagManager understands
+what a deals page is for. `diagnose --site-wide --semantic-labels` adds a
+real semantic layer on top, mirroring `intent/ollama_classifier.py`'s
+pattern exactly: `sitewide/page_type.py`'s `OllamaPageTypeClassifier`
+sends a privacy-conscious summary of a sampled page (title, headings, CTA
+text — never full HTML or form values) to a locally running Ollama model,
+which picks one of a fixed page-type taxonomy (Homepage/Product/Category/
+Cart/Checkout/Confirmation/.../Other); `assign_semantic_labels` relabels
+each template by majority vote across a sample of its pages. If Ollama
+isn't reachable, `HeuristicPageTypeClassifier`'s URL-keyword matching
+(`checkout`, `cart`, `account`, ...) is used instead — same
+graceful-degradation shape as `OllamaIntentClassifier`, and `--site-wide`
+still works with the original URL-segment labels when `--semantic-labels`
+isn't passed at all (default behavior is unchanged).
+
+`sitewide/anomalies.py` adds outlier detection *within* an otherwise-passing
+template population, distinct from `analyze_template_consistency`'s
+pass/fail-rate regressions: `detect_template_anomalies` flags a page firing
+a business event far more than its template's own observed average (never
+a hardcoded threshold), and separately flags a page whose GTM container ID
+or GA4 measurement ID (parsed from the `gtm.js`/collect request URLs
+already captured by the network layer) disagrees with the rest of its
+template. Both need at least two data points to compute a norm against —
+a single page can't be anomalous relative to itself.
+
+`sitewide/history.py` + `sitewide/notify.py` add the "did this get worse
+since last time" question across separate `--site-wide` runs: `--history
+PATH` appends the run's overall + per-template scores to a plain JSON
+file (same append-and-diff philosophy as
+`pytagmanager.version_control.snapshot` — no database) and
+`detect_regression` flags a >= `--alert-threshold` point drop (default 5)
+at the site or template level versus the *immediately preceding* recorded
+run. `--alert-webhook URL` (requires `--history`) POSTs a
+`{"text": "..."}` payload to any webhook URL when a regression fires —
+that shape is Slack's incoming-webhook format, so it works there with no
+Slack-specific SDK, and equally for any generic JSON-accepting endpoint.
+What's deliberately not built: the scheduler that decides *when* to run
+`diagnose --site-wide --history ...` again — that's the caller's cron/CI,
+by design (see "Deliberately deferred" below).
+
 ### Deliberately deferred (not built this pass, and why)
 
-These five items are genuinely out of scope for this pass — not silently
+These items are genuinely out of scope for this pass — not silently
 dropped, but each deferred for a distinct, specific reason:
 
+- **Runtime/client-rendered DOM discovery for *generating new*
+  recommendations** — Tracking Observability's browser *verifies* whether
+  already-known interactions (from a crawl's static recommendations or a
+  hand-authored scenario) behave correctly at runtime; it does not feed
+  discovered client-rendered DOM back into `recommend_for_graph()` to find
+  *new* trackable elements invisible to the static HTTP-fetch crawler.
+  Those are different problems — verification vs. discovery — and only
+  the first was in scope here.
+- **The scheduler itself** — `diagnose --site-wide --history` records and
+  compares scores (see the new subsection below); *triggering* it weekly
+  (or on any cadence) is left to the caller's own cron/CI, deliberately.
+  PyTagManager is a CLI that runs once and exits; embedding a scheduler
+  into it would be the wrong layer for that concern, the same way `git`
+  doesn't schedule its own `git fetch`.
 - **Visual understanding (screenshots, computer vision)** — this is a
   fundamentally different crawling paradigm (rendered-page/pixel analysis
   vs. the static-HTML DOM graph this project builds today) that would need
   its own rendering pipeline, its own test/validation approach (visual
   regression, not JSON-shape assertions), and a multimodal model — a new
   subsystem, not an extension of the existing one.
-- **Runtime behavior capture (real browser clicks/hovers/network
-  simulation)** — same underlying reason: it requires driving a real
-  browser (Playwright/Chromium) and observing live JS execution, event
-  listeners, and network traffic, an entirely different execution model
-  from parsing static HTML, with a correspondingly larger and different
-  testing surface (flaky-by-nature browser automation vs. deterministic
-  parsing).
 - **XDM-native event modeling (Adobe)** — Adobe Experience Platform's XDM
   schema system (identity fields, commerce/product/cart objects, mixins,
   schema registries) is a deep, Adobe-proprietary modeling layer distinct
@@ -107,10 +253,25 @@ dropped, but each deferred for a distinct, specific reason:
   `python/pytagmanager/intent/base.py` now has a real implementation
   (`OllamaIntentClassifier`, see above); a future real Claude API
   integration would fill in `ClaudeIntentClassifier` the same way.
-- **Browser rendering / runtime behavior**: a Python layer using Playwright
-  can call `pytagmanager._core.parse_html(rendered_html, url)` directly to
-  get a semantic graph from rendered (not just static) HTML, and layer
-  runtime observation (clicks, network calls, data layer pushes) on top.
+- **Browser rendering for new-recommendation discovery**: Playwright is
+  now in the codebase (`observability/session.py`), but only for
+  *verifying* already-known interactions. Feeding its rendered HTML back
+  through `pytagmanager._core.parse_html(rendered_html, url)` to run
+  `recommend_for_graph()` against client-rendered (not just static) DOM —
+  finding *new* trackable elements a SPA only renders after JS runs — is
+  the remaining half of this extension point.
+- **New observer type**: add a listener to `observability/agent.js`
+  emitting a new `event_type` (see `observability/events.py`'s
+  `EVENT_TYPES`), map it to a stage in
+  `correlation/journey.py`'s `_STAGE_BY_EVENT_TYPE` if it represents a new
+  correlation stage, and it's automatically available to every
+  `diagnostics/rules.py` rule without touching the correlation engine —
+  this is how `fetch`/`XHR`/`console`/`IntersectionObserver` observers
+  (see "Deliberately deferred" above) would plug in.
+- **New diagnostic rule**: add a
+  `(TrackingJourney, DiagnosticContext) -> Optional[Diagnosis]` function to
+  `diagnostics/rules.py` and register it in `REGISTRY` — same pattern as
+  `export/base.py`'s `EXPORTERS`.
 - **Other platforms** (mobile/kiosk/desktop/etc.): entirely new discovery
   engines, out of scope for the Rust/Python web core built here.
 

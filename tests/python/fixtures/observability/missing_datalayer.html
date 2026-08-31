@@ -1,0 +1,11 @@
+<!doctype html>
+<html>
+<head><title>Missing DataLayer Fixture</title></head>
+<body>
+<button data-testid="add-to-cart">Add to Cart</button>
+<script>
+  // Deliberately does nothing on click -- simulates a broken/never-wired handler.
+  document.querySelector('[data-testid="add-to-cart"]').addEventListener('click', function () {});
+</script>
+</body>
+</html>
