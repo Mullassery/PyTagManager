@@ -31,9 +31,43 @@ _CTA_KEYWORDS: List[Tuple[str, str, str]] = [
     ("get started", "Lead Generation", "conversion"),
     ("learn more", "Content Engagement", "engagement"),
     ("search", "Search", "engagement"),
+    # Added for Phase 1.8 (docs/VISION.md §14): broaden interactive-element
+    # discovery beyond CTA/forms so the browser-behavior investigation
+    # engine has more real interactions to test than just purchase/lead-gen
+    # buttons -- menus, accordions/tabs, dropdowns, pagination, filters,
+    # modals, video, and cart/wishlist modification. Multi-word phrases
+    # are preferred over risky short substrings (e.g. "play" would match
+    # inside "display"); see the ordering note above for why.
+    ("remove from cart", "Cart Modification", "ecommerce"),
+    ("add to wishlist", "Wishlist Intent", "ecommerce"),
+    ("save for later", "Wishlist Intent", "ecommerce"),
+    ("wishlist", "Wishlist Intent", "ecommerce"),
+    ("apply filter", "Content Discovery", "engagement"),
+    ("filter by", "Content Discovery", "engagement"),
+    ("filter", "Content Discovery", "engagement"),
+    ("sort by", "Content Discovery", "engagement"),
+    ("next page", "Pagination", "engagement"),
+    ("previous page", "Pagination", "engagement"),
+    ("load more", "Pagination", "engagement"),
+    ("show more", "Content Engagement", "engagement"),
+    ("play video", "Video Engagement", "engagement"),
+    ("watch video", "Video Engagement", "engagement"),
+    ("open menu", "Navigation", "engagement"),
+    ("hamburger", "Navigation", "engagement"),
+    ("menu", "Navigation", "engagement"),
+    ("close modal", "Modal Interaction", "engagement"),
+    ("dismiss", "Modal Interaction", "engagement"),
+    ("expand", "Content Engagement", "engagement"),
+    ("collapse", "Content Engagement", "engagement"),
 ]
 
 _CTA_TAGS = {"a", "button"}
+
+# ARIA roles treated as interactive regardless of tag name -- a custom
+# component (e.g. a <div role="tab">) is just as real an interaction
+# target as a native <button>, and modern component libraries (menus,
+# tabs, accordions) very often aren't <button>/<a> at all.
+_INTERACTIVE_ROLES = {"button", "tab", "menuitem", "menu", "link", "checkbox", "radio", "switch", "option"}
 
 
 def _classify(node: SemanticNode) -> Optional[Tuple[str, str, str, List[str]]]:
@@ -103,7 +137,7 @@ def recommend_for_graph(graph: SemanticGraph) -> List[TrackingRecommendation]:
     recommendations: List[TrackingRecommendation] = []
 
     for node in graph.nodes:
-        if node.tag in _CTA_TAGS or node.aria_role == "button":
+        if node.tag in _CTA_TAGS or node.aria_role in _INTERACTIVE_ROLES:
             match = _classify(node)
             if match is None:
                 continue

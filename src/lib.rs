@@ -26,13 +26,16 @@ use dom::{SemanticGraph, SemanticNode};
 /// semantic DOM graph. Blocks the calling Python thread but releases the
 /// GIL while the async crawl runs internally on a Tokio runtime.
 #[pyfunction]
-#[pyo3(signature = (start_url, max_pages=50, concurrency=10, respect_robots=true))]
+#[pyo3(signature = (start_url, max_pages=50, concurrency=10, respect_robots=true, rate_limit_per_sec=None, headers=vec![]))]
+#[allow(clippy::too_many_arguments)]
 fn crawl(
     py: Python<'_>,
     start_url: &str,
     max_pages: usize,
     concurrency: usize,
     respect_robots: bool,
+    rate_limit_per_sec: Option<f64>,
+    headers: Vec<(String, String)>,
 ) -> PyResult<Vec<Page>> {
     let result: Result<Vec<Page>, error::AppError> = py.allow_threads(|| {
         let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
@@ -41,6 +44,8 @@ fn crawl(
             max_pages,
             concurrency,
             respect_robots,
+            rate_limit_per_sec,
+            headers,
         ))
     });
     result.map_err(PyErr::from)

@@ -305,6 +305,69 @@
     flushTimer = setTimeout(flushMutations, MUTATION_DEBOUNCE_MS);
   }
 
+  // ---- Runtime state capture: localStorage / sessionStorage / dataLayer
+  // snapshot (Phase 1.6). Cookies are deliberately NOT captured here --
+  // document.cookie can't see HttpOnly cookies, so session.py captures
+  // those via Playwright's CDP-backed BrowserContext.cookies() instead,
+  // which can. This is a point-in-time read via __ptm.captureState(),
+  // not a streamed event -- called directly from Python via
+  // page.evaluate(), the same way startMutationObserver() already is. ----
+  var DATALAYER_SNAPSHOT_CAP = 500;
+
+  function classifyStorageValue(raw) {
+    if (raw === null || raw === undefined || raw === "") {
+      return { type: "empty", length: 0 };
+    }
+    try {
+      var parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return { type: "json_array", length: raw.length };
+      if (parsed !== null && typeof parsed === "object") return { type: "json_object", length: raw.length };
+      if (typeof parsed === "boolean") return { type: "boolean", length: raw.length };
+      if (typeof parsed === "number") return { type: "number", length: raw.length };
+    } catch (e) {
+      // Not valid JSON -- treat as a plain string, the common case for
+      // storage values (most are not JSON-encoded).
+    }
+    return { type: "string", length: raw.length };
+  }
+
+  function captureStorage(storage, includeValues) {
+    var out = {};
+    if (!storage) return out;
+    try {
+      for (var i = 0; i < storage.length; i++) {
+        var key = storage.key(i);
+        if (key === null) continue;
+        var raw = storage.getItem(key);
+        var meta = classifyStorageValue(raw);
+        out[key] = { type: meta.type, length: meta.length };
+        if (includeValues) out[key].value = raw;
+      }
+    } catch (e) {
+      // Storage access can throw (Safari ITP, a sandboxed iframe, storage
+      // disabled by the user/browser) -- report what we could, not an error.
+    }
+    return out;
+  }
+
+  function captureDataLayerSnapshot() {
+    var dl = window.dataLayer || [];
+    var truncated = dl.length > DATALAYER_SNAPSHOT_CAP;
+    var items = truncated ? dl.slice(dl.length - DATALAYER_SNAPSHOT_CAP) : dl.slice();
+    var safe = [];
+    for (var i = 0; i < items.length; i++) {
+      try {
+        // Round-trip through JSON to drop functions/DOM nodes/circular
+        // refs a page might (rarely) have pushed, rather than letting
+        // page.evaluate()'s own serialization throw on the whole snapshot.
+        safe.push(JSON.parse(JSON.stringify(items[i])));
+      } catch (e) {
+        safe.push({ __unserializable: true });
+      }
+    }
+    return { items: safe, truncated: truncated };
+  }
+
   window.__ptm = {
     // selectors: array of CSS selectors to scope observation to (default:
     // document.body, still filtered to INTERESTING_TAGS to bound volume).
@@ -396,6 +459,20 @@
         visibilityObserver = null;
       }
       seenVisibleSelectors = {};
+    },
+
+    // Point-in-time snapshot of localStorage/sessionStorage/dataLayer.
+    // `includeValues` is false unless the caller explicitly asked for raw
+    // values (session.py's `capture_storage_values` opt-in) -- see the
+    // privacy note in observability/state.py.
+    captureState: function (includeValues) {
+      var dataLayerSnapshot = captureDataLayerSnapshot();
+      return {
+        localStorage: captureStorage(window.localStorage, !!includeValues),
+        sessionStorage: captureStorage(window.sessionStorage, !!includeValues),
+        dataLayer: dataLayerSnapshot.items,
+        dataLayerTruncated: dataLayerSnapshot.truncated,
+      };
     },
   };
 })();

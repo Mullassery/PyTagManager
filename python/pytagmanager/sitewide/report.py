@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from pytagmanager.sitewide.aggregation import SiteHealthReport, TemplateConsistencyReport, TemplateHealth
 from pytagmanager.sitewide.anomalies import Anomaly
+from pytagmanager.sitewide.interaction_consistency import BusinessActionConsistencyReport
 
 
 def _pct(value: Optional[float]) -> str:
@@ -30,8 +31,10 @@ def render_site_health_report(
     site_health: SiteHealthReport,
     consistency_reports: List[TemplateConsistencyReport],
     anomalies: Optional[List[Anomaly]] = None,
+    business_action_reports: Optional[List[BusinessActionConsistencyReport]] = None,
 ) -> str:
     anomalies = anomalies or []
+    business_action_reports = business_action_reports or []
     lines = ["PyTagManager Site Health", "=" * 25, ""]
     lines.append(f"{site_health.pages_scanned} pages scanned")
     lines.append(f"Overall tracking health score: {site_health.overall_score}/100")
@@ -70,6 +73,21 @@ def render_site_health_report(
             lines.append(f"  - {anomaly.message}")
         lines.append("")
 
+    inconsistent = [r for r in business_action_reports if not r.is_consistent]
+    if inconsistent:
+        lines.append("Cross-Implementation Consistency (same business action, different pages)")
+        lines.append("-" * 72)
+        for report in inconsistent:
+            names = ", ".join(report.distinct_event_names)
+            lines.append(
+                f"  - {report.business_objective}: {report.fired_count} implementation(s) fired, "
+                f"{len(report.distinct_event_names)} different event name(s) observed ({names})"
+            )
+            for impl in report.implementations:
+                status = impl.observed_event_name if impl.fired else "(no event fired)"
+                lines.append(f"      {impl.page_url} [{impl.selector}] -> {status}")
+        lines.append("")
+
     lines.append("Site-Wide Tracking Matrix")
     lines.append("-" * 25)
     lines.append(f"{'Template':<22}{'GTM':>8}{'GA4':>8}{'DataLayer':>12}{'Errors':>8}")
@@ -91,8 +109,10 @@ def build_site_health_json(
     site_health: SiteHealthReport,
     consistency_reports: List[TemplateConsistencyReport],
     anomalies: Optional[List[Anomaly]] = None,
+    business_action_reports: Optional[List[BusinessActionConsistencyReport]] = None,
 ) -> dict:
     anomalies = anomalies or []
+    business_action_reports = business_action_reports or []
     return {
         "schema_version": 1,
         "pages_scanned": site_health.pages_scanned,
@@ -148,5 +168,24 @@ def build_site_health_json(
                 "details": anomaly.details,
             }
             for anomaly in anomalies
+        ],
+        "business_action_consistency": [
+            {
+                "business_objective": report.business_objective,
+                "is_consistent": report.is_consistent,
+                "distinct_event_names": report.distinct_event_names,
+                "fired_count": report.fired_count,
+                "untested_or_silent_count": report.untested_or_silent_count,
+                "implementations": [
+                    {
+                        "page_url": impl.page_url,
+                        "selector": impl.selector,
+                        "observed_event_name": impl.observed_event_name,
+                        "fired": impl.fired,
+                    }
+                    for impl in report.implementations
+                ],
+            }
+            for report in business_action_reports
         ],
     }

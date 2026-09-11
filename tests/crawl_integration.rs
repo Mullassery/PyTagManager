@@ -363,3 +363,73 @@ async fn ssrf_guard_blocks_start_url_and_crawl_returns_empty_rather_than_errorin
         .expect("a blocked/failed fetch should not fail the whole crawl");
     assert!(pages.is_empty());
 }
+
+#[tokio::test]
+async fn custom_headers_are_sent_with_every_request() {
+    let mut routes = HashMap::new();
+    routes.insert("/".to_string(), MockResponse::html("<html><body>ok</body></html>"));
+
+    let server = MockServer::start(routes).await;
+    let fetcher = Fetcher::build(
+        false,
+        None,
+        &[
+            ("Cookie".to_string(), "session=abc123".to_string()),
+            ("X-Api-Key".to_string(), "secret".to_string()),
+        ],
+    )
+    .expect("valid headers should build a Fetcher");
+
+    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 1, true)
+        .await
+        .expect("crawl should succeed");
+    assert_eq!(pages.len(), 1);
+
+    let sent = server
+        .last_received_headers("/")
+        .expect("the server should have recorded a request to /");
+    assert!(
+        sent.contains(&("cookie".to_string(), "session=abc123".to_string())),
+        "expected Cookie header to be sent, got {sent:?}"
+    );
+    assert!(
+        sent.contains(&("x-api-key".to_string(), "secret".to_string())),
+        "expected X-Api-Key header to be sent, got {sent:?}"
+    );
+}
+
+#[tokio::test]
+async fn fetch_retries_a_503_and_returns_the_eventual_success() {
+    let mut routes = HashMap::new();
+    routes.insert("/".to_string(), MockResponse::html("<html><body>start</body></html>"));
+
+    let server = MockServer::start(routes).await;
+    server.set_sequence(
+        "/flaky",
+        vec![
+            MockResponse::text(503, "try again later"),
+            MockResponse::html("<html><body>recovered</body></html>"),
+        ],
+    );
+    server.set_route(
+        "/".to_string(),
+        MockResponse::html(r#"<html><body><a href="/flaky">flaky</a></body></html>"#),
+    );
+
+    let fetcher = Fetcher::with_ssrf_guard(false);
+    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 1, true)
+        .await
+        .expect("crawl should succeed despite the first 503");
+
+    let base = server.base_url();
+    let flaky = pages
+        .iter()
+        .find(|p| p.url == format!("{base}/flaky"))
+        .expect("the flaky page should eventually succeed and appear in results");
+    assert_eq!(flaky.status, 200);
+    assert_eq!(
+        server.request_count("/flaky"),
+        2,
+        "expected exactly one retry after the initial 503"
+    );
+}

@@ -1,0 +1,19 @@
+<!doctype html>
+<html>
+<head><title>Runtime State Fixture</title></head>
+<body>
+<button data-testid="add-to-cart">Add to Cart</button>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.cookie = "visitor_id=v123; path=/";
+  localStorage.setItem('cart_id', 'c1');
+
+  document.querySelector('[data-testid="add-to-cart"]').addEventListener('click', function () {
+    document.cookie = "session_id=super-secret-session-value; path=/";
+    localStorage.setItem('cart_id', JSON.stringify(["p1", "p2"]));
+    sessionStorage.setItem('checkout_step', 'shipping');
+    dataLayer.push({ event: 'add_to_cart', product_id: 'p2', price: 19.99 });
+  });
+</script>
+</body>
+</html>

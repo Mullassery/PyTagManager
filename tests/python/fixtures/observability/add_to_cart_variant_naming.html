@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+<head><title>Add to Cart Variant Naming Fixture</title></head>
+<body>
+<!-- Same business action ("Add to Cart") as healthy_tracking.html, but this
+     implementation pushes a differently-named/differently-shaped event --
+     used to test cross-page business-action naming consistency (Phase 1.8). -->
+<button data-testid="add-to-cart">Add to Cart</button>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.querySelector('[data-testid="add-to-cart"]').addEventListener('click', function () {
+    dataLayer.push({ event: 'addToCart', productId: 'sku123' });
+  });
+</script>
+</body>
+</html>

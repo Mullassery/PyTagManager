@@ -136,7 +136,7 @@ def test_crawl_output_option_without_export_is_a_no_op(monkeypatch, runner, tmp_
 def test_crawl_passes_options_through_to_crawl_site(monkeypatch, runner):
     captured = {}
 
-    def fake_crawl_site(url, max_pages, concurrency, respect_robots):
+    def fake_crawl_site(url, max_pages, concurrency, respect_robots, **_kwargs):
         captured["url"] = url
         captured["max_pages"] = max_pages
         captured["concurrency"] = concurrency
@@ -164,7 +164,9 @@ def test_crawl_defaults_respect_robots_true(monkeypatch, runner):
     monkeypatch.setattr(
         cli,
         "crawl_site",
-        lambda url, max_pages, concurrency, respect_robots: captured.update(respect_robots=respect_robots)
+        lambda url, max_pages, concurrency, respect_robots, **_kwargs: captured.update(
+            respect_robots=respect_robots
+        )
         or [],
     )
 
@@ -172,6 +174,44 @@ def test_crawl_defaults_respect_robots_true(monkeypatch, runner):
 
     assert result.exit_code == 0
     assert captured["respect_robots"] is True
+
+
+def test_crawl_passes_rate_limit_and_headers_through_to_crawl_site(monkeypatch, runner):
+    captured = {}
+
+    def fake_crawl_site(url, max_pages, concurrency, respect_robots, rate_limit=None, headers=None):
+        captured["rate_limit"] = rate_limit
+        captured["headers"] = headers
+        return []
+
+    monkeypatch.setattr(cli, "crawl_site", fake_crawl_site)
+
+    result = runner.invoke(
+        cli.main,
+        [
+            "crawl",
+            "https://example.com",
+            "--rate-limit",
+            "5",
+            "--header",
+            "Cookie: session=abc123",
+            "--header",
+            "X-Api-Key: secret",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["rate_limit"] == 5.0
+    assert captured["headers"] == [("Cookie", "session=abc123"), ("X-Api-Key", "secret")]
+
+
+def test_crawl_rejects_malformed_header(monkeypatch, runner):
+    monkeypatch.setattr(cli, "crawl_site", lambda *a, **k: [])
+
+    result = runner.invoke(cli.main, ["crawl", "https://example.com", "--header", "not-a-header"])
+
+    assert result.exit_code == 2
+    assert "must be in 'Name: Value' format" in result.output
 
 
 def test_crawl_rejects_unsupported_export_format(monkeypatch, runner):

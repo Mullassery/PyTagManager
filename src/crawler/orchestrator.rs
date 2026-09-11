@@ -36,20 +36,21 @@ impl Page {
     }
 }
 
+/// `rate_limit_per_sec` and `headers` configure the `Fetcher` this builds
+/// (see `Fetcher::build`) -- rate limiting so crawling a production site
+/// you don't control doesn't trip a WAF, and custom headers so
+/// authenticated pages (behind a login cookie, a staging basic-auth
+/// header, etc.) can be crawled at all.
 pub async fn crawl(
     start_url: &str,
     max_pages: usize,
     concurrency: usize,
     respect_robots: bool,
+    rate_limit_per_sec: Option<f64>,
+    headers: Vec<(String, String)>,
 ) -> Result<Vec<Page>, AppError> {
-    crawl_with_fetcher(
-        Fetcher::new(),
-        start_url,
-        max_pages,
-        concurrency,
-        respect_robots,
-    )
-    .await
+    let fetcher = Fetcher::build(true, rate_limit_per_sec, &headers)?;
+    crawl_with_fetcher(fetcher, start_url, max_pages, concurrency, respect_robots).await
 }
 
 /// Same as `crawl`, but with an explicit `Fetcher`. `crawl` above is the

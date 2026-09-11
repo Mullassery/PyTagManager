@@ -16,11 +16,36 @@ def main() -> None:
     """PyTagManager: AI-native analytics implementation platform (v1: crawl -> DOM graph -> recommend -> export)."""
 
 
+def _parse_headers(raw_headers: tuple[str, ...]) -> list[tuple[str, str]]:
+    """Parse repeated `--header 'Name: Value'` CLI options into (name, value) pairs."""
+    parsed = []
+    for raw in raw_headers:
+        if ":" not in raw:
+            raise click.UsageError(f"--header must be in 'Name: Value' format, got: {raw!r}")
+        name, _, value = raw.partition(":")
+        parsed.append((name.strip(), value.strip()))
+    return parsed
+
+
 @main.command()
 @click.argument("url")
 @click.option("--max-pages", default=50, show_default=True, type=int)
 @click.option("--concurrency", default=10, show_default=True, type=int)
 @click.option("--no-robots", is_flag=True, help="Ignore robots.txt")
+@click.option(
+    "--rate-limit",
+    "rate_limit",
+    type=float,
+    default=None,
+    help="Max requests/second. Recommended when crawling a production site you don't control, to avoid tripping a WAF or getting blocked mid-crawl. Unset = no throttling.",
+)
+@click.option(
+    "--header",
+    "raw_headers",
+    multiple=True,
+    metavar="NAME: VALUE",
+    help="Custom request header, e.g. for an authenticated crawl. Repeatable. Format: 'Cookie: session=abc123'.",
+)
 @click.option("--export", "export_format", type=click.Choice(sorted(EXPORTERS)), default=None)
 @click.option("-o", "--output", "output_path", type=click.Path(), default=None)
 @click.option(
@@ -35,13 +60,23 @@ def crawl(
     max_pages: int,
     concurrency: int,
     no_robots: bool,
+    rate_limit: float | None,
+    raw_headers: tuple[str, ...],
     export_format: str | None,
     output_path: str | None,
     snapshot_path: str | None,
 ) -> None:
     """Crawl URL, generate rule-based tracking recommendations, and optionally export them."""
+    headers = _parse_headers(raw_headers)
     click.echo(f"Crawling {url} (max_pages={max_pages}, concurrency={concurrency})...")
-    pages = crawl_site(url, max_pages=max_pages, concurrency=concurrency, respect_robots=not no_robots)
+    pages = crawl_site(
+        url,
+        max_pages=max_pages,
+        concurrency=concurrency,
+        respect_robots=not no_robots,
+        rate_limit=rate_limit,
+        headers=headers,
+    )
     click.echo(f"Crawled {len(pages)} page(s).")
 
     all_recs = []
@@ -84,6 +119,70 @@ def diff(old_snapshot_path: str, new_snapshot_path: str) -> None:
     new = load_snapshot(new_snapshot_path)
     report = diff_snapshots(old, new)
     click.echo(format_diff_report(report))
+
+
+@main.command(name="dictionary")
+@click.argument("url")
+@click.option("--max-pages", default=20, show_default=True, type=int)
+@click.option("--headless/--no-headless", default=True, show_default=True)
+@click.option("--browser", type=click.Choice(["chromium", "firefox", "webkit"]), default="chromium", show_default=True)
+@click.option(
+    "--capture-storage-values",
+    "capture_storage_values",
+    is_flag=True,
+    help="Capture raw cookie/localStorage/sessionStorage values, not just key names/types. Off by default -- see `diagnose --help`'s equivalent flag for the privacy rationale.",
+)
+@click.option("-o", "--output", "output_path", type=click.Path(), default=None)
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+def data_dictionary(
+    url: str,
+    max_pages: int,
+    headless: bool,
+    browser: str,
+    capture_storage_values: bool,
+    output_path: str | None,
+    output_format: str,
+) -> None:
+    """Crawl URL and build a Website Data Dictionary (docs/VISION.md §3):
+    every cookie/localStorage/sessionStorage key and dataLayer field
+    observed across the crawl, where, and how often. Requires
+    `pip install pytagmanager[diagnostics]`.
+    """
+    from pytagmanager.dictionary.build import build_data_dictionary
+    from pytagmanager.dictionary.report import build_dictionary_json, render_dictionary_report
+    from pytagmanager.observability.scenario import auto_scenario_from_recommendations
+    from pytagmanager.observability.session import ObservationSession
+
+    click.echo(f"Crawling {url} (max_pages={max_pages})...", err=True)
+    pages = crawl_site(url, max_pages=max_pages)
+    click.echo(f"Crawled {len(pages)} page(s).", err=True)
+
+    snapshots = []
+    for page in pages:
+        recs = recommend_for_graph(page.graph)
+        scenarios = auto_scenario_from_recommendations(recs, page.url)
+        with ObservationSession(
+            headless=headless, browser_name=browser, capture_storage_values=capture_storage_values
+        ) as session:
+            session.load(page.url)
+            for scenario in scenarios:
+                session.run_scenario(scenario)
+                session.wait(1.0)
+            snapshots.extend(session.state_snapshots)
+
+    result = build_data_dictionary(snapshots)
+
+    if output_format == "json":
+        report = json.dumps(build_dictionary_json(result), indent=2)
+    else:
+        report = render_dictionary_report(result)
+
+    if output_path:
+        with open(output_path, "w") as f:
+            f.write(report)
+        click.echo(f"Wrote data dictionary to {output_path}")
+    else:
+        click.echo(report)
 
 
 @main.command()
@@ -146,6 +245,12 @@ def diff(old_snapshot_path: str, new_snapshot_path: str) -> None:
     type=int,
     help="Minimum point drop in overall or template health score (vs. the previous --history run) to trigger a regression alert.",
 )
+@click.option(
+    "--capture-storage-values",
+    "capture_storage_values",
+    is_flag=True,
+    help="Capture raw cookie/localStorage/sessionStorage values, not just key names/types/lengths. Off by default: these are live session/credential state, a more sensitive class of data than a dataLayer payload. Values for keys that look sensitive (session/token/auth/csrf/...) are still redacted even with this on.",
+)
 def diagnose(
     url: str,
     max_pages: int,
@@ -166,6 +271,7 @@ def diagnose(
     history_path: str | None,
     alert_webhook: str | None,
     alert_threshold: int,
+    capture_storage_values: bool,
 ) -> None:
     """Drive a real browser through URL (or a crawl of it), observe the full
     interaction -> dataLayer -> GTM -> GA4 tracking chain, and diagnose
@@ -212,10 +318,13 @@ def diagnose(
 
     all_journeys = []
     all_untested = []
+    all_state_diffs = []
     expectations_by_selector: dict = {}
 
     for page_url, scenarios, recs in pages_and_scenarios:
-        with ObservationSession(headless=headless, browser_name=browser) as session:
+        with ObservationSession(
+            headless=headless, browser_name=browser, capture_storage_values=capture_storage_values
+        ) as session:
             session.load(page_url)
             for scenario in scenarios:
                 if scenario.steps:
@@ -223,6 +332,7 @@ def diagnose(
                 session.run_scenario(scenario)
                 session.wait(duration)
             events = session.events
+            all_state_diffs.extend(session.state_diffs)
         journeys = correlate_events(events, window_seconds=correlation_window)
         all_journeys.extend(journeys)
         if recs:
@@ -244,6 +354,7 @@ def diagnose(
     if site_wide:
         from pytagmanager.sitewide.aggregation import analyze_template_consistency, compute_site_health
         from pytagmanager.sitewide.anomalies import detect_site_anomalies
+        from pytagmanager.sitewide.interaction_consistency import analyze_business_action_consistency
         from pytagmanager.sitewide.report import build_site_health_json, render_site_health_report
         from pytagmanager.sitewide.templates import detect_templates
 
@@ -257,6 +368,8 @@ def diagnose(
         for rec in all_untested:
             untested_by_page.setdefault(rec.page_url, []).append(rec)
 
+        recs_by_page = {page_url: recs for page_url, _scenarios, recs in pages_and_scenarios}
+
         templates = detect_templates(pages)
         if semantic_labels:
             from pytagmanager.sitewide.page_type import OllamaPageTypeClassifier, assign_semantic_labels
@@ -267,6 +380,7 @@ def diagnose(
         site_health = compute_site_health(templates, journeys_by_page, untested_by_page)
         consistency_reports = [analyze_template_consistency(t, journeys_by_page) for t in templates]
         anomalies = detect_site_anomalies(templates, journeys_by_page)
+        business_action_reports = analyze_business_action_consistency(recs_by_page, diagnosed)
 
         regression = None
         if history_path:
@@ -294,7 +408,7 @@ def diagnose(
                         click.echo("Warning: failed to send regression alert to webhook.", err=True)
 
         if output_format == "json":
-            report_dict = build_site_health_json(site_health, consistency_reports, anomalies)
+            report_dict = build_site_health_json(site_health, consistency_reports, anomalies, business_action_reports)
             if regression:
                 report_dict["regression"] = {
                     "message": regression.message,
@@ -303,15 +417,19 @@ def diagnose(
                 }
             report = json.dumps(report_dict, indent=2)
         else:
-            report = render_site_health_report(site_health, consistency_reports, anomalies)
+            report = render_site_health_report(site_health, consistency_reports, anomalies, business_action_reports)
             if regression:
                 report += f"\n\nREGRESSION: {regression.message}"
     else:
         extra_findings = find_duplicate_purchases(diagnosed)
         if output_format == "json":
-            report = json.dumps(build_json_report(diagnosed, all_untested, extra_findings), indent=2)
+            report = json.dumps(
+                build_json_report(diagnosed, all_untested, extra_findings, all_state_diffs), indent=2
+            )
         else:
-            report = render_terminal_report(diagnosed, all_untested, verbose=verbose, extra_findings=extra_findings)
+            report = render_terminal_report(
+                diagnosed, all_untested, verbose=verbose, extra_findings=extra_findings, state_diffs=all_state_diffs
+            )
 
     if output_path:
         with open(output_path, "w") as f:

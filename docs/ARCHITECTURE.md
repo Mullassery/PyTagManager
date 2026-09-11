@@ -6,6 +6,12 @@ platform, described in full in Appendix A (web-focused) and Appendix B
 slice of that vision** — everything else is roadmap, not vaporware claimed
 as done.
 
+**See `docs/VISION.md`** for the current north-star framing: the product
+is a Website Tagging Intelligence & Runtime State Discovery Platform
+(dataLayer/cookies/storage/network/interactions as first-class data the
+tagging layer consumes), not a URL crawler — Appendices A/B below predate
+that framing and are being read through it going forward.
+
 ## What's implemented
 
 | Capability | Status | Where |
@@ -30,6 +36,11 @@ as done.
 | Runtime/client-rendered DOM discovery for *generating new* recommendations (SPA content invisible to the static crawler) | **Deliberately deferred** — see note below | — |
 | Statistical anomaly detection across a site-wide crawl (unusual event repetition, GTM/GA4 config drift relative to a template's own norm) | **Implemented** | `python/pytagmanager/sitewide/anomalies.py`, wired into `diagnose --site-wide` |
 | Historical tracking-health scores + regression detection + webhook alerting across runs | **Implemented** (recurring invocation itself is left to the caller's cron/CI — see note below) | `python/pytagmanager/sitewide/{history,notify}.py`, `diagnose --site-wide --history ... --alert-webhook ...` |
+| Runtime State Capture: cookies (incl. HttpOnly)/localStorage/sessionStorage/full dataLayer snapshot per page + before/after diffing per interaction | **Implemented** (raw cookie/storage values are opt-in via `--capture-storage-values`; keys/types/lengths are always captured, and sensitive-looking keys are redacted even with the opt-in on) | `python/pytagmanager/observability/state.py`, `session.py`'s `capture_state()`/`state_snapshots`/`state_diffs`, wired into `diagnose`'s terminal/JSON reports |
+| Website Data Dictionary (cross-page variable inventory: cookies/storage/dataLayer, value types, presence frequency) | **Implemented** (presence/frequency only — no presence-vs-availability labeling, schema-drift diffing, or cookie/storage purpose classification yet, see `docs/ROADMAP.md` Phase 1.7) | `python/pytagmanager/dictionary/{build,report}.py`, `pytagmanager dictionary <url>` |
+| Crawler per-host rate limiting (429/503 retry+backoff) and custom request headers for authenticated crawls | **Implemented** | `src/crawler/fetcher.rs`'s `Fetcher::build`, `crawl --rate-limit --header` |
+| Broadened interactive-element discovery (ARIA-role-based, not just `<button>`/`<a>`; menu/accordion/tab/dropdown/pagination/filter/video/wishlist/cart-modification keyword categories) | **Implemented** | `python/pytagmanager/recommend/heuristics.py` |
+| Cross-implementation business-action consistency (does "Add to Cart" fire the same event shape everywhere it appears on the site, across templates) | **Implemented** | `python/pytagmanager/sitewide/interaction_consistency.py`, wired into `diagnose --site-wide` |
 | Visual understanding (screenshots, computer vision) | **Deliberately deferred** — see note below | — |
 | XDM-native event modeling (Adobe) | **Deliberately deferred** — see note below | — |
 | Enterprise audit engine (GTM/Adobe/Tealium/Segment/Snowplow import + gap analysis) | **Deliberately deferred** — see note below | — |

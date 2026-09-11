@@ -72,8 +72,23 @@ _SENSITIVE_KEY_MARKERS = (
     "cvc",
     "ssn",
     "api_key",
+    # Added for Phase 1.6 (runtime state capture): cookie/storage keys are
+    # live session credentials, a materially more sensitive class of value
+    # than a marketing dataLayer payload -- see observability/state.py.
+    "session",
+    "csrf",
 )
 _REDACTED = "[REDACTED]"
+
+
+def is_sensitive_key(key: str) -> bool:
+    """True if `key`'s name alone (regardless of its value) looks like a
+    credential/secret -- shared by `redact_payload` and by
+    `observability.state`'s cookie/storage-key redaction, so the denylist
+    lives in exactly one place.
+    """
+    key_lower = str(key).lower()
+    return any(marker in key_lower for marker in _SENSITIVE_KEY_MARKERS)
 
 
 def redact_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -83,8 +98,7 @@ def redact_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     redacted: Dict[str, Any] = {}
     for key, value in payload.items():
-        key_lower = str(key).lower()
-        if any(marker in key_lower for marker in _SENSITIVE_KEY_MARKERS):
+        if is_sensitive_key(key):
             redacted[key] = _REDACTED
         elif isinstance(value, dict):
             redacted[key] = redact_payload(value)

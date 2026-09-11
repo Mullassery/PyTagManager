@@ -4,7 +4,7 @@
 //! handful of canned GET responses (200/302/404/500 + headers) keyed by
 //! path, so a ~60-line hand-rolled server is simpler than a new dependency.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
@@ -68,6 +68,15 @@ impl MockResponse {
 pub struct MockServer {
     pub addr: SocketAddr,
     routes: Arc<Mutex<HashMap<String, MockResponse>>>,
+    /// Per-path queues of responses to serve in order (for testing retry
+    /// behavior, e.g. 503 then 200); once a queue is down to its last
+    /// entry, that entry keeps being served rather than falling through to
+    /// 404. Checked before `routes`.
+    sequences: Arc<Mutex<HashMap<String, VecDeque<MockResponse>>>>,
+    /// Every request's path plus its request headers (lowercased names),
+    /// in receipt order -- lets tests assert on what the crawler actually
+    /// sent (e.g. a custom `--header`/`Cookie`).
+    received: Arc<Mutex<Vec<(String, Vec<(String, String)>)>>>,
 }
 
 impl MockServer {
@@ -77,19 +86,33 @@ impl MockServer {
             .expect("failed to bind mock server to a loopback port");
         let addr = listener.local_addr().expect("mock server has a local addr");
         let routes = Arc::new(Mutex::new(routes));
+        let sequences = Arc::new(Mutex::new(HashMap::new()));
+        let received = Arc::new(Mutex::new(Vec::new()));
 
         let routes_for_task = Arc::clone(&routes);
+        let sequences_for_task = Arc::clone(&sequences);
+        let received_for_task = Arc::clone(&received);
         tokio::spawn(async move {
             loop {
                 let (socket, _) = match listener.accept().await {
                     Ok(pair) => pair,
                     Err(_) => break,
                 };
-                tokio::spawn(handle_connection(socket, Arc::clone(&routes_for_task)));
+                tokio::spawn(handle_connection(
+                    socket,
+                    Arc::clone(&routes_for_task),
+                    Arc::clone(&sequences_for_task),
+                    Arc::clone(&received_for_task),
+                ));
             }
         });
 
-        Self { addr, routes }
+        Self {
+            addr,
+            routes,
+            sequences,
+            received,
+        }
     }
 
     pub fn base_url(&self) -> String {
@@ -99,11 +122,43 @@ impl MockServer {
     pub fn set_route(&self, path: impl Into<String>, response: MockResponse) {
         self.routes.lock().unwrap().insert(path.into(), response);
     }
+
+    /// Serve `responses` in order for `path` across successive requests;
+    /// the last one repeats indefinitely once the queue is exhausted.
+    pub fn set_sequence(&self, path: impl Into<String>, responses: Vec<MockResponse>) {
+        self.sequences
+            .lock()
+            .unwrap()
+            .insert(path.into(), responses.into());
+    }
+
+    /// Headers (lowercased names) the server received for the given path's
+    /// most recent request, if any.
+    pub fn last_received_headers(&self, path: &str) -> Option<Vec<(String, String)>> {
+        self.received
+            .lock()
+            .unwrap()
+            .iter()
+            .rev()
+            .find(|(p, _)| p == path)
+            .map(|(_, headers)| headers.clone())
+    }
+
+    pub fn request_count(&self, path: &str) -> usize {
+        self.received
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(p, _)| p == path)
+            .count()
+    }
 }
 
 async fn handle_connection(
     socket: tokio::net::TcpStream,
     routes: Arc<Mutex<HashMap<String, MockResponse>>>,
+    sequences: Arc<Mutex<HashMap<String, VecDeque<MockResponse>>>>,
+    received: Arc<Mutex<Vec<(String, Vec<(String, String)>)>>>,
 ) {
     let mut reader = BufReader::new(socket);
 
@@ -112,13 +167,17 @@ async fn handle_connection(
         return;
     }
 
-    // Drain headers up to the blank line; we don't need them (GET only).
+    let mut headers = Vec::new();
     loop {
         let mut line = String::new();
         match reader.read_line(&mut line).await {
             Ok(0) => return,
             Ok(_) if line == "\r\n" || line == "\n" => break,
-            Ok(_) => continue,
+            Ok(_) => {
+                if let Some((name, value)) = line.trim_end().split_once(':') {
+                    headers.push((name.trim().to_lowercase(), value.trim().to_string()));
+                }
+            }
             Err(_) => return,
         }
     }
@@ -129,12 +188,28 @@ async fn handle_connection(
         .unwrap_or("/")
         .to_string();
 
-    let response = {
-        let routes = routes.lock().unwrap();
-        routes
-            .get(&path)
-            .cloned()
-            .unwrap_or_else(MockResponse::not_found)
+    received.lock().unwrap().push((path.clone(), headers));
+
+    let sequenced = {
+        let mut sequences = sequences.lock().unwrap();
+        sequences.get_mut(&path).and_then(|queue| {
+            if queue.len() > 1 {
+                queue.pop_front()
+            } else {
+                queue.front().cloned()
+            }
+        })
+    };
+
+    let response = match sequenced {
+        Some(r) => r,
+        None => {
+            let routes = routes.lock().unwrap();
+            routes
+                .get(&path)
+                .cloned()
+                .unwrap_or_else(MockResponse::not_found)
+        }
     };
 
     let mut out = format!(

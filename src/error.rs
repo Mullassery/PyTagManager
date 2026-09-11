@@ -9,6 +9,9 @@ pub enum AppError {
     /// Rejected by the SSRF guard: the target URL resolves to a
     /// loopback/private/link-local/cloud-metadata address.
     Blocked(String),
+    /// A `--header`/`headers=` value passed to the crawler wasn't a valid
+    /// HTTP header name or value.
+    InvalidHeader(String),
 }
 
 impl fmt::Display for AppError {
@@ -17,6 +20,7 @@ impl fmt::Display for AppError {
             AppError::Http(msg) => write!(f, "HTTP error: {}", msg),
             AppError::InvalidUrl(msg) => write!(f, "Invalid URL: {}", msg),
             AppError::Blocked(msg) => write!(f, "Blocked by SSRF guard: {}", msg),
+            AppError::InvalidHeader(msg) => write!(f, "Invalid header: {}", msg),
         }
     }
 }

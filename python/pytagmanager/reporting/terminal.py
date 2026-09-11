@@ -10,6 +10,7 @@ from typing import List, Optional
 from pytagmanager.correlation.journey import STAGES, TrackingJourney
 from pytagmanager.diagnostics.models import Diagnosis
 from pytagmanager.diagnostics.rules import DiagnosticContext, diagnose_journey, primary_diagnosis
+from pytagmanager.observability.state import StateDiff
 from pytagmanager.recommend.models import TrackingRecommendation
 from pytagmanager.reporting.summary import compute_health_summary
 
@@ -42,6 +43,7 @@ def render_terminal_report(
     untested: Optional[List[TrackingRecommendation]] = None,
     verbose: bool = False,
     extra_findings: Optional[List[Diagnosis]] = None,
+    state_diffs: Optional[List[StateDiff]] = None,
 ) -> str:
     untested = untested or []
     summary = compute_health_summary(journeys, untested)
@@ -78,6 +80,15 @@ def render_terminal_report(
             lines.append(f"  - [{finding.confidence}] {finding.message}")
         lines.append("")
 
+    non_empty_diffs = [d for d in (state_diffs or []) if not d.is_empty]
+    if non_empty_diffs:
+        lines.append("RUNTIME STATE CHANGES")
+        lines.append("-" * 22)
+        for diff in non_empty_diffs:
+            lines.append(f"  {diff.before_label} -> {diff.after_label}")
+            lines.extend(_render_state_diff_changes(diff))
+        lines.append("")
+
     if verbose and untested:
         lines.append("UNTESTED (static candidates found, no runtime confirmation)")
         lines.append("-" * 59)
@@ -90,6 +101,25 @@ def render_terminal_report(
     lines.append(f"Missing-event rate: {summary.missing_event_rate:.1%}")
 
     return "\n".join(lines)
+
+
+def _render_state_diff_changes(diff: StateDiff) -> List[str]:
+    lines = []
+    categories = [
+        ("cookies", diff.cookies_added, diff.cookies_removed, diff.cookies_modified),
+        ("localStorage", diff.local_storage_added, diff.local_storage_removed, diff.local_storage_modified),
+        ("sessionStorage", diff.session_storage_added, diff.session_storage_removed, diff.session_storage_modified),
+    ]
+    for label, added, removed, modified in categories:
+        for key in added:
+            lines.append(f"    + {label}.{key}")
+        for key in removed:
+            lines.append(f"    - {label}.{key}")
+        for key in modified:
+            lines.append(f"    ~ {label}.{key}")
+    for event_name in diff.new_data_layer_events:
+        lines.append(f"    + dataLayer event: {event_name or '(unnamed)'}")
+    return lines
 
 
 def _render_journey(index: int, journey: TrackingJourney) -> List[str]:

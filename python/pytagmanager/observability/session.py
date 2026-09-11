@@ -11,12 +11,14 @@ callers who only need crawl/recommend/export (spec section 22).
 from __future__ import annotations
 
 import re
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 from urllib.parse import parse_qsl, urlparse
 
 from pytagmanager.observability.events import TrackingEvent, redact_payload
 from pytagmanager.observability.scenario import ActionStep, Scenario
+from pytagmanager.observability.state import RuntimeStateSnapshot, StateDiff, diff_state_snapshots
 
 _AGENT_JS_PATH = Path(__file__).parent / "agent.js"
 
@@ -69,12 +71,19 @@ class ObservationSession:
         browser_name: str = "chromium",
         mutation_selectors: Optional[Sequence[str]] = None,
         visibility_selectors: Optional[Sequence[str]] = None,
+        capture_storage_values: bool = False,
     ):
         self.headless = headless
         self.browser_name = browser_name
         self.mutation_selectors = list(mutation_selectors or [])
         self.visibility_selectors = list(visibility_selectors or [])
+        # Runtime State Capture (Phase 1.6): off by default for raw cookie/
+        # storage *values* -- see the privacy note in observability/state.py.
+        # Keys/type/length are always captured regardless of this flag.
+        self.capture_storage_values = capture_storage_values
         self._events: List[TrackingEvent] = []
+        self._state_snapshots: List[RuntimeStateSnapshot] = []
+        self._state_diffs: List[StateDiff] = []
         self._playwright = None
         self._browser = None
         self._page = None
@@ -151,12 +160,40 @@ class ObservationSession:
                 "(selectors) => window.__ptm.startVisibilityObserver(selectors, 0.5)",
                 self.visibility_selectors,
             )
+        self.capture_state("page_load")
+
+    def capture_state(self, label: str) -> RuntimeStateSnapshot:
+        """Snapshot cookies/localStorage/sessionStorage/dataLayer right now,
+        record it, and return it. `label` identifies this point in the page
+        visit (e.g. "page_load", "before:step_0_click",
+        "after:step_0_click") -- see `state_diffs` for the before/after
+        comparison this feeds.
+        """
+        js_state = self._page.evaluate(
+            "(includeValues) => window.__ptm.captureState(includeValues)",
+            self.capture_storage_values,
+        )
+        # Cookies go through Playwright's CDP-backed API, not agent.js's
+        # document.cookie -- the former sees HttpOnly cookies, the latter
+        # can't (see observability/state.py's module docstring).
+        cookies = self._page.context.cookies()
+        snapshot = RuntimeStateSnapshot.from_raw(
+            js_state,
+            cookies=cookies,
+            page_url=self._page.url,
+            timestamp=time.time(),
+            label=label,
+        )
+        self._state_snapshots.append(snapshot)
+        return snapshot
 
     def run_scenario(self, scenario: Scenario, step_timeout_ms: int = 5000) -> None:
-        for step in scenario.steps:
-            self._run_step(step, step_timeout_ms)
+        for index, step in enumerate(scenario.steps):
+            self._run_step(index, step, step_timeout_ms)
 
-    def _run_step(self, step: ActionStep, timeout_ms: int) -> None:
+    def _run_step(self, index: int, step: ActionStep, timeout_ms: int) -> None:
+        step_id = f"step_{index}_{step.action}"
+        before = self.capture_state(f"before:{step_id}")
         locator = self._page.locator(step.selector).first
         try:
             if step.action == "click":
@@ -175,6 +212,8 @@ class ObservationSession:
                     payload={"action": step.action, "error": str(exc)[:300]},
                 )
             )
+        after = self.capture_state(f"after:{step_id}")
+        self._state_diffs.append(diff_state_snapshots(before, after))
 
     def scroll_into_view(self, selector: str) -> None:
         self._page.locator(selector).first.scroll_into_view_if_needed()
@@ -185,3 +224,14 @@ class ObservationSession:
     @property
     def events(self) -> List[TrackingEvent]:
         return list(self._events)
+
+    @property
+    def state_snapshots(self) -> List[RuntimeStateSnapshot]:
+        return list(self._state_snapshots)
+
+    @property
+    def state_diffs(self) -> List[StateDiff]:
+        """One `StateDiff` per scenario step, in step order -- what changed
+        in cookies/localStorage/sessionStorage/dataLayer as a direct result
+        of that interaction."""
+        return list(self._state_diffs)

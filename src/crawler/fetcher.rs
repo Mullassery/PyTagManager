@@ -1,4 +1,9 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use reqwest::header::{HeaderMap, HeaderName, HeaderValue, RETRY_AFTER};
+use tokio::sync::Mutex;
+use tokio::time::{sleep, Duration, Instant};
 
 use crate::error::AppError;
 
@@ -9,11 +14,19 @@ pub struct FetchedPage {
     pub body: String,
 }
 
+/// A 429/503 response is retried at most this many times before being
+/// returned to the caller as-is.
+const MAX_RETRIES: u32 = 3;
+
 pub struct Fetcher {
     client: reqwest::Client,
     /// When true (the default via `Fetcher::new`), every fetch is preceded
     /// by a resolved-IP SSRF check (see `assert_target_not_blocked`).
     ssrf_guard: bool,
+    /// Spaces out requests when crawling a production site you don't
+    /// control -- unset (the default via `new`/`with_ssrf_guard`) means no
+    /// throttling, matching the crawler's pre-existing behavior.
+    rate_limiter: Option<RateLimiter>,
 }
 
 impl Default for Fetcher {
@@ -36,29 +49,66 @@ impl Fetcher {
     /// can drive the crawler against a local mock HTTP server on loopback,
     /// which the guard would otherwise (correctly) refuse to fetch.
     pub fn with_ssrf_guard(enabled: bool) -> Self {
+        Self::build(enabled, None, &[])
+            .expect("Fetcher::with_ssrf_guard never sets custom headers, so header validation cannot fail")
+    }
+
+    /// Full constructor: optionally rate-limit requests (for crawling
+    /// third-party production sites without tripping a WAF or getting
+    /// blocked) and/or attach custom default headers (e.g. `Cookie` /
+    /// `Authorization` for authenticated crawls). The SSRF guard is always
+    /// enabled here -- this is the path `crawler::crawl` (the real
+    /// CLI/Python entry point) uses.
+    pub fn build(
+        ssrf_guard: bool,
+        rate_limit_per_sec: Option<f64>,
+        headers: &[(String, String)],
+    ) -> Result<Self, AppError> {
+        let mut header_map = HeaderMap::new();
+        for (name, value) in headers {
+            let header_name = HeaderName::from_bytes(name.as_bytes())
+                .map_err(|e| AppError::InvalidHeader(format!("invalid header name '{name}': {e}")))?;
+            let header_value = HeaderValue::from_str(value)
+                .map_err(|e| AppError::InvalidHeader(format!("invalid header value for '{name}': {e}")))?;
+            header_map.insert(header_name, header_value);
+        }
         let client = reqwest::Client::builder()
             .user_agent("PyTagManagerBot/0.1 (+https://github.com/pytagmanager)")
+            .default_headers(header_map)
             .build()
             .expect("failed to build HTTP client");
-        Self {
+        Ok(Self {
             client,
-            ssrf_guard: enabled,
-        }
+            ssrf_guard,
+            rate_limiter: rate_limit_per_sec.map(RateLimiter::new),
+        })
     }
 
     pub async fn fetch(&self, url: &str) -> Result<FetchedPage, AppError> {
         if self.ssrf_guard {
             assert_target_not_blocked(url).await?;
         }
-        let resp = self.client.get(url).send().await?;
-        let status = resp.status().as_u16();
-        let final_url = resp.url().to_string();
-        let body = resp.text().await?;
-        Ok(FetchedPage {
-            url: final_url,
-            status,
-            body,
-        })
+        let mut attempt = 0u32;
+        loop {
+            if let Some(limiter) = &self.rate_limiter {
+                limiter.wait_turn().await;
+            }
+            let resp = self.client.get(url).send().await?;
+            let status = resp.status().as_u16();
+            if (status == 429 || status == 503) && attempt < MAX_RETRIES {
+                let wait = retry_after(&resp).unwrap_or_else(|| backoff_duration(attempt));
+                attempt += 1;
+                sleep(wait).await;
+                continue;
+            }
+            let final_url = resp.url().to_string();
+            let body = resp.text().await?;
+            return Ok(FetchedPage {
+                url: final_url,
+                status,
+                body,
+            });
+        }
     }
 
     /// Fetch an optional resource (robots.txt / sitemap.xml): network errors,
@@ -68,6 +118,60 @@ impl Fetcher {
         match self.fetch(url).await {
             Ok(page) if page.status < 400 => Some(page),
             _ => None,
+        }
+    }
+}
+
+/// Reads the `Retry-After` header (seconds form only) off a 429/503
+/// response, so a server's own back-off request is honored over our
+/// exponential guess.
+fn retry_after(resp: &reqwest::Response) -> Option<Duration> {
+    resp.headers()
+        .get(RETRY_AFTER)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(Duration::from_secs)
+}
+
+/// Exponential backoff (250ms, 500ms, 1s, capped at 2s) plus up to 100ms of
+/// jitter so concurrent retries in the same batch don't all wake up and
+/// re-hit the host in lockstep.
+fn backoff_duration(attempt: u32) -> Duration {
+    let base_ms = 250u64 * 2u64.pow(attempt.min(3));
+    let jitter_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| u64::from(d.subsec_millis()) % 100)
+        .unwrap_or(0);
+    Duration::from_millis(base_ms + jitter_ms)
+}
+
+/// A simple single-lane token-bucket-of-one: serializes fetches so no two
+/// requests fire closer together than `min_interval`. Sufficient here
+/// because `Frontier` already restricts a crawl to a single host, so
+/// "global" and "per-host" rate limiting are the same thing for us.
+struct RateLimiter {
+    min_interval: Duration,
+    next_slot: Mutex<Instant>,
+}
+
+impl RateLimiter {
+    fn new(requests_per_second: f64) -> Self {
+        let min_interval = Duration::from_secs_f64(1.0 / requests_per_second.max(0.001));
+        Self {
+            min_interval,
+            next_slot: Mutex::new(Instant::now()),
+        }
+    }
+
+    async fn wait_turn(&self) {
+        let mut next_slot = self.next_slot.lock().await;
+        let now = Instant::now();
+        let scheduled = (*next_slot).max(now);
+        *next_slot = scheduled + self.min_interval;
+        drop(next_slot);
+        let remaining = scheduled.saturating_duration_since(now);
+        if !remaining.is_zero() {
+            sleep(remaining).await;
         }
     }
 }
@@ -230,5 +334,57 @@ mod tests {
             matches!(err, AppError::Http(_)),
             "expected Http, got {err:?}"
         );
+    }
+
+    #[test]
+    fn build_rejects_invalid_header_name() {
+        match Fetcher::build(false, None, &[("bad header".to_string(), "v".to_string())]) {
+            Err(AppError::InvalidHeader(_)) => {}
+            other => panic!("expected InvalidHeader, got {}", describe(other)),
+        }
+    }
+
+    #[test]
+    fn build_rejects_invalid_header_value() {
+        match Fetcher::build(false, None, &[("X-Test".to_string(), "bad\nvalue".to_string())]) {
+            Err(AppError::InvalidHeader(_)) => {}
+            other => panic!("expected InvalidHeader, got {}", describe(other)),
+        }
+    }
+
+    fn describe(result: Result<Fetcher, AppError>) -> String {
+        match result {
+            Ok(_) => "Ok(Fetcher)".to_string(),
+            Err(e) => format!("Err({e})"),
+        }
+    }
+
+    #[test]
+    fn build_accepts_valid_headers() {
+        assert!(Fetcher::build(false, None, &[("Cookie".to_string(), "a=b".to_string())]).is_ok());
+    }
+
+    #[tokio::test]
+    async fn rate_limiter_spaces_out_successive_calls() {
+        let limiter = RateLimiter::new(20.0); // min_interval = 50ms
+        let start = Instant::now();
+        limiter.wait_turn().await; // first call never waits
+        limiter.wait_turn().await;
+        limiter.wait_turn().await;
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed >= Duration::from_millis(90),
+            "3 calls at 20/s should take >= ~100ms, took {elapsed:?}"
+        );
+    }
+
+    #[test]
+    fn backoff_duration_grows_with_attempt_and_stays_bounded() {
+        let d0 = backoff_duration(0);
+        let d1 = backoff_duration(1);
+        let d5 = backoff_duration(5); // attempt is capped internally
+        assert!(d0 >= Duration::from_millis(250) && d0 < Duration::from_millis(350));
+        assert!(d1 >= Duration::from_millis(500) && d1 < Duration::from_millis(600));
+        assert!(d5 < Duration::from_secs(3), "backoff must stay bounded, got {d5:?}");
     }
 }

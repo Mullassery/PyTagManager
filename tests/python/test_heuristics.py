@@ -61,3 +61,53 @@ def test_form_element_produces_form_submission_recommendation():
 def test_unrelated_elements_produce_no_recommendation():
     recs = _recommendations()
     assert not any("home" in r.rationale.lower() for r in recs)
+
+
+# ---- Phase 1.8: broadened interactive-element taxonomy ----
+
+
+def _recs_for_html(html: str):
+    graph = parse_html(html, "https://example.com/product")
+    return recommend_for_graph(graph)
+
+
+def test_aria_role_tab_is_detected_even_without_button_or_link_tag():
+    # Modern component libraries very often implement tabs/menus as a
+    # <div role="..."> rather than a native <button>/<a> -- Phase 1.8
+    # broadens detection to ARIA role, not just tag name.
+    recs = _recs_for_html('<div role="tab">Open menu</div>')
+    assert len(recs) == 1
+    assert recs[0].business_objective == "Navigation"
+
+
+def test_aria_role_menuitem_is_detected():
+    recs = _recs_for_html('<li role="menuitem">Filter by price</li>')
+    assert len(recs) == 1
+    assert recs[0].business_objective == "Content Discovery"
+
+
+def test_new_keyword_categories_are_classified():
+    cases = {
+        "Remove from Cart": "Cart Modification",
+        "Add to Wishlist": "Wishlist Intent",
+        "Filter by Price": "Content Discovery",
+        "Sort by Price": "Content Discovery",
+        "Next Page": "Pagination",
+        "Load More": "Pagination",
+        "Play Video": "Video Engagement",
+        "Open Menu": "Navigation",
+        "Close Modal": "Modal Interaction",
+        "Expand": "Content Engagement",
+    }
+    for text, expected_objective in cases.items():
+        recs = _recs_for_html(f"<button>{text}</button>")
+        assert len(recs) == 1, f"expected exactly one recommendation for {text!r}, got {recs}"
+        assert recs[0].business_objective == expected_objective, f"{text!r} -> {recs[0].business_objective}"
+
+
+def test_plain_div_without_interactive_role_is_not_classified():
+    # Broadening to ARIA roles must not turn every <div> into a candidate --
+    # this would explode recommendation volume and defeat the point of a
+    # curated interactive-element signal.
+    recs = _recs_for_html('<div class="menu-wrapper">Filter options here</div>')
+    assert recs == []
