@@ -100,8 +100,9 @@ Click "Add to Cart" → DOM interaction → JS event → dataLayer.push()
 
 **Status:** the DOM/Page/URL layers and dataLayer *event* capture
 (`observability/agent.js`'s `dataLayer.push` wrap) are implemented (Phase
-0/0.5). Cookies, localStorage, and sessionStorage are **not yet captured
-anywhere** — confirmed gap, see `docs/ROADMAP.md` Phase 1.6.
+0/0.5). Cookies, localStorage, sessionStorage, and a full `dataLayer`
+snapshot are now captured too, as point-in-time state (not just events) —
+see `observability/state.py`, `docs/ROADMAP.md` Phase 1.6 (shipped).
 
 ## 2. From URL inventory to Data Inventory
 

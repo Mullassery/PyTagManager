@@ -43,5 +43,11 @@ jobs:
       - name: Build and install the extension module (maturin develop)
         run: maturin develop
 
+      - name: Install diagnostics extras (Tracking Observability tests need these)
+        run: python -m pip install -e '.[diagnostics]'
+
+      - name: Install Playwright's Chromium browser
+        run: playwright install --with-deps chromium
+
       - name: pytest tests/python
         run: pytest tests/python -v
