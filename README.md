@@ -5,47 +5,71 @@
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-pytagmanager-blue)](https://pypi.org/project/pytagmanager/)
 
+## Problem
+
+Implementing and verifying analytics tracking on a website is mostly manual: hand-
+inspecting the DOM to find what should be tracked, writing CSS selectors by hand,
+clicking through GTM Preview mode one interaction at a time to confirm a tag actually
+fired, and re-doing all of it whenever the site changes.
+
+## Solution
+
 An AI-native analytics implementation platform: crawl a website, build a
 semantic DOM graph, generate tracking recommendations, export to seven
-analytics/tag-management platforms, track how a site's tracking surface
-changes over time, verify at runtime in a real browser that tracking
-actually fires the way it should, and (optionally) classify business
-intent with a local LLM — without hand-inspecting the DOM, writing CSS
-selectors, or manually replaying click-throughs in GTM Preview mode.
+analytics/tag-management platforms, build a variable-level Data Dictionary,
+track how a site's tracking surface changes over time, verify at runtime in
+a real browser that tracking actually fires the way it should, and
+(optionally) classify business intent with a local LLM.
 
 **Current scope**: web crawling + semantic DOM graph (Rust) → rule-based
 tracking recommendations (Python) → export to GTM, GA4, Segment, Snowplow,
-Tealium, RudderStack, and Adobe Tags → crawl-to-crawl diffing → **Tracking
-Observability & Diagnostics** (real-browser interaction → dataLayer → GTM
-→ GA4 correlation and rule-based root-cause diagnosis) → optional
-Ollama-backed AI intent classification. This is a deliberately scoped slice
-of a much larger long-term vision — see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full capability
-table and what's deliberately deferred (visual AI, XDM modeling, an
-enterprise audit engine, site-wide cross-page consistency analysis, and
-non-web platforms — each with a specific reason, not a blanket "not yet").
+Tealium, RudderStack, and Adobe Tags → Website Data Dictionary → crawl-to-crawl
+diffing → **Tracking Observability & Diagnostics** (real-browser interaction →
+dataLayer → GTM → GA4 correlation and rule-based root-cause diagnosis) →
+optional Ollama-backed AI classification. This is a deliberately scoped slice
+of a much larger long-term vision — see [`docs/VISION.md`](docs/VISION.md) for
+the north star and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full
+capability table and what's deliberately deferred (visual AI, XDM modeling, an
+enterprise audit engine, and non-web platforms — each with a specific reason,
+not a blanket "not yet").
 
-## Architecture
+## Use cases
 
-- **Rust core** (`src/`, via [PyO3](https://pyo3.rs)/[maturin](https://www.maturin.rs)): async crawler (link discovery, sitemap.xml, robots.txt, BFS with dedup) and a semantic DOM graph engine (XPath/CSS/stable-selector generation per element).
-- **Python layer** (`python/pytagmanager/`): orchestration, rule-based tracking recommendations, exporters, crawl-snapshot diffing, an optional local-LLM intent classifier, and Tracking Observability & Diagnostics (`observability/`, `correlation/`, `diagnostics/`, `analytics_api/`, `reporting/`), built on top of the compiled Rust extension.
+- **Generating a first-pass tracking plan for a new site** — `pytagmanager
+  crawl <url> --export gtm` finds trackable interactions without hand-writing
+  CSS selectors, and exports directly to your tag-management platform of choice.
+- **Building a data inventory before a migration or audit** — `pytagmanager
+  dictionary <url>` produces a variable-level inventory (every dataLayer
+  field/cookie/storage key, type, example values, which pages have it).
+- **Catching tracking regressions after a deploy** — `pytagmanager diff` between
+  two crawl snapshots, or `pytagmanager diagnose --site-wide --history` for a
+  running health-score trend with webhook alerts on regression.
+- **Verifying a specific journey actually tracks correctly**, not just that the
+  DOM looks right — `pytagmanager diagnose <url> --scenario journey.yml` drives
+  a real browser and diagnoses root causes (missing event, GTM tag not firing,
+  consent blocking, parameter loss) with a confidence label per finding.
+- **Not yet a good fit for:** non-web platforms (mobile, kiosk, IoT — see
+  `docs/ARCHITECTURE.md`); anything needing visual/screenshot-based element
+  grounding rather than DOM structure; cloud-LLM-backed intent classification
+  (only local Ollama and deterministic heuristics exist today — see
+  [What's not working](#whats-not-working--open-issues)).
 
+## Installation
+
+```bash
+pip install pytagmanager
 ```
-pytagmanager crawl <url>
-        │
-        ▼
-  Rust: crawl + parse each page into a SemanticGraph
-        │
-        ▼
-  Python: recommend_for_graph() — rule-based CTA/form detection
-    (or, optionally: intent.OllamaIntentClassifier — local-LLM-backed)
-        │
-        ├──▶ export/{gtm,ga4,segment,snowplow,tealium,rudderstack,adobe_tags}.py
-        │
-        └──▶ version_control/snapshot.py — save a snapshot for `pytagmanager diff`
+
+Installs the core CLI (`crawl`, `diff`) with no extra dependencies beyond
+`click`. Both `dictionary` and `diagnose` drive a real browser (Playwright)
+and need the `diagnostics` extra:
+
+```bash
+pip install 'pytagmanager[diagnostics]'
+playwright install chromium   # one-time browser download
 ```
 
-## Quickstart
+For local development instead (building the Rust extension from source):
 
 ```bash
 python3 -m venv .venv
@@ -60,6 +84,41 @@ pytagmanager crawl https://example.com --max-pages 20 --export gtm -o out.json
 `rudderstack`, or `adobe_tags` (see `python/pytagmanager/export/base.py`'s
 `EXPORTERS` registry).
 
+## Architecture
+
+- **Rust core** (`src/`, via [PyO3](https://pyo3.rs)/[maturin](https://www.maturin.rs)): async crawler (link discovery, sitemap.xml, robots.txt, BFS with dedup) and a semantic DOM graph engine (XPath/CSS/stable-selector generation per element).
+- **Python layer** (`python/pytagmanager/`): orchestration, rule-based tracking recommendations, exporters, crawl-snapshot diffing, a Website Data Dictionary, an optional local-LLM intent classifier, and Tracking Observability & Diagnostics (`observability/`, `correlation/`, `diagnostics/`, `analytics_api/`, `reporting/`, `sitewide/`), built on top of the compiled Rust extension.
+
+```
+pytagmanager crawl <url>
+        │
+        ▼
+  Rust: crawl + parse each page into a SemanticGraph
+        │
+        ▼
+  Python: recommend_for_graph() — rule-based CTA/form detection
+        │
+        ├──▶ export/{gtm,ga4,segment,snowplow,tealium,rudderstack,adobe_tags}.py
+        │
+        └──▶ version_control/snapshot.py — save a snapshot for `pytagmanager diff`
+```
+
+### Website Data Dictionary (`pytagmanager dictionary`, needs `[diagnostics]`)
+
+```bash
+pip install 'pytagmanager[diagnostics]'
+pytagmanager dictionary https://example.com --max-pages 20 --format json -o dictionary.json
+```
+
+Drives a real browser session (same as `diagnose`) to build a variable-level
+inventory across dataLayer,
+cookies, and storage: source path, inferred type, example values, observed
+frequency, which pages have/lack it (`python/pytagmanager/dictionary/`). This
+is Phase 1.7 of `docs/ROADMAP.md`, **partially shipped**: the inventory itself
+is real, but presence-vs-availability labeling, per-field schema-drift
+detection, and cookie/storage purpose classification aren't built yet — see
+[What's not working](#whats-not-working--open-issues).
+
 ### Tracking crawl-to-crawl changes
 
 ```bash
@@ -73,7 +132,7 @@ Reports added/removed pages, added/removed/changed DOM elements (matched by
 stable selector where available), and added/removed tracking
 recommendations. See `python/pytagmanager/version_control/`.
 
-### AI business intent classification (optional, local-only)
+### AI business intent classification (optional, local-only, not CLI-wired)
 
 `pytagmanager.intent.ollama_classifier.OllamaIntentClassifier` implements
 the same `IntentClassifier` interface as the deterministic heuristics
@@ -88,12 +147,17 @@ classifier = OllamaIntentClassifier()  # talks to http://localhost:11434
 result = classifier.classify(node, PageContext(url=page_url, page_title=title))
 ```
 
-Requires `ollama serve` running locally with the model pulled (`ollama pull
-qwen2.5:0.5b`). If Ollama isn't reachable, `classify()` falls back
-automatically to the deterministic keyword heuristic rather than raising —
-this runs entirely locally, with no cloud LLM API calls or credentials
-required; see `docs/ARCHITECTURE.md` for where a future cloud-LLM-backed
-classifier would plug in via the same `IntentClassifier` interface.
+**This is real and tested, but not reachable from the CLI** — `crawl`
+hardcodes the deterministic heuristic, with no `--intent`/`--classifier` flag
+to opt into this instead. Using it today means writing your own script around
+`crawl_site()`'s output, as shown above. (Don't confuse this with
+`OllamaPageTypeClassifier`, a different classifier used for `diagnose
+--site-wide --semantic-labels` template labeling below, which *is* wired into
+the CLI.) If Ollama isn't reachable, `classify()` falls back automatically to
+the deterministic keyword heuristic rather than raising — this runs entirely
+locally, with no cloud LLM API calls or credentials required; see
+`docs/ARCHITECTURE.md` for where a future cloud-LLM-backed classifier would
+plug in via the same `IntentClassifier` interface.
 
 ## Tracking Observability & Diagnostics (optional, `pytagmanager diagnose`)
 
@@ -146,6 +210,11 @@ journey:
   interception for app-level API calls (excluding analytics endpoints,
   which the network layer below already covers), and an opt-in
   `IntersectionObserver`-based visibility watcher for impression tracking.
+- **Runtime state snapshots** (`observability/state.py`): cookies,
+  localStorage, sessionStorage, and the full `dataLayer` contents captured at
+  a point in time, not just observed as events. Privacy-conscious by default —
+  only key name/type/length captured unless `--capture-storage-values` is
+  passed, and sensitive-looking keys stay redacted even then.
 - **Correlation** (`correlation/journey.py`): groups the flat event stream
   into one `TrackingJourney` per user interaction using a time window plus
   selector/name matching — not "everything in the same 5 seconds is
@@ -192,14 +261,14 @@ product pages don't generate `add_to_cart`" (a likely shared-component
 regression, not 51 unrelated bugs) — see
 `pytagmanager.sitewide.aggregation.analyze_template_consistency`. It also
 flags statistical outliers *within* an otherwise-healthy template
-(`sitewide/anomalies.py`): a page firing an event far more than its
-template's own observed average, or a page whose GTM container/GA4
-measurement ID disagrees with the rest of its template — both computed
-relative to what was actually observed, never a hardcoded threshold. Not
-compatible with `--scenario` (site-wide aggregation needs a crawl of more
+(`sitewide/anomalies.py`), and — as of this release —
+**cross-implementation consistency for the same business action**
+(`sitewide/interaction_consistency.py`): does "Add to Cart" fire the same
+event shape from the product page, quick-view, search results, and a
+recommendation widget, regardless of which page template implements it?
+Not compatible with `--scenario` (site-wide aggregation needs a crawl of more
 than one page). Cross-journey checks like duplicate-purchase detection
-(the same `transaction_id` firing `purchase` more than once anywhere in
-the session) run in both modes and appear as "Additional Findings".
+run in both modes and appear as "Additional Findings".
 
 #### Tracking health history + regression alerts
 
@@ -231,7 +300,7 @@ keys (password, token, secret, credit card, SSN, ...) before a
 `TrackingEvent` is even constructed, and `diagnostics.rules.rule_pii_leak`
 separately scans payload *content* (not just key names) for
 email/phone/SSN/credit-card patterns that leaked through an innocuous
-field name.
+field name. Runtime state capture applies the same discipline — see above.
 
 ### Limitations
 
@@ -256,28 +325,50 @@ pytest tests/python -v   # Python tests (heuristics, exporters, diffing, intent 
 
 Tracking Observability's tests drive a real headless browser: run
 `pip install 'pytagmanager[diagnostics]' && playwright install chromium`
-once before `pytest` if you haven't already (otherwise those tests fail
-with a clear "install pytagmanager[diagnostics]" error at run time rather
-than silently skipping).
+once before `pytest` if you haven't already — CI does this too as of this
+pass (see [What's not working](#whats-not-working--open-issues)).
 
 macOS note: this repo includes `.cargo/config.toml` with the linker flags
 PyO3 extension-module crates need for plain `cargo build`/`cargo test` to
 work outside of maturin (maturin sets these automatically; raw `cargo`
 doesn't).
 
-## Known Issues
+## What's working now (verified)
 
+23 Rust tests + 169 Python tests, covering the CLI end-to-end (`crawl`,
+`diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
+with real headless Chromium, not mocks — the full Tracking Observability
+correlation and diagnostic-rules pipeline. See
+[`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) for the full built-and-reachable /
+built-but-not-reachable / not-built / CI-status breakdown, including exactly
+which roadmap phases are shipped vs. still pending.
+
+## What's not working / open issues
+
+- **CI was broken on every push since Tracking Observability & Diagnostics
+  landed, until this pass**: `ci.yml` never installed the
+  `pytagmanager[diagnostics]` extra or a Chromium binary, so pytest's
+  collection phase failed outright with `ModuleNotFoundError: No module
+  named 'yaml'` before running a single test. Fixed by adding the extras +
+  `playwright install --with-deps chromium` steps to CI. Base `pip install
+  pytagmanager` users were never affected — the CLI's `dictionary`/`diagnose`
+  commands import these lazily inside their own function bodies, not at
+  module load.
+- **`OllamaIntentClassifier` is built and tested but not reachable from the
+  CLI** — see [AI business intent classification](#ai-business-intent-classification-optional-local-only-not-cli-wired)
+  above.
+- **Website Data Dictionary (Phase 1.7) is partial**: the variable inventory
+  itself works; presence-vs-availability labeling, per-field schema-drift
+  detection, and cookie/storage purpose classification aren't built yet.
+- **`ClaudeIntentClassifier`** referenced in `docs/ROADMAP.md`'s Phase 2 is
+  planned, not implemented; the only real `IntentClassifier` implementations
+  today are `OllamaIntentClassifier` and the deterministic heuristics.
 - No open GitHub issues and no `TODO`/`FIXME` markers in `src/` or
   `python/` as of this pass — the gaps that exist are the deliberately
   deferred phases tracked in `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`
-  (visual/screenshot grounding, AI intent classification beyond the local
-  Ollama fallback, multi-platform data-layer export, XDM modeling, the
-  enterprise audit engine, and non-web platforms), not undocumented rot.
-- `ClaudeIntentClassifier` referenced in `docs/ROADMAP.md`'s Phase 2 is
-  planned, not implemented; `python/pytagmanager/intent/base.py`'s
-  `IntentClassifier` protocol has only one real implementation today
-  (`OllamaIntentClassifier`), plus the deterministic rule-based heuristics
-  used by default.
+  (visual/screenshot grounding, multi-platform data-layer export, XDM
+  modeling, the enterprise audit engine, and non-web platforms), not
+  undocumented rot.
 
 ## Project layout
 
@@ -285,7 +376,11 @@ doesn't).
 Cargo.toml / pyproject.toml   # Rust crate + maturin/Python packaging
 src/                          # Rust: crawler/ + dom/ (semantic graph, selectors)
 python/pytagmanager/          # Python: discovery/ recommend/ intent/ export/ version_control/ cli.py
-                               #         observability/ correlation/ diagnostics/ analytics_api/ reporting/ sitewide/
+                               #         observability/ correlation/ diagnostics/ analytics_api/ reporting/
+                               #         sitewide/ dictionary/
 tests/python/                 # Python tests + HTML fixtures (Rust tests live next to their modules)
+docs/VISION.md                 # north-star: what PyTagManager is for, independent of what's shipped
 docs/ARCHITECTURE.md          # implemented vs. deliberately deferred, plus the full long-term spec
+docs/ROADMAP.md               # phase-by-phase sequencing of the work
+ROADMAP_HONEST.md             # short current-status companion to the above
 ```
