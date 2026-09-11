@@ -11,6 +11,10 @@ use std::sync::{Arc, Mutex};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpListener;
 
+/// One received request: its path plus request headers (lowercased names),
+/// in receipt order.
+type ReceivedRequests = Arc<Mutex<Vec<(String, Vec<(String, String)>)>>>;
+
 #[derive(Clone, Debug)]
 pub struct MockResponse {
     pub status: u16,
@@ -76,7 +80,7 @@ pub struct MockServer {
     /// Every request's path plus its request headers (lowercased names),
     /// in receipt order -- lets tests assert on what the crawler actually
     /// sent (e.g. a custom `--header`/`Cookie`).
-    received: Arc<Mutex<Vec<(String, Vec<(String, String)>)>>>,
+    received: ReceivedRequests,
 }
 
 impl MockServer {
@@ -158,7 +162,7 @@ async fn handle_connection(
     socket: tokio::net::TcpStream,
     routes: Arc<Mutex<HashMap<String, MockResponse>>>,
     sequences: Arc<Mutex<HashMap<String, VecDeque<MockResponse>>>>,
-    received: Arc<Mutex<Vec<(String, Vec<(String, String)>)>>>,
+    received: ReceivedRequests,
 ) {
     let mut reader = BufReader::new(socket);
 

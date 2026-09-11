@@ -49,8 +49,9 @@ impl Fetcher {
     /// can drive the crawler against a local mock HTTP server on loopback,
     /// which the guard would otherwise (correctly) refuse to fetch.
     pub fn with_ssrf_guard(enabled: bool) -> Self {
-        Self::build(enabled, None, &[])
-            .expect("Fetcher::with_ssrf_guard never sets custom headers, so header validation cannot fail")
+        Self::build(enabled, None, &[]).expect(
+            "Fetcher::with_ssrf_guard never sets custom headers, so header validation cannot fail",
+        )
     }
 
     /// Full constructor: optionally rate-limit requests (for crawling
@@ -66,10 +67,12 @@ impl Fetcher {
     ) -> Result<Self, AppError> {
         let mut header_map = HeaderMap::new();
         for (name, value) in headers {
-            let header_name = HeaderName::from_bytes(name.as_bytes())
-                .map_err(|e| AppError::InvalidHeader(format!("invalid header name '{name}': {e}")))?;
-            let header_value = HeaderValue::from_str(value)
-                .map_err(|e| AppError::InvalidHeader(format!("invalid header value for '{name}': {e}")))?;
+            let header_name = HeaderName::from_bytes(name.as_bytes()).map_err(|e| {
+                AppError::InvalidHeader(format!("invalid header name '{name}': {e}"))
+            })?;
+            let header_value = HeaderValue::from_str(value).map_err(|e| {
+                AppError::InvalidHeader(format!("invalid header value for '{name}': {e}"))
+            })?;
             header_map.insert(header_name, header_value);
         }
         let client = reqwest::Client::builder()
@@ -346,7 +349,11 @@ mod tests {
 
     #[test]
     fn build_rejects_invalid_header_value() {
-        match Fetcher::build(false, None, &[("X-Test".to_string(), "bad\nvalue".to_string())]) {
+        match Fetcher::build(
+            false,
+            None,
+            &[("X-Test".to_string(), "bad\nvalue".to_string())],
+        ) {
             Err(AppError::InvalidHeader(_)) => {}
             other => panic!("expected InvalidHeader, got {}", describe(other)),
         }
@@ -385,6 +392,9 @@ mod tests {
         let d5 = backoff_duration(5); // attempt is capped internally
         assert!(d0 >= Duration::from_millis(250) && d0 < Duration::from_millis(350));
         assert!(d1 >= Duration::from_millis(500) && d1 < Duration::from_millis(600));
-        assert!(d5 < Duration::from_secs(3), "backoff must stay bounded, got {d5:?}");
+        assert!(
+            d5 < Duration::from_secs(3),
+            "backoff must stay bounded, got {d5:?}"
+        );
     }
 }

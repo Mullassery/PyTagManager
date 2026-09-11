@@ -367,7 +367,10 @@ async fn ssrf_guard_blocks_start_url_and_crawl_returns_empty_rather_than_errorin
 #[tokio::test]
 async fn custom_headers_are_sent_with_every_request() {
     let mut routes = HashMap::new();
-    routes.insert("/".to_string(), MockResponse::html("<html><body>ok</body></html>"));
+    routes.insert(
+        "/".to_string(),
+        MockResponse::html("<html><body>ok</body></html>"),
+    );
 
     let server = MockServer::start(routes).await;
     let fetcher = Fetcher::build(
@@ -401,7 +404,10 @@ async fn custom_headers_are_sent_with_every_request() {
 #[tokio::test]
 async fn fetch_retries_a_503_and_returns_the_eventual_success() {
     let mut routes = HashMap::new();
-    routes.insert("/".to_string(), MockResponse::html("<html><body>start</body></html>"));
+    routes.insert(
+        "/".to_string(),
+        MockResponse::html("<html><body>start</body></html>"),
+    );
 
     let server = MockServer::start(routes).await;
     server.set_sequence(
