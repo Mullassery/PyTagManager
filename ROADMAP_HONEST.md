@@ -70,6 +70,19 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 
 ## ⚠️ CI/CD — current status
 
+- **PyPI is stale: the live release is v0.1.3, but this repo is at v0.2.0.**
+  v0.2.0 (the entire Tracking Observability & Diagnostics / Site-Wide QA / Data
+  Dictionary / runtime-state feature set) has never been published — `pip install
+  pytagmanager` today gets none of it. There's no publish/release workflow in
+  `.github/workflows/` at all (only `ci.yml`), so publishing is a manual step that
+  hasn't happened yet for this version.
+- **The v0.2.0 version bump itself was incomplete**: it updated `pyproject.toml` and
+  `python/pytagmanager/__init__.py` to `0.2.0` but missed `Cargo.toml`, which stayed at
+  `0.1.3` until this pass (fixed here). Since `pyproject.toml`'s `[project].version` is
+  static (not `dynamic = ["version"]` from Cargo.toml), the wheel itself would have
+  built as `0.2.0` regardless — but the Rust crate's own version being out of sync with
+  the package it's compiled into is worth catching before it causes confusion in a
+  release changelog or a `cargo` dependency graph.
 - **CI was broken on every push since the Tracking Observability & Diagnostics
   feature landed**, until this pass: `ci.yml` never installed the
   `pytagmanager[diagnostics]` extra or a Playwright Chromium binary, so pytest's

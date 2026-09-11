@@ -60,6 +60,11 @@ not a blanket "not yet").
 pip install pytagmanager
 ```
 
+> **PyPI is currently on v0.1.3** — `dictionary`, `diagnose`, and everything
+> else described below as of v0.2.0 aren't in that release yet. Use
+> [Development](#development) below to get the current version from source
+> until v0.2.0 is published — see [What's not working](#whats-not-working--open-issues).
+
 Installs the core CLI (`crawl`, `diff`) with no extra dependencies beyond
 `click`. Both `dictionary` and `diagnose` drive a real browser (Playwright)
 and need the `diagnostics` extra:
@@ -345,6 +350,12 @@ which roadmap phases are shipped vs. still pending.
 
 ## What's not working / open issues
 
+- **`pip install pytagmanager` gets v0.1.3 today, not v0.2.0.** This entire
+  Tracking Observability & Diagnostics / Site-Wide QA / Data Dictionary /
+  runtime-state feature set has never been published to PyPI — there's no
+  release workflow, so publishing is a manual step that hasn't happened yet
+  for this version. Use the [Development](#development) install path
+  (`maturin develop` from source) to get v0.2.0 today.
 - **CI was broken on every push since Tracking Observability & Diagnostics
   landed, until this pass**: `ci.yml` never installed the
   `pytagmanager[diagnostics]` extra or a Chromium binary, so pytest's
