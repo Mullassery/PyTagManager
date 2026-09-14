@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from pytagmanager._core import parse_html
+from pytagmanager.intent.base import IntentResult
 from pytagmanager.recommend.heuristics import recommend_for_graph
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sample_page.html"
@@ -111,3 +112,48 @@ def test_plain_div_without_interactive_role_is_not_classified():
     # curated interactive-element signal.
     recs = _recs_for_html('<div class="menu-wrapper">Filter options here</div>')
     assert recs == []
+
+
+# ---- classifier plug-in (IntentClassifier protocol) ----
+
+
+class _FakeClassifier:
+    """Stand-in IntentClassifier so this test doesn't depend on a running
+    Ollama instance -- exercises the same call path OllamaIntentClassifier
+    would go through via recommend_for_graph(classifier=...)."""
+
+    def __init__(self, objective="Purchase Intent", confidence=0.77, rationale="fake rationale"):
+        self.objective = objective
+        self.confidence = confidence
+        self.rationale = rationale
+        self.calls = []
+
+    def classify(self, node, context):
+        self.calls.append((node, context))
+        return IntentResult(
+            business_objective=self.objective, confidence=self.confidence, rationale=self.rationale
+        )
+
+
+def test_recommend_for_graph_uses_classifier_when_provided():
+    html = FIXTURE.read_text()
+    graph = parse_html(html, "https://example.com/product")
+    classifier = _FakeClassifier()
+
+    recs = recommend_for_graph(graph, classifier=classifier)
+
+    assert classifier.calls, "classifier.classify should be called for interactive elements"
+    assert any(r.business_objective == "Purchase Intent" and r.rationale == "fake rationale" for r in recs)
+    assert all(context.url == graph.url for _node, context in classifier.calls)
+
+
+def test_recommend_for_graph_skips_none_objective_from_classifier():
+    recs = _recs_for_html_with_classifier(
+        '<button>Add to cart</button>', _FakeClassifier(objective="None")
+    )
+    assert recs == []
+
+
+def _recs_for_html_with_classifier(html, classifier):
+    graph = parse_html(html, "https://example.com/product")
+    return recommend_for_graph(graph, classifier=classifier)

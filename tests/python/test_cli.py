@@ -327,6 +327,50 @@ def test_crawl_truncates_recommendation_list_beyond_twenty(monkeypatch, runner):
     assert "... and 5 more" in result.output
 
 
+def test_crawl_intent_ollama_constructs_classifier_and_passes_it_to_recommend(monkeypatch, runner):
+    monkeypatch.setattr(cli, "crawl_site", lambda *a, **k: [_page_with_cta()])
+
+    captured = {}
+    constructed = {}
+
+    class FakeOllamaIntentClassifier:
+        def __init__(self, model, base_url):
+            constructed["model"] = model
+            constructed["base_url"] = base_url
+
+    def fake_recommend_for_graph(graph, classifier=None):
+        captured["classifier"] = classifier
+        return []
+
+    monkeypatch.setattr(cli, "OllamaIntentClassifier", FakeOllamaIntentClassifier)
+    monkeypatch.setattr(cli, "recommend_for_graph", fake_recommend_for_graph)
+
+    result = runner.invoke(
+        cli.main,
+        ["crawl", "https://example.com", "--intent", "ollama", "--ollama-model", "llama3", "--ollama-url", "http://localhost:9999"],
+    )
+
+    assert result.exit_code == 0
+    assert isinstance(captured["classifier"], FakeOllamaIntentClassifier)
+    assert constructed == {"model": "llama3", "base_url": "http://localhost:9999"}
+
+
+def test_crawl_intent_defaults_to_heuristic_with_no_classifier(monkeypatch, runner):
+    monkeypatch.setattr(cli, "crawl_site", lambda *a, **k: [_page_with_cta()])
+    captured = {}
+
+    def fake_recommend_for_graph(graph, classifier=None):
+        captured["classifier"] = classifier
+        return []
+
+    monkeypatch.setattr(cli, "recommend_for_graph", fake_recommend_for_graph)
+
+    result = runner.invoke(cli.main, ["crawl", "https://example.com"])
+
+    assert result.exit_code == 0
+    assert captured["classifier"] is None
+
+
 def test_main_group_shows_help():
     runner = CliRunner()
     result = runner.invoke(cli.main, ["--help"])

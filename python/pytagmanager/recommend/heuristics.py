@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 from pytagmanager._core import SemanticGraph, SemanticNode
 from pytagmanager.recommend.models import TrackingRecommendation
+
+if TYPE_CHECKING:
+    # Import lazily at call-time inside recommend_for_graph instead, to avoid a
+    # circular import: pytagmanager.intent.ollama_classifier imports
+    # classify_node_keywords from this module.
+    from pytagmanager.intent.base import IntentClassifier
 
 # (keyword, business_objective, event_category), checked in order -- first
 # match wins. Order matters: more specific phrases are listed before the
@@ -124,20 +130,45 @@ def _event_name(objective: str) -> str:
     return objective.lower().replace(" ", "_")
 
 
-def recommend_for_graph(graph: SemanticGraph) -> List[TrackingRecommendation]:
-    """Deterministic, rule-based tracking recommendations for a page's
-    semantic DOM graph.
+def recommend_for_graph(
+    graph: SemanticGraph, classifier: Optional["IntentClassifier"] = None
+) -> List[TrackingRecommendation]:
+    """Tracking recommendations for a page's semantic DOM graph.
 
-    This is v1's stand-in for the platform's long-term AI business-intent
-    classification (see pytagmanager.intent.base) -- keyword matching
-    against text/class/id/aria-label instead of an LLM call, but with the
-    same output shape (event, business objective, confidence, rationale)
-    so a future AI classifier is a drop-in upgrade, not a rewrite.
+    By default this uses v1's deterministic keyword matching against text/
+    class/id/aria-label. Passing `classifier` (any `IntentClassifier`, e.g.
+    `pytagmanager.intent.ollama_classifier.OllamaIntentClassifier`) swaps in
+    AI business-intent classification for interactive elements instead,
+    with the same output shape (event, business objective, confidence,
+    rationale) either way.
     """
     recommendations: List[TrackingRecommendation] = []
+    context = None
+    if classifier is not None:
+        from pytagmanager.intent.base import PageContext
+
+        context = PageContext(url=graph.url)
 
     for node in graph.nodes:
         if node.tag in _CTA_TAGS or node.aria_role in _INTERACTIVE_ROLES:
+            if classifier is not None:
+                result = classifier.classify(node, context)
+                if result.business_objective == "None":
+                    continue
+                recommendations.append(
+                    TrackingRecommendation(
+                        event_name=_event_name(result.business_objective),
+                        trigger_type="click",
+                        selector=node.stable_selector or node.css_selector,
+                        selector_fallbacks=_selector_fallbacks(node),
+                        event_category="engagement",
+                        business_objective=result.business_objective,
+                        confidence=result.confidence,
+                        rationale=result.rationale,
+                        page_url=graph.url,
+                    )
+                )
+                continue
             match = _classify(node)
             if match is None:
                 continue

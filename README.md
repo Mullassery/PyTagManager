@@ -137,29 +137,36 @@ Reports added/removed pages, added/removed/changed DOM elements (matched by
 stable selector where available), and added/removed tracking
 recommendations. See `python/pytagmanager/version_control/`.
 
-### AI business intent classification (optional, local-only, not CLI-wired)
+### AI business intent classification (optional, local-only)
 
 `pytagmanager.intent.ollama_classifier.OllamaIntentClassifier` implements
 the same `IntentClassifier` interface as the deterministic heuristics
 engine, but backed by a locally running [Ollama](https://ollama.com) model
-(default `qwen2.5:0.5b`) instead of keyword matching:
+(default `qwen2.5:0.5b`) instead of keyword matching. It's wired into
+`crawl` directly:
+
+```bash
+pytagmanager crawl https://example.com --intent ollama
+pytagmanager crawl https://example.com --intent ollama --ollama-model llama3 --ollama-url http://localhost:11434
+```
+
+or from Python, both via `recommend_for_graph(graph, classifier=...)` and
+directly against the classifier:
 
 ```python
-from pytagmanager.intent.ollama_classifier import OllamaIntentClassifier
-from pytagmanager.intent.base import PageContext
+from pytagmanager import OllamaIntentClassifier, PageContext, recommend_for_graph
 
 classifier = OllamaIntentClassifier()  # talks to http://localhost:11434
+recs = recommend_for_graph(graph, classifier=classifier)
+
+# or classify a single node directly:
 result = classifier.classify(node, PageContext(url=page_url, page_title=title))
 ```
 
-**This is real and tested, but not reachable from the CLI** — `crawl`
-hardcodes the deterministic heuristic, with no `--intent`/`--classifier` flag
-to opt into this instead. Using it today means writing your own script around
-`crawl_site()`'s output, as shown above. (Don't confuse this with
-`OllamaPageTypeClassifier`, a different classifier used for `diagnose
---site-wide --semantic-labels` template labeling below, which *is* wired into
-the CLI.) If Ollama isn't reachable, `classify()` falls back automatically to
-the deterministic keyword heuristic rather than raising — this runs entirely
+(Don't confuse this with `OllamaPageTypeClassifier`, a different classifier
+used for `diagnose --site-wide --semantic-labels` template labeling below.)
+If Ollama isn't reachable, `classify()` falls back automatically to the
+deterministic keyword heuristic rather than raising — this runs entirely
 locally, with no cloud LLM API calls or credentials required; see
 `docs/ARCHITECTURE.md` for where a future cloud-LLM-backed classifier would
 plug in via the same `IntentClassifier` interface.
@@ -365,9 +372,6 @@ which roadmap phases are shipped vs. still pending.
   pytagmanager` users were never affected — the CLI's `dictionary`/`diagnose`
   commands import these lazily inside their own function bodies, not at
   module load.
-- **`OllamaIntentClassifier` is built and tested but not reachable from the
-  CLI** — see [AI business intent classification](#ai-business-intent-classification-optional-local-only-not-cli-wired)
-  above.
 - **Website Data Dictionary (Phase 1.7) is partial**: the variable inventory
   itself works; presence-vs-availability labeling, per-field schema-drift
   detection, and cookie/storage purpose classification aren't built yet.

@@ -6,6 +6,7 @@ import click
 
 from pytagmanager.discovery.crawl import crawl_site
 from pytagmanager.export.base import EXPORTERS
+from pytagmanager.intent.ollama_classifier import DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL, OllamaIntentClassifier
 from pytagmanager.recommend.heuristics import recommend_for_graph
 from pytagmanager.version_control.diff import diff_snapshots, format_diff_report
 from pytagmanager.version_control.snapshot import build_snapshot, load_snapshot, save_snapshot
@@ -55,6 +56,27 @@ def _parse_headers(raw_headers: tuple[str, ...]) -> list[tuple[str, str]]:
     default=None,
     help="Save this crawl (pages, DOM elements, recommendations) as a JSON snapshot for later `pytagmanager diff`.",
 )
+@click.option(
+    "--intent",
+    "intent_engine",
+    type=click.Choice(["heuristic", "ollama"]),
+    default="heuristic",
+    show_default=True,
+    help="Business-intent classification engine. 'ollama' uses a locally running Ollama model "
+    "(falls back to the heuristic automatically if Ollama isn't reachable).",
+)
+@click.option(
+    "--ollama-model",
+    default=DEFAULT_OLLAMA_MODEL,
+    show_default=True,
+    help="Ollama model to use when --intent=ollama.",
+)
+@click.option(
+    "--ollama-url",
+    default=DEFAULT_OLLAMA_BASE_URL,
+    show_default=True,
+    help="Ollama base URL to use when --intent=ollama.",
+)
 def crawl(
     url: str,
     max_pages: int,
@@ -65,9 +87,13 @@ def crawl(
     export_format: str | None,
     output_path: str | None,
     snapshot_path: str | None,
+    intent_engine: str,
+    ollama_model: str,
+    ollama_url: str,
 ) -> None:
-    """Crawl URL, generate rule-based tracking recommendations, and optionally export them."""
+    """Crawl URL, generate tracking recommendations, and optionally export them."""
     headers = _parse_headers(raw_headers)
+    classifier = OllamaIntentClassifier(model=ollama_model, base_url=ollama_url) if intent_engine == "ollama" else None
     click.echo(f"Crawling {url} (max_pages={max_pages}, concurrency={concurrency})...")
     pages = crawl_site(
         url,
@@ -82,7 +108,7 @@ def crawl(
     all_recs = []
     recs_by_url = {}
     for page in pages:
-        recs = recommend_for_graph(page.graph)
+        recs = recommend_for_graph(page.graph, classifier=classifier)
         all_recs.extend(recs)
         recs_by_url[page.url] = recs
         click.echo(f"  {page.url} [{page.status}] -> {len(recs)} recommendation(s)")

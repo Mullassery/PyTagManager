@@ -1,7 +1,7 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.0
-**Last Updated:** 2026-09-11
+**Last Updated:** 2026-09-14
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -25,23 +25,17 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **23 Rust tests** + **169 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **173 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
+- **`pytagmanager crawl --intent ollama`** — swaps the deterministic keyword heuristic
+  for `OllamaIntentClassifier` (a local Ollama model, default `qwen2.5:0.5b`), with
+  automatic fallback to the heuristic if Ollama isn't reachable. Also exported from
+  `pytagmanager/__init__.py` and pluggable directly via
+  `recommend_for_graph(graph, classifier=...)`.
 
 ## 🟡 Built but not reachable via the public API/CLI
 
-- **`OllamaIntentClassifier`** (`intent/ollama_classifier.py`) — a complete, tested,
-  documented `IntentClassifier` implementation backed by a local Ollama model. It is
-  **not exported from `pytagmanager/__init__.py`** and **not wired into any CLI
-  command** — `crawl` hardcodes the deterministic heuristic (`recommend_for_graph`)
-  with no `--intent`/`--classifier` flag to opt into it. The only way to use it today
-  is importing `pytagmanager.intent.ollama_classifier.OllamaIntentClassifier` directly
-  and writing your own glue code around `crawl_site()`'s output — the README documents
-  it with a full code sample, but that sample is not something `pytagmanager crawl`
-  itself can do. `OllamaPageTypeClassifier` (a *different*, newer Ollama-backed
-  classifier for `--site-wide --semantic-labels` template labeling) **is** wired into
-  the CLI — don't confuse the two when reading the README.
 - **`_core.parse_html()`** (real Rust PyO3 function, well-tested) — intentionally not
   wrapped by any Python-level convenience function yet; it's a documented future hook
   for a Playwright-rendered-HTML path (`docs/ARCHITECTURE.md`), reachable today only as
@@ -107,8 +101,7 @@ Of the roadmap's post-v1 phases, four are shipped (0, 0.5, 1.5, 1.6), two are
 partially shipped with the harder half remaining (1.7's schema-drift/purpose
 classification, 1.8's four remaining sub-items), and everything from Phase 1.85
 onward — plus cloud-LLM intent classification and all of the "deliberately deferred"
-list in `docs/ARCHITECTURE.md` — hasn't been started. The nearest-term real gap isn't
-a missing phase, though — it's the CLI-reachability gap above (`OllamaIntentClassifier`
-built but stranded) and keeping CI actually exercising new features as they ship
-(the diagnostics-extras gap above shipped a whole feature with broken CI for an
-unknown period before this pass caught it).
+list in `docs/ARCHITECTURE.md` — hasn't been started. The nearest-term real gaps are
+keeping CI actually exercising new features as they ship (the diagnostics-extras gap
+above shipped a whole feature with broken CI for an unknown period before that pass
+caught it) and getting v0.2.0 actually published to PyPI (see below).
