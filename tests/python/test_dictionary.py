@@ -112,7 +112,7 @@ def test_empty_snapshot_list_produces_empty_dictionary():
 def test_report_and_json_rendering_do_not_crash_on_empty_dictionary():
     result = build_data_dictionary([])
     assert "No pages" in render_dictionary_report(result)
-    assert build_dictionary_json(result) == {"schema_version": 1, "pages_total": 0, "variables": []}
+    assert build_dictionary_json(result) == {"schema_version": 2, "pages_total": 0, "variables": []}
 
 
 def test_report_rendering_includes_observed_variable():
@@ -144,3 +144,57 @@ def test_dictionary_cli_end_to_end_json(fixture_server, monkeypatch, tmp_path):
     paths = {v["path"] for v in data["variables"]}
     assert "visitor_id" in paths
     assert "cart_id" in paths
+
+
+def test_dictionary_cli_presence_labels_and_purpose_classifier(fixture_server, monkeypatch, tmp_path):
+    pages = [_fake_page(fixture_server, "runtime_state.html")]
+    monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: pages)
+
+    runner = CliRunner()
+    out_path = tmp_path / "dictionary.json"
+    result = runner.invoke(
+        cli.main,
+        [
+            "dictionary",
+            pages[0].url,
+            "--format",
+            "json",
+            "-o",
+            str(out_path),
+            "--presence-labels",
+            "--purpose-classifier",
+            "heuristic",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    data = json.loads(out_path.read_text())
+    by_path = {v["path"]: v for v in data["variables"]}
+
+    assert "presence" in by_path["visitor_id"]
+    assert by_path["visitor_id"]["presence"]["accessibility"] in ("Accessible", "Possibly accessible")
+    assert "purpose" in by_path["visitor_id"]
+    assert by_path["visitor_id"]["purpose"]["purpose"] in {
+        "Identity",
+        "Session",
+        "Analytics",
+        "Attribution",
+        "Unknown",
+    }
+
+
+def test_dictionary_cli_compare_to_reports_no_drift_for_identical_runs(fixture_server, monkeypatch, tmp_path):
+    pages = [_fake_page(fixture_server, "runtime_state.html")]
+    monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: pages)
+
+    runner = CliRunner()
+    baseline_path = tmp_path / "baseline.json"
+    runner.invoke(cli.main, ["dictionary", pages[0].url, "--format", "json", "-o", str(baseline_path)])
+
+    result = runner.invoke(
+        cli.main,
+        ["dictionary", pages[0].url, "--compare-to", str(baseline_path)],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "No schema drift detected" in result.output

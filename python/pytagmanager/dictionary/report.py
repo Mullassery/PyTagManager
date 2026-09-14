@@ -4,9 +4,13 @@ terminal/JSON split for the diagnostics side."""
 
 from __future__ import annotations
 
-from pytagmanager.dictionary.build import DataDictionary
+from typing import Dict, Optional, Tuple
 
-JSON_SCHEMA_VERSION = 1
+from pytagmanager.dictionary.build import DataDictionary, DictionaryVariable
+from pytagmanager.dictionary.labels import PresenceLabel, label_presence
+from pytagmanager.dictionary.purpose import PurposeResult
+
+JSON_SCHEMA_VERSION = 2
 
 _SOURCE_LABELS = {
     "datalayer_event": "dataLayer events",
@@ -17,8 +21,20 @@ _SOURCE_LABELS = {
 }
 _SOURCE_ORDER = ("datalayer_event", "datalayer_field", "cookie", "local_storage", "session_storage")
 
+# Purpose classification only applies to sources §6 of docs/VISION.md scopes
+# it to: cookies and browser storage, not dataLayer events/fields.
+_PURPOSE_ELIGIBLE_SOURCES = ("cookie", "local_storage", "session_storage")
 
-def render_dictionary_report(dictionary: DataDictionary) -> str:
+
+def _variable_key(variable: DictionaryVariable) -> Tuple[str, str]:
+    return (variable.source, variable.path)
+
+
+def render_dictionary_report(
+    dictionary: DataDictionary,
+    purpose_by_key: Optional[Dict[Tuple[str, str], PurposeResult]] = None,
+    include_presence: bool = False,
+) -> str:
     lines = ["PyTagManager Website Data Dictionary", "=" * 37, ""]
     lines.append(f"Pages analyzed: {dictionary.pages_total}")
     lines.append("")
@@ -34,10 +50,20 @@ def render_dictionary_report(dictionary: DataDictionary) -> str:
             ratio = variable.presence_ratio
             ratio_str = f"{ratio:.0%}" if ratio is not None else "n/a"
             types = ", ".join(variable.value_types) or "unknown"
-            lines.append(
+            line = (
                 f"  {variable.path:<40} {variable.observed_count}/{variable.pages_total} pages "
                 f"({ratio_str}), types: {types}"
             )
+            if include_presence:
+                presence = label_presence(variable)
+                line += f" [{presence.accessibility}]"
+            lines.append(line)
+            if purpose_by_key is not None and source in _PURPOSE_ELIGIBLE_SOURCES:
+                result = purpose_by_key.get(_variable_key(variable))
+                if result is not None:
+                    lines.append(f"      purpose: {result.purpose} (confidence {result.confidence:.0%})")
+                    for item in result.evidence:
+                        lines.append(f"        evidence: {item}")
         lines.append("")
 
     if dictionary.pages_total == 0:
@@ -46,24 +72,46 @@ def render_dictionary_report(dictionary: DataDictionary) -> str:
     return "\n".join(lines)
 
 
-def build_dictionary_json(dictionary: DataDictionary) -> dict:
+def build_dictionary_json(
+    dictionary: DataDictionary,
+    purpose_by_key: Optional[Dict[Tuple[str, str], PurposeResult]] = None,
+    include_presence: bool = False,
+) -> dict:
+    variables_json = []
+    for variable in dictionary.variables:
+        entry = {
+            "source": variable.source,
+            "path": variable.path,
+            "value_types": list(variable.value_types),
+            "pages_present": list(variable.pages_present),
+            "observed_count": variable.observed_count,
+            "pages_total": variable.pages_total,
+            "presence_ratio": (round(variable.presence_ratio, 4) if variable.presence_ratio is not None else None),
+            "first_observed": variable.first_observed,
+            "last_observed": variable.last_observed,
+            "value_type_counts": [list(pair) for pair in variable.value_type_counts],
+        }
+        if include_presence:
+            presence = label_presence(variable)
+            entry["presence"] = {
+                "exists": presence.exists,
+                "exposed": presence.exposed,
+                "accessibility": presence.accessibility,
+                "rationale": presence.rationale,
+            }
+        if purpose_by_key is not None and variable.source in _PURPOSE_ELIGIBLE_SOURCES:
+            result = purpose_by_key.get(_variable_key(variable))
+            if result is not None:
+                entry["purpose"] = {
+                    "purpose": result.purpose,
+                    "confidence": result.confidence,
+                    "evidence": result.evidence,
+                    "rationale": result.rationale,
+                }
+        variables_json.append(entry)
+
     return {
         "schema_version": JSON_SCHEMA_VERSION,
         "pages_total": dictionary.pages_total,
-        "variables": [
-            {
-                "source": variable.source,
-                "path": variable.path,
-                "value_types": list(variable.value_types),
-                "pages_present": list(variable.pages_present),
-                "observed_count": variable.observed_count,
-                "pages_total": variable.pages_total,
-                "presence_ratio": (
-                    round(variable.presence_ratio, 4) if variable.presence_ratio is not None else None
-                ),
-                "first_observed": variable.first_observed,
-                "last_observed": variable.last_observed,
-            }
-            for variable in dictionary.variables
-        ],
+        "variables": variables_json,
     }

@@ -347,7 +347,7 @@ deviation from the original plan noted below.
 `tests/python/fixtures/observability/runtime_state.html` fixture) — all
 passing, no mocked browser behavior.
 
-### Phase 1.7 — Website Data Dictionary & DataLayer Schema Drift *(partially shipped)*
+### Phase 1.7 — Website Data Dictionary & DataLayer Schema Drift *(shipped, minus GTM blast-radius narrative)*
 
 **Goal:** aggregate Phase 1.6's per-page runtime-state snapshots across a
 `--site-wide` crawl into the variable-level inventory `docs/VISION.md`
@@ -386,7 +386,15 @@ crawls.
 field (`dataLayer.product.price` → `dataLayer.product.pricing.amount`)
 between two snapshots is flagged as a breaking schema change, naming the
 downstream blast radius ("existing GTM variables/tags may no longer
-receive price").
+receive price"). **Met for the "flagged as a breaking change" half**: see
+`tests/python/test_dictionary_schema_drift.py::test_nested_field_restructure_is_flagged_as_possible_rename`,
+which reproduces this exact case and asserts `diff_dictionaries()` reports
+it as a `PossibleRename`. **Not yet met for the "naming the downstream
+blast radius" half**: that needs live GTM config (which variables/tags
+actually read `product.price`) cross-referenced against the drift, the
+same live-GTM-API dependency item 1 above already deferred — this is
+narrative enrichment on top of the drift detection, not a blocker to using
+the detection itself.
 
 **Work breakdown** — size: **L**
 
@@ -394,21 +402,46 @@ receive price").
    `build_data_dictionary()` aggregates cookies/localStorage/
    sessionStorage keys and dataLayer event names/fields across however
    many `RuntimeStateSnapshot`s it's given (one page or a whole crawl),
-   tracking per-variable `value_types`, `pages_present`,
-   `presence_ratio`, and first/last-observed timestamps. Deliberately one
-   level deep for dataLayer fields (`event_name.field`) — a full recursive
-   flatten of nested shapes like `ecommerce.items[]` is scoped into item 3
-   below, not this pass. No "potential GTM usage" field yet — that needs
-   live GTM config (Phase 0.5's `GtmApiClient`) cross-referenced against
-   the dictionary, not built in this slice. (L)
+   tracking per-variable `value_types`, `value_type_counts`,
+   `pages_present`, `presence_ratio`, and first/last-observed timestamps.
+   DataLayer fields are recursively flattened into dot-joined paths
+   (`event_name.field`, `event_name.field.nested_field`, ...), not just
+   one level deep — extended alongside item 3 below, since schema-drift
+   rename detection needs nested paths to be visible as distinct fields in
+   the first place. No "potential GTM usage" field yet — that needs live
+   GTM config (Phase 0.5's `GtmApiClient`) cross-referenced against the
+   dictionary, not built in this slice. (L)
 2. Presence-vs-availability labeling, page-load-signal subset first.
-   **Not yet built** — the aggregation above reports raw presence
-   (observed/not, on how many pages), not yet the
-   Exists/Exposed/Accessible distinction §4 calls for.
-3. `version_control/diff.py` extension for per-event-field schema drift.
-   **Not yet built.**
+   **Shipped** (`dictionary/labels.py`, `label_presence()`): the
+   Exists/Exposed/Accessible three, derived from a variable's `source`
+   alone (dataLayer → built-in Data Layer Variable; cookie → built-in 1st
+   Party Cookie variable; localStorage/sessionStorage → only "possibly
+   accessible," since no built-in GTM variable type reads them). Every
+   label carries a `rationale`. "Available at trigger time" and
+   "Consistently populated" still need Phase 1.8's interaction-timing data
+   and remain out of scope here. Wired into `pytagmanager dictionary
+   --presence-labels`.
+3. `dictionary/schema_drift.py` for per-event-field schema drift.
+   **Shipped** (deliberately not `version_control/diff.py` — see that
+   module's docstring for why a `DataDictionary` diff doesn't share
+   `CrawlSnapshot`'s identity/matching scheme). `diff_dictionaries()`
+   reports added/removed fields, type-distribution shifts (e.g.
+   `transaction_id: 96% string, 4% number`), and possible renames (a
+   hedged heuristic: same dataLayer-event namespace + leaf-name string
+   similarity and/or matching value types, never asserted as fact). Wired
+   into `pytagmanager dictionary --compare-to <previous-run.json>`.
 4. Cookie/storage purpose classifier (deterministic evidence + optional
-   Ollama ranking). **Not yet built.**
+   Ollama ranking). **Shipped** (`dictionary/purpose.py`): fixed taxonomy
+   from §6, `HeuristicPurposeClassifier` collects evidence deterministically
+   (key-name pattern match, cross-page persistence, co-occurrence with a
+   campaign URL query param) before labeling, `OllamaPurposeClassifier`
+   re-ranks from that same evidence via a local Ollama model with automatic
+   fallback. Every result carries confidence + the evidence list, never a
+   bare label. Evidence scope is narrower than §6's full list — "consumed
+   by an analytics request" and "correlated with marketing scripts" need
+   network-request join data not available to this module and are not
+   fabricated. Wired into `pytagmanager dictionary --purpose-classifier
+   {heuristic,ollama}`.
 5. CLI: `pytagmanager dictionary <url> -o dictionary.json`. **Shipped**
    (as `pytagmanager dictionary`, both `--format text` and `--format
    json`; no separate `--site-wide` flag needed — it always aggregates

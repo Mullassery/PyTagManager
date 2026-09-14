@@ -160,6 +160,29 @@ def diff(old_snapshot_path: str, new_snapshot_path: str) -> None:
 )
 @click.option("-o", "--output", "output_path", type=click.Path(), default=None)
 @click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option(
+    "--presence-labels",
+    "include_presence",
+    is_flag=True,
+    help="Label each variable's Exists/Exposed/Accessible presence-vs-availability status (docs/VISION.md §4).",
+)
+@click.option(
+    "--purpose-classifier",
+    "purpose_engine",
+    type=click.Choice(["none", "heuristic", "ollama"]),
+    default="none",
+    show_default=True,
+    help="Classify each cookie/localStorage/sessionStorage variable's likely purpose (docs/VISION.md §6). "
+    "'ollama' uses a locally running Ollama model, falling back to the heuristic automatically if unreachable.",
+)
+@click.option(
+    "--compare-to",
+    "compare_to_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to a previously saved `dictionary --format json -o old.json` export. Instead of the normal "
+    "report, prints a schema-drift report (added/removed fields, type-distribution shifts, possible renames).",
+)
 def data_dictionary(
     url: str,
     max_pages: int,
@@ -168,14 +191,19 @@ def data_dictionary(
     capture_storage_values: bool,
     output_path: str | None,
     output_format: str,
+    include_presence: bool,
+    purpose_engine: str,
+    compare_to_path: str | None,
 ) -> None:
     """Crawl URL and build a Website Data Dictionary (docs/VISION.md §3):
     every cookie/localStorage/sessionStorage key and dataLayer field
     observed across the crawl, where, and how often. Requires
     `pip install pytagmanager[diagnostics]`.
     """
-    from pytagmanager.dictionary.build import build_data_dictionary
+    from pytagmanager.dictionary.build import build_data_dictionary, data_dictionary_from_json
+    from pytagmanager.dictionary.purpose import HeuristicPurposeClassifier, OllamaPurposeClassifier
     from pytagmanager.dictionary.report import build_dictionary_json, render_dictionary_report
+    from pytagmanager.dictionary.schema_drift import build_drift_json, diff_dictionaries, render_drift_report
     from pytagmanager.observability.scenario import auto_scenario_from_recommendations
     from pytagmanager.observability.session import ObservationSession
 
@@ -198,10 +226,38 @@ def data_dictionary(
 
     result = build_data_dictionary(snapshots)
 
+    if compare_to_path:
+        with open(compare_to_path) as f:
+            baseline = data_dictionary_from_json(json.load(f))
+        drift = diff_dictionaries(baseline, result)
+        if output_format == "json":
+            report = json.dumps(build_drift_json(drift), indent=2)
+        else:
+            report = render_drift_report(drift)
+        if output_path:
+            with open(output_path, "w") as f:
+                f.write(report)
+            click.echo(f"Wrote schema drift report to {output_path}")
+        else:
+            click.echo(report)
+        return
+
+    purpose_by_key = None
+    if purpose_engine != "none":
+        classifier = OllamaPurposeClassifier() if purpose_engine == "ollama" else HeuristicPurposeClassifier()
+        purpose_by_key = {
+            (v.source, v.path): classifier.classify(v)
+            for v in result.variables
+            if v.source in ("cookie", "local_storage", "session_storage")
+        }
+
     if output_format == "json":
-        report = json.dumps(build_dictionary_json(result), indent=2)
+        report = json.dumps(
+            build_dictionary_json(result, purpose_by_key=purpose_by_key, include_presence=include_presence),
+            indent=2,
+        )
     else:
-        report = render_dictionary_report(result)
+        report = render_dictionary_report(result, purpose_by_key=purpose_by_key, include_presence=include_presence)
 
     if output_path:
         with open(output_path, "w") as f:

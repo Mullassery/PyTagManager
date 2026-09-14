@@ -17,15 +17,20 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
 - **`pytagmanager diff`** — crawl-to-crawl change detection (pages, DOM elements,
   recommendations).
 - **`pytagmanager dictionary`** — Website Data Dictionary: variable-level inventory
-  across dataLayer/cookies/storage (Phase 1.7, partial — see below for what's not in
-  this yet).
+  across dataLayer/cookies/storage (Phase 1.7, shipped). `--presence-labels` adds
+  Exists/Exposed/Accessible labeling per variable; `--purpose-classifier
+  {heuristic,ollama}` classifies cookie/storage purpose against a fixed taxonomy with
+  evidence + confidence; `--compare-to <old.json>` diffs against a previous run for
+  per-field schema drift (added/removed fields, type-distribution shifts, possible
+  renames). See below for the one piece of Phase 1.7 still missing (GTM
+  blast-radius narrative on drift).
 - **`pytagmanager diagnose`** — Tracking Observability & Diagnostics: real headless
   Chromium drives the site, correlates interaction → DOM mutation → dataLayer → GTM →
   GA4 → network, and runs 11 deterministic diagnostic rules with confidence labels.
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **173 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **196 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
 - **`pytagmanager crawl --intent ollama`** — swaps the deterministic keyword heuristic
@@ -45,10 +50,12 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
 
 Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 
-- **Phase 1.7 remainder** (Data Dictionary shipped; Schema Drift did not): presence-
-  vs-availability labeling (Exists/Exposed/Accessible), per-field schema-drift
-  detection in `version_control/diff.py`, cookie/storage purpose classification, and
-  "potential GTM usage" enrichment (needs live GTM config cross-reference).
+- **Phase 1.7 remainder**: "potential GTM usage" enrichment on the Data Dictionary
+  and a GTM blast-radius narrative on schema-drift findings (e.g. "existing GTM
+  variables/tags may no longer receive price") — both need live GTM config
+  cross-referenced against the dictionary/drift, which needs real container
+  credentials this environment doesn't have. Everything else in Phase 1.7 (presence
+  labeling, schema drift, purpose classification) is shipped as of this pass.
 - **Phase 1.8 remainder** (cross-implementation interaction consistency shipped; four
   of five items did not): broader interactive-element taxonomy (menus/accordions/tabs/
   modals/etc.), scroll-depth investigation, a timing-delay diagnostic rule, a Runtime

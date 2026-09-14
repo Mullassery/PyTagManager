@@ -113,16 +113,42 @@ pytagmanager crawl <url>
 ```bash
 pip install 'pytagmanager[diagnostics]'
 pytagmanager dictionary https://example.com --max-pages 20 --format json -o dictionary.json
+
+# Label each variable's Exists/Exposed/Accessible presence-vs-availability status:
+pytagmanager dictionary https://example.com --presence-labels
+
+# Classify cookie/localStorage/sessionStorage purpose (fixed taxonomy, evidence + confidence):
+pytagmanager dictionary https://example.com --purpose-classifier heuristic   # or: ollama
+
+# Diff against a previous run for per-field dataLayer schema drift:
+pytagmanager dictionary https://example.com --compare-to dictionary.json
 ```
 
 Drives a real browser session (same as `diagnose`) to build a variable-level
-inventory across dataLayer,
-cookies, and storage: source path, inferred type, example values, observed
-frequency, which pages have/lack it (`python/pytagmanager/dictionary/`). This
-is Phase 1.7 of `docs/ROADMAP.md`, **partially shipped**: the inventory itself
-is real, but presence-vs-availability labeling, per-field schema-drift
-detection, and cookie/storage purpose classification aren't built yet — see
+inventory across dataLayer, cookies, and storage: source path, inferred type,
+example values, observed frequency, which pages have/lack it
+(`python/pytagmanager/dictionary/`). This is Phase 1.7 of `docs/ROADMAP.md`,
+shipped except for one enrichment: "potential GTM usage" / a GTM blast-radius
+narrative on drift findings needs live GTM container config to cross-reference
+against, which needs real credentials this environment doesn't have — see
 [What's not working](#whats-not-working--open-issues).
+
+- **`--presence-labels`**: Exists/Exposed/Accessible, derived from each
+  variable's source (dataLayer fields are Accessible via GTM's built-in Data
+  Layer Variable; cookies via the built-in 1st Party Cookie variable;
+  localStorage/sessionStorage are only "possibly accessible," since no
+  built-in GTM variable type reads them).
+- **`--purpose-classifier`**: classifies cookies/storage against a fixed
+  taxonomy (identity/auth/consent/attribution/campaign/experiment/cart/
+  preferences/session/personalization/analytics/advertising) from
+  deterministic evidence (key-name pattern, cross-page persistence,
+  co-occurrence with a campaign URL param) — `heuristic` uses that evidence
+  directly, `ollama` re-ranks it via a local Ollama model with automatic
+  fallback if Ollama isn't reachable.
+- **`--compare-to`**: diffs two dictionary JSON exports for added/removed
+  fields, type-distribution shifts (e.g. `transaction_id: 96% string, 4%
+  number`), and possible renames (a hedged heuristic on leaf-name similarity
+  + type match within the same dataLayer event, never asserted as fact).
 
 ### Tracking crawl-to-crawl changes
 
@@ -374,9 +400,10 @@ which roadmap phases are shipped vs. still pending.
   pytagmanager` users were never affected — the CLI's `dictionary`/`diagnose`
   commands import these lazily inside their own function bodies, not at
   module load.
-- **Website Data Dictionary (Phase 1.7) is partial**: the variable inventory
-  itself works; presence-vs-availability labeling, per-field schema-drift
-  detection, and cookie/storage purpose classification aren't built yet.
+- **Website Data Dictionary (Phase 1.7) is shipped except for one enrichment**:
+  "potential GTM usage" / a GTM blast-radius narrative on schema-drift findings
+  needs live GTM container config to cross-reference against, which needs real
+  credentials this environment doesn't have.
 - **`ClaudeIntentClassifier`** referenced in `docs/ROADMAP.md`'s Phase 2 is
   planned, not implemented; the only real `IntentClassifier` implementations
   today are `OllamaIntentClassifier` and the deterministic heuristics.
