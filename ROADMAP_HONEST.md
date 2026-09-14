@@ -64,12 +64,20 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 
 ## ⚠️ CI/CD — current status
 
-- **PyPI is stale: the live release is v0.1.3, but this repo is at v0.2.0.**
-  v0.2.0 (the entire Tracking Observability & Diagnostics / Site-Wide QA / Data
-  Dictionary / runtime-state feature set) has never been published — `pip install
-  pytagmanager` today gets none of it. There's no publish/release workflow in
-  `.github/workflows/` at all (only `ci.yml`), so publishing is a manual step that
-  hasn't happened yet for this version.
+- **PyPI is now current: v0.2.0 was published 2026-09-14** (the entire Tracking
+  Observability & Diagnostics / Site-Wide QA / Data Dictionary / runtime-state feature
+  set, plus the CLI-wired `OllamaIntentClassifier`) — `pip install pytagmanager` gets
+  it. **Platform coverage is narrower than v0.1.3's release**, though: this release
+  only has a macOS arm64 wheel + sdist (built locally; Docker wasn't running and no
+  `zig` was available for manylinux cross-compilation), vs. v0.1.3's macOS x86_64 +
+  arm64 + Linux x86_64 + aarch64 + sdist. Linux and Intel-Mac users get the sdist and
+  need a working Rust toolchain to build from source until a proper multi-platform
+  release is cut. There's still no publish/release workflow in `.github/workflows/`
+  (only `ci.yml`) — this was a manual `maturin build` + `twine upload`, not an
+  automated release; the next release should either restore Docker/zig-based
+  cross-compilation or add a `maturin-action`-based GitHub release workflow so this
+  doesn't have to be redone by hand and platform coverage doesn't silently regress
+  again.
 - **The v0.2.0 version bump itself was incomplete**: it updated `pyproject.toml` and
   `python/pytagmanager/__init__.py` to `0.2.0` but missed `Cargo.toml`, which stayed at
   `0.1.3` until this pass (fixed here). Since `pyproject.toml`'s `[project].version` is

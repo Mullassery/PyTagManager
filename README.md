@@ -357,12 +357,14 @@ which roadmap phases are shipped vs. still pending.
 
 ## What's not working / open issues
 
-- **`pip install pytagmanager` gets v0.1.3 today, not v0.2.0.** This entire
-  Tracking Observability & Diagnostics / Site-Wide QA / Data Dictionary /
-  runtime-state feature set has never been published to PyPI — there's no
-  release workflow, so publishing is a manual step that hasn't happened yet
-  for this version. Use the [Development](#development) install path
-  (`maturin develop` from source) to get v0.2.0 today.
+- **`pip install pytagmanager` gets v0.2.0**, published 2026-09-14. Platform
+  coverage is narrower than v0.1.3's release, though: this release only shipped a
+  macOS arm64 wheel + sdist (manual build; no Docker/zig available locally for
+  manylinux cross-compilation at publish time), vs. v0.1.3's macOS x86_64 + arm64 +
+  Linux x86_64 + aarch64 + sdist. If `pip install` doesn't find a matching wheel for
+  your platform, it'll build from the sdist, which needs a working Rust toolchain —
+  or use the [Development](#development) install path (`maturin develop` from
+  source).
 - **CI was broken on every push since Tracking Observability & Diagnostics
   landed, until this pass**: `ci.yml` never installed the
   `pytagmanager[diagnostics]` extra or a Chromium binary, so pytest's
