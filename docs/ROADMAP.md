@@ -468,7 +468,7 @@ a confusing `TypeError` in an unrelated test. Deleted; not a code change,
 a local build-hygiene fix (same class of issue as the PyRoboFrames
 editable-install artifact noted elsewhere).
 
-### Phase 1.8 — Automated Browser Behavior & Runtime Event Intelligence *(partially shipped)*
+### Phase 1.8 — Automated Browser Behavior & Runtime Event Intelligence *(shipped)*
 
 **Goal:** extend Phase 1.5's observer/correlation system with the items
 from `docs/VISION.md` §14 that aren't covered by what's already shipped —
@@ -533,7 +533,22 @@ finding in both `diagnose --site-wide` text and JSON output.
    "display"). A plain `<div>` with no interactive role still produces
    zero recommendations — broadening to ARIA roles deliberately didn't
    turn every element on the page into a candidate. (L)
-2. Scroll-depth observer + diagnostic checks. **Not yet built.**
+2. Scroll-depth observer + diagnostic checks. **Shipped**: `agent.js`'s
+   `startScrollDepthObserver()` watches page-level scroll progress (not
+   per-element, unlike the `IntersectionObserver` visibility watcher) and
+   emits a `scroll_depth` event at most once per 25/50/75/90/100%
+   milestone crossed. `correlation/journey.py` treats `scroll_depth` as an
+   interaction anchor (same tier as click/submit/change), so each
+   milestone becomes its own `TrackingJourney` checked against the
+   existing rule engine and now shows up in the Runtime Event Map (item 5)
+   for free — no bespoke "scroll diagnostic" logic needed since scroll
+   milestones are just another interaction type to the infrastructure
+   already built for clicks. Opt-in via `ObservationSession(
+   track_scroll_depth=True)` / `pytagmanager diagnose --track-scroll-depth`
+   (off by default: most pages don't need scroll-milestone journeys
+   cluttering the report). Verified live: a real headless Chromium run
+   scrolled to a fixture's bottom element observes milestones 25 through
+   100, deduped (each milestone emitted exactly once). (L)
 3. `sitewide/interaction_consistency.py`. **Shipped**:
    `analyze_business_action_consistency()` groups implementations by
    `TrackingRecommendation.business_objective`, joins each to its
@@ -545,22 +560,45 @@ finding in both `diagnose --site-wide` text and JSON output.
    verdict, since "never fired" is already a different existing rule's
    job). Wired into both `render_site_health_report` and
    `build_site_health_json` as an additive optional parameter. (L)
-4. Timing-delay rule in `diagnostics/rules.py`. **Not yet built** — needs
-   `StateDiff` to carry its snapshots' timestamps (it currently only
-   carries before/after *labels*, not the numeric timestamps) and a join
-   key linking a `StateDiff` to the `TrackingJourney` it happened
-   alongside (today `StateDiff` labels encode the action but not the
-   selector) — real scope, deliberately deferred rather than rushed.
-5. Runtime Event Map in `sitewide/report.py`. **Not yet built.**
-6. Formalize Interaction Trace as a serializable object. **Not yet
-   built.**
+4. Timing-delay rule in `diagnostics/rules.py`. **Shipped**: `StateDiff`
+   now carries `selector` (set at its one construction site,
+   `session.py`'s `_run_step`, which always knows which interaction
+   triggered it) and `before_timestamp`/`after_timestamp` (pulled straight
+   from the `RuntimeStateSnapshot`s being diffed). `DiagnosticContext.
+   state_diff_for_journey()` joins a journey to its correlated `StateDiff`
+   by selector, picking the closest-in-time candidate when a selector was
+   exercised more than once in a session. `rule_timing_delay` fires
+   ("Possible" confidence, not higher, since Playwright IPC/capture
+   overhead is part of the measured gap) when that diff shows new
+   cookie/storage/dataLayer state whose "after" snapshot was captured more
+   than 200ms after the journey's dataLayer event actually fired.
+5. Runtime Event Map in `sitewide/report.py`. **Shipped**:
+   `sitewide/event_map.py`'s `build_runtime_event_map()` groups journeys by
+   `business_event` and reports per-interaction JS/dataLayer/Network/GTM
+   stage coverage (mapped onto `TrackingJourney.STAGES`), site-wide.
+   Rendered as its own "Runtime Event Map" section in both
+   `render_site_health_report` and `build_site_health_json`, alongside (not
+   replacing) the existing per-template health matrix.
+6. Formalize Interaction Trace as a serializable object. **Shipped**:
+   `diagnostics/trace.py`'s `build_interaction_trace()` orders a journey's
+   observations into `Finding -> Interaction -> Element -> Timestamp ->
+   JS/dataLayer/GTM/network events`, and layers in `-> storage change`
+   when a correlated `StateDiff` is supplied (via the same join key item 4
+   built). Wired into `pytagmanager diagnose --trace` for both `--site-wide`
+   and single-journey reports, in both text and JSON.
 
 **Tests:** 7 new tests in `tests/python/test_interaction_consistency.py`
 (unit: grouping/join/consistency logic; end-to-end: real `diagnose
 --site-wide` run across two real fixture pages, one new
 `add_to_cart_variant_naming.html`, proving the naming-inconsistency
 finding against real browser-observed events, not synthetic data) + 4 new
-tests in `test_heuristics.py` for the broadened taxonomy.
+tests in `test_heuristics.py` for the broadened taxonomy. Items 2/4/5/6
+added: 5 new tests in `diagnostics/rules.py`'s timing-delay coverage
+(`test_diagnostics_rules.py`), 6 new tests in `test_event_map.py`, 8 new
+tests in `test_interaction_trace.py`, and 4 new real-Chromium tests in
+`test_observability_extended_observers.py`/`test_diagnose_cli.py` for the
+scroll-depth observer (both the raw milestone-emission mechanism and its
+CLI wiring).
 
 ### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph
 

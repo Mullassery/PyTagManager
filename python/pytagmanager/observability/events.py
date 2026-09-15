@@ -51,6 +51,7 @@ EVENT_TYPES = frozenset(
         "consent_change",
         "api_call",
         "visibility",
+        "scroll_depth",
     }
 )
 

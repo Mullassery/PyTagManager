@@ -95,3 +95,41 @@ def test_redact_payload_still_masks_sensitive_keys_in_api_call_payloads():
     payload = redact_payload({"url": "/api/cart", "auth_token": "secret-value"})
     assert payload["auth_token"] == "[REDACTED]"
     assert payload["url"] == "/api/cart"
+
+
+def test_scroll_depth_milestones_observed_when_scrolled_to_bottom(fixture_server):
+    with ObservationSession(headless=True, track_scroll_depth=True) as session:
+        session.load(f"{fixture_server}/{_PAGE}")
+        session.scroll_into_view('[data-testid="impression-target"]')
+        session.wait(0.5)
+        events = session.events
+
+    scroll_events = [e for e in events if e.event_type == "scroll_depth"]
+    milestones = {e.event_name for e in scroll_events}
+    assert "25" in milestones
+    assert "100" in milestones
+    # Deduped: each milestone emitted at most once per session.
+    assert len(scroll_events) == len(milestones)
+
+
+def test_scroll_depth_becomes_a_journey_anchor(fixture_server):
+    with ObservationSession(headless=True, track_scroll_depth=True) as session:
+        session.load(f"{fixture_server}/{_PAGE}")
+        session.scroll_into_view('[data-testid="impression-target"]')
+        session.wait(0.5)
+        events = session.events
+
+    journeys = correlate_events(events, window_seconds=5.0)
+    scroll_journeys = [j for j in journeys if j.business_event.startswith("scroll_depth:")]
+    assert scroll_journeys
+    assert scroll_journeys[0].stage_present("interaction")
+
+
+def test_scroll_depth_not_tracked_when_disabled(fixture_server):
+    with ObservationSession(headless=True) as session:
+        session.load(f"{fixture_server}/{_PAGE}")
+        session.scroll_into_view('[data-testid="impression-target"]')
+        session.wait(0.5)
+        events = session.events
+
+    assert not [e for e in events if e.event_type == "scroll_depth"]

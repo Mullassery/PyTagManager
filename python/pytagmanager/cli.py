@@ -333,6 +333,20 @@ def data_dictionary(
     is_flag=True,
     help="Capture raw cookie/localStorage/sessionStorage values, not just key names/types/lengths. Off by default: these are live session/credential state, a more sensitive class of data than a dataLayer payload. Values for keys that look sensitive (session/token/auth/csrf/...) are still redacted even with this on.",
 )
+@click.option(
+    "--trace",
+    "include_trace",
+    is_flag=True,
+    help="Include a formalized, drillable Interaction Trace per journey (docs/VISION.md §14): "
+    "Finding -> Interaction -> Element -> Timestamp -> JS/dataLayer/GTM/network events -> storage change.",
+)
+@click.option(
+    "--track-scroll-depth",
+    "track_scroll_depth",
+    is_flag=True,
+    help="Treat 25/50/75/90/100% scroll-depth milestones as first-class interactions (docs/VISION.md §14), "
+    "each becoming its own journey checked for scroll/dataLayer/GTM/network signals.",
+)
 def diagnose(
     url: str,
     max_pages: int,
@@ -354,6 +368,8 @@ def diagnose(
     alert_webhook: str | None,
     alert_threshold: int,
     capture_storage_values: bool,
+    include_trace: bool,
+    track_scroll_depth: bool,
 ) -> None:
     """Drive a real browser through URL (or a crawl of it), observe the full
     interaction -> dataLayer -> GTM -> GA4 tracking chain, and diagnose
@@ -369,6 +385,11 @@ def diagnose(
     from pytagmanager.analytics_api.gtm_client import GtmApiClient
     from pytagmanager.correlation.journey import correlate_events
     from pytagmanager.diagnostics.rules import DiagnosticContext, find_duplicate_purchases, find_untested_recommendations
+    from pytagmanager.diagnostics.trace import (
+        build_interaction_trace_json,
+        build_interaction_traces,
+        render_interaction_trace,
+    )
     from pytagmanager.observability.scenario import auto_scenario_from_recommendations, load_scenario
     from pytagmanager.observability.session import ObservationSession
     from pytagmanager.reporting.json_report import build_json_report
@@ -405,7 +426,10 @@ def diagnose(
 
     for page_url, scenarios, recs in pages_and_scenarios:
         with ObservationSession(
-            headless=headless, browser_name=browser, capture_storage_values=capture_storage_values
+            headless=headless,
+            browser_name=browser,
+            capture_storage_values=capture_storage_values,
+            track_scroll_depth=track_scroll_depth,
         ) as session:
             session.load(page_url)
             for scenario in scenarios:
@@ -430,12 +454,23 @@ def diagnose(
         gtm_triggers=gtm_triggers,
         gtm_tags=gtm_tags,
         ga4_ingestion=ga4_ingestion,
+        state_diffs=all_state_diffs,
     )
     diagnosed = diagnose_journeys(all_journeys, ctx)
+
+    traces = []
+    if include_trace:
+        state_diffs_by_journey_id = {}
+        for journey in diagnosed:
+            diff = ctx.state_diff_for_journey(journey)
+            if diff is not None:
+                state_diffs_by_journey_id[journey.journey_id] = diff
+        traces = build_interaction_traces(diagnosed, state_diffs_by_journey_id)
 
     if site_wide:
         from pytagmanager.sitewide.aggregation import analyze_template_consistency, compute_site_health
         from pytagmanager.sitewide.anomalies import detect_site_anomalies
+        from pytagmanager.sitewide.event_map import build_runtime_event_map
         from pytagmanager.sitewide.interaction_consistency import analyze_business_action_consistency
         from pytagmanager.sitewide.report import build_site_health_json, render_site_health_report
         from pytagmanager.sitewide.templates import detect_templates
@@ -463,6 +498,7 @@ def diagnose(
         consistency_reports = [analyze_template_consistency(t, journeys_by_page) for t in templates]
         anomalies = detect_site_anomalies(templates, journeys_by_page)
         business_action_reports = analyze_business_action_consistency(recs_by_page, diagnosed)
+        event_map = build_runtime_event_map(diagnosed)
 
         regression = None
         if history_path:
@@ -490,28 +526,39 @@ def diagnose(
                         click.echo("Warning: failed to send regression alert to webhook.", err=True)
 
         if output_format == "json":
-            report_dict = build_site_health_json(site_health, consistency_reports, anomalies, business_action_reports)
+            report_dict = build_site_health_json(
+                site_health, consistency_reports, anomalies, business_action_reports, event_map
+            )
             if regression:
                 report_dict["regression"] = {
                     "message": regression.message,
                     "previous_score": regression.previous_score,
                     "current_score": regression.current_score,
                 }
+            if traces:
+                report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
             report = json.dumps(report_dict, indent=2)
         else:
-            report = render_site_health_report(site_health, consistency_reports, anomalies, business_action_reports)
+            report = render_site_health_report(
+                site_health, consistency_reports, anomalies, business_action_reports, event_map
+            )
             if regression:
                 report += f"\n\nREGRESSION: {regression.message}"
+            if traces:
+                report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
     else:
         extra_findings = find_duplicate_purchases(diagnosed)
         if output_format == "json":
-            report = json.dumps(
-                build_json_report(diagnosed, all_untested, extra_findings, all_state_diffs), indent=2
-            )
+            report_dict = build_json_report(diagnosed, all_untested, extra_findings, all_state_diffs)
+            if traces:
+                report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
+            report = json.dumps(report_dict, indent=2)
         else:
             report = render_terminal_report(
                 diagnosed, all_untested, verbose=verbose, extra_findings=extra_findings, state_diffs=all_state_diffs
             )
+            if traces:
+                report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
 
     if output_path:
         with open(output_path, "w") as f:

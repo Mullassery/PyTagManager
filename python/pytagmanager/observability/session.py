@@ -48,7 +48,10 @@ _SOURCE_BY_EVENT_TYPE: Dict[str, str] = {
     "js_error": "javascript",
     "api_call": "application_api",
     "visibility": "visibility",
+    "scroll_depth": "browser",
 }
+
+_DEFAULT_SCROLL_DEPTH_MILESTONES = [25, 50, 75, 90, 100]
 
 
 def _classify_network_url(url: str) -> Optional[str]:
@@ -72,11 +75,15 @@ class ObservationSession:
         mutation_selectors: Optional[Sequence[str]] = None,
         visibility_selectors: Optional[Sequence[str]] = None,
         capture_storage_values: bool = False,
+        track_scroll_depth: bool = False,
+        scroll_depth_milestones: Optional[Sequence[int]] = None,
     ):
         self.headless = headless
         self.browser_name = browser_name
         self.mutation_selectors = list(mutation_selectors or [])
         self.visibility_selectors = list(visibility_selectors or [])
+        self.track_scroll_depth = track_scroll_depth
+        self.scroll_depth_milestones = list(scroll_depth_milestones or _DEFAULT_SCROLL_DEPTH_MILESTONES)
         # Runtime State Capture (Phase 1.6): off by default for raw cookie/
         # storage *values* -- see the privacy note in observability/state.py.
         # Keys/type/length are always captured regardless of this flag.
@@ -160,6 +167,11 @@ class ObservationSession:
                 "(selectors) => window.__ptm.startVisibilityObserver(selectors, 0.5)",
                 self.visibility_selectors,
             )
+        if self.track_scroll_depth:
+            self._page.evaluate(
+                "(milestones) => window.__ptm.startScrollDepthObserver(milestones)",
+                self.scroll_depth_milestones,
+            )
         self.capture_state("page_load")
 
     def capture_state(self, label: str) -> RuntimeStateSnapshot:
@@ -213,7 +225,7 @@ class ObservationSession:
                 )
             )
         after = self.capture_state(f"after:{step_id}")
-        self._state_diffs.append(diff_state_snapshots(before, after))
+        self._state_diffs.append(diff_state_snapshots(before, after, selector=step.selector))
 
     def scroll_into_view(self, selector: str) -> None:
         self._page.locator(selector).first.scroll_into_view_if_needed()

@@ -10,6 +10,7 @@ from typing import List, Optional
 
 from pytagmanager.sitewide.aggregation import SiteHealthReport, TemplateConsistencyReport, TemplateHealth
 from pytagmanager.sitewide.anomalies import Anomaly
+from pytagmanager.sitewide.event_map import RuntimeEventMapRow
 from pytagmanager.sitewide.interaction_consistency import BusinessActionConsistencyReport
 
 
@@ -32,9 +33,11 @@ def render_site_health_report(
     consistency_reports: List[TemplateConsistencyReport],
     anomalies: Optional[List[Anomaly]] = None,
     business_action_reports: Optional[List[BusinessActionConsistencyReport]] = None,
+    event_map: Optional[List[RuntimeEventMapRow]] = None,
 ) -> str:
     anomalies = anomalies or []
     business_action_reports = business_action_reports or []
+    event_map = event_map or []
     lines = ["PyTagManager Site Health", "=" * 25, ""]
     lines.append(f"{site_health.pages_scanned} pages scanned")
     lines.append(f"Overall tracking health score: {site_health.overall_score}/100")
@@ -94,7 +97,25 @@ def render_site_health_report(
     for template_health in site_health.template_healths:
         lines.append(_matrix_row(template_health))
 
+    if event_map:
+        lines.append("")
+        lines.append("Runtime Event Map (interaction x JS/dataLayer/Network/GTM)")
+        lines.append("-" * 59)
+        lines.append(f"{'Interaction':<30}{'JS':>8}{'dataLayer':>12}{'Network':>10}{'GTM':>8}")
+        for row in event_map:
+            lines.append(_event_map_row(row))
+
     return "\n".join(lines)
+
+
+def _event_map_row(row: RuntimeEventMapRow) -> str:
+    return (
+        f"{row.business_event:<30}"
+        f"{_status_icon(row.js_coverage):>8}"
+        f"{_status_icon(row.datalayer_coverage):>12}"
+        f"{_status_icon(row.network_coverage):>10}"
+        f"{_status_icon(row.gtm_coverage):>8}"
+    )
 
 
 def _matrix_row(template_health: TemplateHealth) -> str:
@@ -110,9 +131,11 @@ def build_site_health_json(
     consistency_reports: List[TemplateConsistencyReport],
     anomalies: Optional[List[Anomaly]] = None,
     business_action_reports: Optional[List[BusinessActionConsistencyReport]] = None,
+    event_map: Optional[List[RuntimeEventMapRow]] = None,
 ) -> dict:
     anomalies = anomalies or []
     business_action_reports = business_action_reports or []
+    event_map = event_map or []
     return {
         "schema_version": 1,
         "pages_scanned": site_health.pages_scanned,
@@ -187,5 +210,16 @@ def build_site_health_json(
                 ],
             }
             for report in business_action_reports
+        ],
+        "runtime_event_map": [
+            {
+                "business_event": row.business_event,
+                "journeys_total": row.journeys_total,
+                "js_coverage": round(row.js_coverage, 4),
+                "datalayer_coverage": round(row.datalayer_coverage, 4),
+                "network_coverage": round(row.network_coverage, 4),
+                "gtm_coverage": round(row.gtm_coverage, 4),
+            }
+            for row in event_map
         ],
     }

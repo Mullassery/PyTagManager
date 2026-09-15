@@ -146,10 +146,20 @@ def _entries_from_cookie_list(cookies: List[dict]) -> Dict[str, StorageEntry]:
 class StateDiff:
     """What changed between two `RuntimeStateSnapshot`s of the same page
     visit -- the before/after diffing `docs/ROADMAP.md` Phase 1.6 calls
-    for around each interaction."""
+    for around each interaction.
+
+    `selector` and the two timestamps (Phase 1.8 item 4/6: timing-delay
+    diagnosis and the formalized Interaction Trace) are the join key back
+    to the `TrackingJourney` this diff happened alongside -- `session.py`'s
+    `_run_step` is the only place a `StateDiff` is created, and it always
+    knows which selector's interaction triggered it, so this is populated
+    at the source rather than reconstructed later from labels."""
 
     before_label: str
     after_label: str
+    selector: Optional[str] = None
+    before_timestamp: float = 0.0
+    after_timestamp: float = 0.0
     cookies_added: List[str] = field(default_factory=list)
     cookies_removed: List[str] = field(default_factory=list)
     cookies_modified: List[str] = field(default_factory=list)
@@ -201,13 +211,18 @@ def _new_data_layer_event_names(before_items: List[dict], after_items: List[dict
     ]
 
 
-def diff_state_snapshots(before: RuntimeStateSnapshot, after: RuntimeStateSnapshot) -> StateDiff:
+def diff_state_snapshots(
+    before: RuntimeStateSnapshot, after: RuntimeStateSnapshot, selector: Optional[str] = None
+) -> StateDiff:
     cookies_added, cookies_removed, cookies_modified = _diff_entries(before.cookies, after.cookies)
     ls_added, ls_removed, ls_modified = _diff_entries(before.local_storage, after.local_storage)
     ss_added, ss_removed, ss_modified = _diff_entries(before.session_storage, after.session_storage)
     return StateDiff(
         before_label=before.label,
         after_label=after.label,
+        selector=selector,
+        before_timestamp=before.timestamp,
+        after_timestamp=after.timestamp,
         cookies_added=cookies_added,
         cookies_removed=cookies_removed,
         cookies_modified=cookies_modified,

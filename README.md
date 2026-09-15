@@ -306,7 +306,30 @@ event shape from the product page, quick-view, search results, and a
 recommendation widget, regardless of which page template implements it?
 Not compatible with `--scenario` (site-wide aggregation needs a crawl of more
 than one page). Cross-journey checks like duplicate-purchase detection
-run in both modes and appear as "Additional Findings".
+run in both modes and appear as "Additional Findings". `--site-wide` also
+includes a **Runtime Event Map**: one matrix, interaction ×
+JS/dataLayer/Network/GTM coverage, site-wide (alongside, not replacing, the
+per-template health matrix) — see `sitewide/event_map.py`.
+
+#### Scroll-depth interactions and drillable traces
+
+```bash
+# Treat 25/50/75/90/100% scroll milestones as first-class interactions,
+# each becoming its own journey checked against the same rule engine:
+pytagmanager diagnose https://example.com --track-scroll-depth
+
+# Add a formalized, drillable Interaction Trace per journey: Finding ->
+# Interaction -> Element -> Timestamp -> JS/dataLayer/GTM/network events
+# -> storage change:
+pytagmanager diagnose https://example.com --trace --format json
+```
+
+`--track-scroll-depth` is off by default (most pages don't need
+scroll-milestone journeys cluttering the report); when on, a diagnostic
+rule (`rule_timing_delay`) also flags runtime state that changed
+suspiciously long (>200ms, "Possible" confidence) after the trigger that
+needed it already fired, using the same journey↔`StateDiff` join key
+`--trace`'s storage-change step relies on.
 
 #### Tracking health history + regression alerts
 
@@ -373,7 +396,7 @@ doesn't).
 
 ## What's working now (verified)
 
-23 Rust tests + 169 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 220 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

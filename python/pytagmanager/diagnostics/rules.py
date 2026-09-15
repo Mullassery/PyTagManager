@@ -21,9 +21,15 @@ from pytagmanager.analytics_api.models import GtmTag, GtmTrigger
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.diagnostics.models import Diagnosis
 from pytagmanager.observability.scenario import Expectation
+from pytagmanager.observability.state import StateDiff
 from pytagmanager.recommend.models import TrackingRecommendation
 
 _SEVERITY_RANK = {"critical": 3, "warning": 2, "unknown": 1, "healthy": 0}
+
+# Minimum gap between a business event firing and a correlated StateDiff's
+# "after" snapshot to call it a timing-class delay rather than ordinary
+# Playwright IPC/capture overhead (typically tens of ms).
+_TIMING_DELAY_THRESHOLD_SECONDS = 0.2
 
 # Content-pattern PII detection (distinct from events.py's key-name-based
 # redact_payload): catches PII leaking through innocuously-named fields,
@@ -56,6 +62,12 @@ class DiagnosticContext:
     gtm_triggers: Optional[List[GtmTrigger]] = None
     gtm_tags: Optional[List[GtmTag]] = None
     ga4_ingestion: Dict[str, Optional[bool]] = field(default_factory=dict)  # event_name -> was_ingested
+    # Every StateDiff observed this run (session.py's per-scenario-step
+    # diffs, which now carry a `selector` -- see observability/state.py).
+    # Phase 1.8's timing-delay rule joins a journey back to the StateDiff
+    # that happened alongside it via this list, not a dict, since the same
+    # selector can be exercised more than once in a session.
+    state_diffs: List[StateDiff] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # CSS attribute selectors are quote-style-agnostic
@@ -66,6 +78,21 @@ class DiagnosticContext:
         self.expectations_by_selector = {
             _normalize_selector(k): v for k, v in self.expectations_by_selector.items()
         }
+
+    def state_diff_for_journey(self, journey: TrackingJourney) -> Optional[StateDiff]:
+        """The StateDiff whose selector matches this journey's anchor
+        interaction and whose `before_timestamp` is closest to the
+        journey's start time -- a best-effort join, not a guaranteed exact
+        match, when the same selector was exercised more than once in one
+        session (see `observability/state.py`'s StateDiff docstring)."""
+        selector = journey.anchor_selector
+        if not selector:
+            return None
+        normalized = _normalize_selector(selector)
+        candidates = [d for d in self.state_diffs if d.selector and _normalize_selector(d.selector) == normalized]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda d: abs(d.before_timestamp - journey.start_time))
 
     def expected_datalayer_event(self, selector: Optional[str]) -> Optional[str]:
         """The exact event name a hand-authored scenario asserts, or None.
@@ -395,6 +422,47 @@ def rule_ecommerce_missing_parameters(journey: TrackingJourney, ctx: DiagnosticC
     )
 
 
+def rule_timing_delay(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+    """Phase 1.8 item 4 (docs/VISION.md §7): a variable can be available at
+    load but not before the trigger that needed it, or become available
+    only some time *after* that trigger already fired -- a distinct,
+    timing-class failure from a plain missing-data failure. Evidence: the
+    StateDiff correlated to this journey (via
+    `DiagnosticContext.state_diff_for_journey`) shows new
+    cookie/storage/dataLayer state whose "after" snapshot was captured
+    more than `_TIMING_DELAY_THRESHOLD_SECONDS` after this journey's
+    dataLayer event actually fired. Deliberately "Possible" confidence,
+    not higher: the gap includes real Playwright IPC/capture overhead, not
+    just in-page timing, so this is suggestive evidence, not proof.
+    """
+    push_events = journey.events_of_type("datalayer_push")
+    if not push_events:
+        return None
+    diff = ctx.state_diff_for_journey(journey)
+    if diff is None:
+        return None
+    changed_keys = sorted(
+        diff.cookies_added + diff.local_storage_added + diff.session_storage_added + diff.new_data_layer_events
+    )
+    if not changed_keys:
+        return None
+    delay = diff.after_timestamp - push_events[0].timestamp
+    if delay <= _TIMING_DELAY_THRESHOLD_SECONDS:
+        return None
+    return Diagnosis(
+        severity="warning",
+        root_cause="timing_delay",
+        message=(
+            f"Runtime state ({', '.join(changed_keys[:5])}) was still changing "
+            f"{delay * 1000:.0f}ms after the '{journey.business_event}' event fired -- data this "
+            "trigger depends on may not have been ready in time."
+        ),
+        rule_name="timing_delay",
+        details={"delay_ms": round(delay * 1000, 1), "changed_keys": changed_keys},
+        confidence="Possible",
+    )
+
+
 def rule_pii_leak(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
     """Content-pattern PII scan over dataLayer/network payload *values*
     (not just key names -- see events.redact_payload for the key-based
@@ -447,6 +515,7 @@ REGISTRY: List[Callable[[TrackingJourney, DiagnosticContext], Optional[Diagnosis
     rule_js_error_blocking,
     rule_parameter_loss,
     rule_ecommerce_missing_parameters,
+    rule_timing_delay,
     rule_pii_leak,
 ]
 

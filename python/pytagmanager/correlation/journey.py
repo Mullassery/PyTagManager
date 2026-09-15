@@ -31,11 +31,12 @@ DEFAULT_CORRELATION_WINDOW_SECONDS = 5.0
 
 STAGES = ("interaction", "mutation", "application", "datalayer", "gtm", "network")
 
-_INTERACTION_TYPES = frozenset({"click", "submit", "change"})
+_INTERACTION_TYPES = frozenset({"click", "submit", "change", "scroll_depth"})
 _STAGE_BY_EVENT_TYPE = {
     "click": "interaction",
     "submit": "interaction",
     "change": "interaction",
+    "scroll_depth": "interaction",
     "dom_insert": "mutation",
     "dom_remove": "mutation",
     "api_call": "application",
@@ -78,6 +79,16 @@ class TrackingJourney:
 
     def with_diagnosis(self, diagnosis: Diagnosis) -> "TrackingJourney":
         return replace(self, status=diagnosis.severity, diagnosis=diagnosis)
+
+
+def stage_for_event_type(event_type: str) -> str:
+    """Public wrapper around `_STAGE_BY_EVENT_TYPE`, for callers outside
+    this module that need the same event-type -> stage mapping
+    `TrackingJourney.stage_present` uses internally --
+    `diagnostics/trace.py`'s formalized Interaction Trace (Phase 1.8 item
+    6), notably, needs the per-observation stage label, not just
+    stage-presence booleans."""
+    return _STAGE_BY_EVENT_TYPE.get(event_type, "other")
 
 
 def _infer_business_event(anchor: TrackingEvent, related: List[TrackingEvent]) -> str:

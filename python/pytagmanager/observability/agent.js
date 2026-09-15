@@ -274,6 +274,22 @@
   var visibilityObserver = null;
   var seenVisibleSelectors = {};
 
+  // ---- Scroll-depth milestones (Phase 1.8 item 2, docs/VISION.md §14):
+  // a first-class interaction type distinct from the per-element
+  // IntersectionObserver above -- this watches page-level scroll progress,
+  // not individual elements. ----
+  var scrollDepthMilestones = null;
+  var scrollDepthSeen = {};
+  var scrollDepthHandler = null;
+  var scrollDepthTicking = false;
+
+  function currentScrollDepthPercent() {
+    var doc = document.documentElement;
+    var scrollable = Math.max(doc.scrollHeight - window.innerHeight, 1);
+    var scrolled = window.scrollY || doc.scrollTop || 0;
+    return Math.min(100, Math.max(0, (scrolled / scrollable) * 100));
+  }
+
   function isInteresting(node) {
     return !!(node && node.tagName && INTERESTING_TAGS[node.tagName.toLowerCase()]);
   }
@@ -459,6 +475,43 @@
         visibilityObserver = null;
       }
       seenVisibleSelectors = {};
+    },
+
+    // Page-level scroll-depth milestones, each emitted at most once per
+    // session, in ascending order as the page is scrolled. `milestones`
+    // defaults to 25/50/75/90/100 (docs/VISION.md §14) if omitted/empty.
+    startScrollDepthObserver: function (milestones) {
+      this.stopScrollDepthObserver();
+      scrollDepthMilestones = (milestones && milestones.length ? milestones : [25, 50, 75, 90, 100])
+        .slice()
+        .sort(function (a, b) {
+          return a - b;
+        });
+      scrollDepthSeen = {};
+      scrollDepthHandler = function () {
+        if (scrollDepthTicking) return;
+        scrollDepthTicking = true;
+        requestAnimationFrame(function () {
+          scrollDepthTicking = false;
+          var percent = currentScrollDepthPercent();
+          scrollDepthMilestones.forEach(function (milestone) {
+            if (percent >= milestone && !scrollDepthSeen[milestone]) {
+              scrollDepthSeen[milestone] = true;
+              safeEmit("scroll_depth", String(milestone), { percent: percent }, null);
+            }
+          });
+        });
+      };
+      window.addEventListener("scroll", scrollDepthHandler, { passive: true });
+      scrollDepthHandler(); // catch pages already at/past a milestone before any scroll (e.g. a short page)
+    },
+    stopScrollDepthObserver: function () {
+      if (scrollDepthHandler) {
+        window.removeEventListener("scroll", scrollDepthHandler);
+        scrollDepthHandler = null;
+      }
+      scrollDepthMilestones = null;
+      scrollDepthSeen = {};
     },
 
     // Point-in-time snapshot of localStorage/sessionStorage/dataLayer.

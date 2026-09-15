@@ -10,6 +10,7 @@ from pytagmanager.diagnostics.rules import (
     primary_diagnosis,
 )
 from pytagmanager.observability.events import TrackingEvent
+from pytagmanager.observability.state import StateDiff
 from pytagmanager.recommend.models import TrackingRecommendation
 
 
@@ -174,3 +175,149 @@ def test_find_untested_recommendations_filters_by_selector():
 
     result = find_untested_recommendations([tested, untested_rec], [journey])
     assert result == [untested_rec]
+
+
+# ---- Phase 1.8 item 4: timing-delay rule ----
+
+
+def _event_at(event_type, timestamp, source="browser", event_name="", selector=None, payload=None):
+    return TrackingEvent.create(
+        source=source, event_type=event_type, event_name=event_name, selector=selector, payload=payload, timestamp=timestamp
+    )
+
+
+def test_timing_delay_flagged_when_state_changes_well_after_event_fires():
+    journey = TrackingJourney(
+        journey_id=str(uuid.uuid4()),
+        business_event="add_to_cart",
+        start_time=100.0,
+        end_time=100.5,
+        observations=[
+            _event_at("click", 100.0, selector='[data-testid="add-to-cart"]'),
+            _event_at("datalayer_push", 100.1, source="datalayer", event_name="add_to_cart"),
+        ],
+    )
+    diff = StateDiff(
+        before_label="before:step_0_click",
+        after_label="after:step_0_click",
+        selector='[data-testid="add-to-cart"]',
+        before_timestamp=99.9,
+        after_timestamp=100.5,  # 400ms after the datalayer push at 100.1
+        local_storage_added=["cart_id"],
+    )
+    ctx = DiagnosticContext(state_diffs=[diff])
+
+    root_causes = {d.root_cause for d in diagnose_journey(journey, ctx)}
+    assert "timing_delay" in root_causes
+
+
+def test_timing_delay_not_flagged_within_threshold():
+    journey = TrackingJourney(
+        journey_id=str(uuid.uuid4()),
+        business_event="add_to_cart",
+        start_time=100.0,
+        end_time=100.5,
+        observations=[
+            _event_at("click", 100.0, selector='[data-testid="add-to-cart"]'),
+            _event_at("datalayer_push", 100.1, source="datalayer", event_name="add_to_cart"),
+        ],
+    )
+    diff = StateDiff(
+        before_label="before:step_0_click",
+        after_label="after:step_0_click",
+        selector='[data-testid="add-to-cart"]',
+        before_timestamp=99.9,
+        after_timestamp=100.15,  # only 50ms after the push -- within IPC-overhead threshold
+        local_storage_added=["cart_id"],
+    )
+    ctx = DiagnosticContext(state_diffs=[diff])
+
+    root_causes = {d.root_cause for d in diagnose_journey(journey, ctx)}
+    assert "timing_delay" not in root_causes
+
+
+def test_timing_delay_not_flagged_when_no_state_changed():
+    journey = TrackingJourney(
+        journey_id=str(uuid.uuid4()),
+        business_event="add_to_cart",
+        start_time=100.0,
+        end_time=100.5,
+        observations=[
+            _event_at("click", 100.0, selector='[data-testid="add-to-cart"]'),
+            _event_at("datalayer_push", 100.1, source="datalayer", event_name="add_to_cart"),
+        ],
+    )
+    diff = StateDiff(
+        before_label="before:step_0_click",
+        after_label="after:step_0_click",
+        selector='[data-testid="add-to-cart"]',
+        before_timestamp=99.9,
+        after_timestamp=100.5,
+    )
+    ctx = DiagnosticContext(state_diffs=[diff])
+
+    root_causes = {d.root_cause for d in diagnose_journey(journey, ctx)}
+    assert "timing_delay" not in root_causes
+
+
+def test_timing_delay_not_flagged_without_matching_selector():
+    journey = TrackingJourney(
+        journey_id=str(uuid.uuid4()),
+        business_event="add_to_cart",
+        start_time=100.0,
+        end_time=100.5,
+        observations=[
+            _event_at("click", 100.0, selector='[data-testid="add-to-cart"]'),
+            _event_at("datalayer_push", 100.1, source="datalayer", event_name="add_to_cart"),
+        ],
+    )
+    diff = StateDiff(
+        before_label="before:step_0_click",
+        after_label="after:step_0_click",
+        selector='[data-testid="unrelated-button"]',
+        before_timestamp=99.9,
+        after_timestamp=100.5,
+        local_storage_added=["cart_id"],
+    )
+    ctx = DiagnosticContext(state_diffs=[diff])
+
+    root_causes = {d.root_cause for d in diagnose_journey(journey, ctx)}
+    assert "timing_delay" not in root_causes
+
+
+def test_state_diff_for_journey_picks_closest_by_time_among_repeated_selector():
+    journey = TrackingJourney(
+        journey_id=str(uuid.uuid4()),
+        business_event="add_to_cart",
+        start_time=100.0,
+        end_time=100.5,
+        observations=[_event_at("click", 100.0, selector='[data-testid="add-to-cart"]')],
+    )
+    far_diff = StateDiff(
+        before_label="before:a", after_label="after:a", selector='[data-testid="add-to-cart"]', before_timestamp=10.0
+    )
+    close_diff = StateDiff(
+        before_label="before:b", after_label="after:b", selector='[data-testid="add-to-cart"]', before_timestamp=99.95
+    )
+    ctx = DiagnosticContext(state_diffs=[far_diff, close_diff])
+
+    assert ctx.state_diff_for_journey(journey) is close_diff
+
+
+def test_state_diff_for_journey_normalizes_quote_style():
+    journey = TrackingJourney(
+        journey_id=str(uuid.uuid4()),
+        business_event="add_to_cart",
+        start_time=100.0,
+        end_time=100.5,
+        observations=[_event_at("click", 100.0, selector="[data-testid='add-to-cart']")],
+    )
+    diff = StateDiff(
+        before_label="before",
+        after_label="after",
+        selector='[data-testid="add-to-cart"]',
+        before_timestamp=99.9,
+    )
+    ctx = DiagnosticContext(state_diffs=[diff])
+
+    assert ctx.state_diff_for_journey(journey) is diff

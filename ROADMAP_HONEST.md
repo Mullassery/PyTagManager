@@ -1,7 +1,7 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.0
-**Last Updated:** 2026-09-14
+**Last Updated:** 2026-09-15
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -30,7 +30,7 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **196 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **220 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
 - **`pytagmanager crawl --intent ollama`** — swaps the deterministic keyword heuristic
@@ -38,6 +38,15 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   automatic fallback to the heuristic if Ollama isn't reachable. Also exported from
   `pytagmanager/__init__.py` and pluggable directly via
   `recommend_for_graph(graph, classifier=...)`.
+- **Phase 1.8 (Automated Browser Behavior & Runtime Event Intelligence) is fully
+  shipped**: `pytagmanager diagnose --track-scroll-depth` treats 25/50/75/90/100%
+  scroll milestones as first-class interactions (own journeys, own diagnoses);
+  `--trace` adds a formalized, drillable Interaction Trace per journey
+  (Finding → Interaction → Element → Timestamp → JS/dataLayer/GTM/network → storage
+  change); `--site-wide` now includes a Runtime Event Map (interaction ×
+  JS/dataLayer/Network/GTM coverage, site-wide); a new `rule_timing_delay` diagnostic
+  flags runtime state that changed suspiciously long after the trigger that needed it
+  already fired.
 
 ## 🟡 Built but not reachable via the public API/CLI
 
@@ -56,10 +65,6 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   cross-referenced against the dictionary/drift, which needs real container
   credentials this environment doesn't have. Everything else in Phase 1.7 (presence
   labeling, schema drift, purpose classification) is shipped as of this pass.
-- **Phase 1.8 remainder** (cross-implementation interaction consistency shipped; four
-  of five items did not): broader interactive-element taxonomy (menus/accordions/tabs/
-  modals/etc.), scroll-depth investigation, a timing-delay diagnostic rule, a Runtime
-  Event Map, and a formalized drillable Interaction Trace.
 - **Phase 1.85 onward** (GTM client/server execution graph, Playwright discovery/test
   intelligence, script-impact/performance intelligence) — not started.
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
@@ -112,11 +117,11 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 
 ## Where most work is pending, at a glance
 
-Of the roadmap's post-v1 phases, four are shipped (0, 0.5, 1.5, 1.6), two are
-partially shipped with the harder half remaining (1.7's schema-drift/purpose
-classification, 1.8's four remaining sub-items), and everything from Phase 1.85
-onward — plus cloud-LLM intent classification and all of the "deliberately deferred"
-list in `docs/ARCHITECTURE.md` — hasn't been started. The nearest-term real gaps are
-keeping CI actually exercising new features as they ship (the diagnostics-extras gap
-above shipped a whole feature with broken CI for an unknown period before that pass
-caught it) and getting v0.2.0 actually published to PyPI (see below).
+Of the roadmap's post-v1 phases, six are shipped (0, 0.5, 1.5, 1.6, 1.7, 1.8) --
+1.7 minus one GTM-config-dependent enrichment (see above) -- and everything from
+Phase 1.85 onward — plus cloud-LLM intent classification and all of the
+"deliberately deferred" list in `docs/ARCHITECTURE.md` — hasn't been started. The
+nearest-term real gaps are keeping CI actually exercising new features as they ship
+(the diagnostics-extras gap above shipped a whole feature with broken CI for an
+unknown period before that pass caught it) and restoring v0.2.0's full multi-platform
+PyPI wheel coverage (see below).
