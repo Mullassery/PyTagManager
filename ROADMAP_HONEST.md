@@ -30,7 +30,7 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **266 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **279 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
 - **`pytagmanager scan-tags`** — Phase 1.85 item 1 (of 6): static code intelligence.
@@ -48,8 +48,14 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   a GA4 Measurement Protocol hit; one interaction fanning out to multiple external
   vendor hosts). Every indicator's confidence is "Likely" or "Possible" -- never
   "Confirmed" -- enforced by a dedicated test that scans every emitted message for
-  unhedged language. Items 4/5/6 of Phase 1.85 (background observers, the Tag
-  Execution Graph itself, unified evidence schema) are not yet built.
+  unhedged language.
+- **`pytagmanager diagnose --tag-graph`** — Phase 1.85 items 5+6 (of 6): assembles
+  the Tag Execution Graph from items 1-3's outputs (static-scan nodes, Interaction
+  Trace steps, duplicate findings, server-side indicators), every edge labeled with
+  the five-level evidence vocabulary docs/VISION.md §17 specifies
+  (Observed/Inferred/Suspected/Unknown/Not-observed) -- never a stronger claim than
+  its source data supports. JSON output only. Item 4 of Phase 1.85 (background/
+  post-load observer extensions in `agent.js`) is the only piece not yet built.
 - **`pytagmanager crawl --intent ollama`** — swaps the deterministic keyword heuristic
   for `OllamaIntentClassifier` (a local Ollama model, default `qwen2.5:0.5b`), with
   automatic fallback to the heuristic if Ollama isn't reachable. Also exported from
@@ -82,10 +88,8 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   cross-referenced against the dictionary/drift, which needs real container
   credentials this environment doesn't have. Everything else in Phase 1.7 (presence
   labeling, schema drift, purpose classification) is shipped as of this pass.
-- **Phase 1.85 remainder** (static scan + duplicate detection + server-side
-  indicators shipped; three of six items did not): background/post-load observer
-  extensions, the Tag Execution Graph itself, and the unified finding/evidence
-  schema.
+- **Phase 1.85 remainder** (5 of 6 items shipped): background/post-load observer
+  extensions in `agent.js` (item 4) is the only piece not yet built.
 - **Phase 1.9 / 1.95** (Playwright discovery/test intelligence, script-impact/
   performance intelligence) — not started.
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
@@ -139,8 +143,8 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 ## Where most work is pending, at a glance
 
 Of the roadmap's post-v1 phases, six are shipped (0, 0.5, 1.5, 1.6, 1.7, 1.8) --
-1.7 minus one GTM-config-dependent enrichment (see above) -- Phase 1.85 is 3 of 6
-items in (static scan, duplicate detection, server-side indicators), and Phase 1.9/1.95 plus cloud-LLM intent classification and
+1.7 minus one GTM-config-dependent enrichment (see above) -- Phase 1.85 is 5 of 6
+items in (missing only background/post-load observer extensions), and Phase 1.9/1.95 plus cloud-LLM intent classification and
 all of the "deliberately deferred" list in `docs/ARCHITECTURE.md` haven't been
 started. The nearest-term real gaps are keeping CI actually exercising new features
 as they ship (the diagnostics-extras gap above shipped a whole feature with broken

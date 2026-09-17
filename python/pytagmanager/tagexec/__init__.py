@@ -6,6 +6,14 @@ from pytagmanager.tagexec.duplicates import (
     find_duplicate_candidates,
     find_runtime_duplicate_evidence,
 )
+from pytagmanager.tagexec.graph import (
+    EVIDENCE_LEVELS,
+    GraphEdge,
+    GraphNode,
+    TagExecutionGraph,
+    build_graph_json,
+    build_tag_execution_graph,
+)
 from pytagmanager.tagexec.report import (
     build_duplicate_findings_json,
     build_server_side_indicators_json,
@@ -54,4 +62,10 @@ __all__ = [
     "analyze_server_side_indicators",
     "render_server_side_indicators",
     "build_server_side_indicators_json",
+    "GraphNode",
+    "GraphEdge",
+    "TagExecutionGraph",
+    "EVIDENCE_LEVELS",
+    "build_tag_execution_graph",
+    "build_graph_json",
 ]

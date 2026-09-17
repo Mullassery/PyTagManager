@@ -600,7 +600,7 @@ tests in `test_interaction_trace.py`, and 4 new real-Chromium tests in
 scroll-depth observer (both the raw milestone-emission mechanism and its
 CLI wiring).
 
-### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(3 of 6 items shipped)*
+### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(5 of 6 items shipped)*
 
 **Goal:** per `docs/VISION.md` §17 — understand GTM and website
 instrumentation as a distributed system (client-side GTM, server-side
@@ -723,8 +723,32 @@ IDs, the request count, and the payload-parameter similarity score.
    `pytagmanager diagnose --detect-server-side-tagging`. (M)
 4. Background/post-load observer extensions in `agent.js`. (M)
 5. `tagexec/graph.py` — Tag Execution Graph assembly + per-edge evidence
-   labels. (L)
-6. Unified finding/evidence schema shared with Phase 1.8/1.95. (S)
+   labels. **Shipped**: `build_tag_execution_graph()` assembles item 1's
+   static-scan nodes, Phase 1.8's Interaction Trace steps (chained in
+   temporal order, `Observed` since every step is a captured
+   `TrackingEvent`), item 2's duplicate findings (resolved back to their
+   GTM-container/vendor nodes and linked, `Observed`, since
+   `analyze_duplicates()` only ever returns runtime-corroborated
+   findings), and item 3's server-side indicators (linked as
+   `Inferred`/`Suspected` edges matching that indicator's own
+   confidence -- never upgraded to `Observed`). Endpoint nodes are
+   deduped by hostname across an interaction's network requests. Wired
+   into `pytagmanager diagnose --tag-graph` (JSON output; a full graph
+   isn't meant to be read as flat text -- the text-format report just
+   prints a node/edge count and points at `--format json`). (L)
+6. Unified finding/evidence schema shared with Phase 1.8/1.95. **Shipped**
+   as part of item 5: `EVIDENCE_LEVELS` in `tagexec/graph.py` is the exact
+   five-label vocabulary docs/VISION.md §17 specifies
+   (Observed/Inferred/Suspected/Unknown/Not-observed), and `GraphNode`/
+   `GraphEdge` are the walkable, serializable record shape. "Unknown" and
+   "Not observed" are declared but not yet populated by any detector in
+   this pass -- reserved for live-GTM-config cross-referencing (which
+   could add a real "Not observed: expected relay isn't actually
+   configured" edge) that Phase 1.9/1.95 will bring, not invented here to
+   look more complete than the current detectors support. Whether Phase
+   1.9/1.95 actually reuse this exact schema when they're built is a real
+   validation still pending -- this is the schema *offered* for reuse, not
+   proof of reuse that hasn't happened yet. (S)
 
 **Tests (item 1):** 13 unit tests in `test_tagexec_static_scan.py`
 (container/vendor detection, dedup, delayed-snapshot diffing), 2 real-
@@ -757,6 +781,16 @@ Protocol-shaped request plus two distinct external hosts fired for the
 same interaction) -- confirmed real Chromium `page.on("request")` events
 fire even for requests to non-resolving hostnames, so no route
 interception was needed to test the fan-out path realistically.
+
+**Tests (items 5+6):** 11 unit tests in `test_tagexec_graph.py` (static
+nodes, trace chaining, endpoint dedup, server-side edge evidence levels,
+duplicate-finding resolution including the "name doesn't resolve to any
+node" graceful-skip case, and a direct assertion that every edge's
+evidence label is drawn from `EVIDENCE_LEVELS`), plus 2 real-headless-
+Chromium CLI end-to-end tests in `test_diagnose_tag_graph_cli.py`
+reusing `tagexec_duplicate.html` (two real GTM containers + a
+runtime-corroborated duplicate finding, asserting the graph links them
+with an `Observed` edge).
 
 ### Phase 1.9 — Playwright Discovery & Test Intelligence
 

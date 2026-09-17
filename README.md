@@ -409,6 +409,25 @@ hedged by construction**: confidence is always "Likely" or "Possible",
 never "Confirmed" — server-side relaying isn't something a browser can
 actually observe, only infer from request shape. Phase 1.85 item 3 of 6.
 
+#### Tag Execution Graph (`diagnose --tag-graph`)
+
+```bash
+pytagmanager diagnose https://example.com --tag-graph --format json
+```
+
+Assembles everything above into one graph: static-scan nodes (GTM
+containers, vendor scripts), Interaction Trace steps chained in temporal
+order, duplicate-implementation findings, and server-side indicators —
+every edge labeled with one of five evidence levels (`Observed` for
+directly-captured transitions and runtime-corroborated duplicates,
+`Inferred`/`Suspected` for server-side indicators matching that
+indicator's own confidence, `Unknown`/`Not observed` reserved for
+detectors not built yet). No edge is ever labeled with a stronger claim
+than its source data supports. JSON output only — a full graph isn't
+meant to be read as flat text; the text-format report just prints a
+node/edge count. Phase 1.85 items 5+6 of 6 (only item 4, background/
+post-load observer extensions, remains).
+
 ### Privacy
 
 Telemetry never leaves your machine unless you supply GTM/GA4 credentials
@@ -452,7 +471,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 266 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 279 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

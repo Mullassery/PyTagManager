@@ -364,6 +364,15 @@ def data_dictionary(
     "hosts. Every indicator is worded as a possibility ('Likely'/'Possible'), never a confirmed fact -- "
     "server-side relaying isn't observable from the browser.",
 )
+@click.option(
+    "--tag-graph",
+    "tag_graph",
+    is_flag=True,
+    help="Assemble the Tag Execution Graph (docs/VISION.md §17): static-scan nodes + Interaction Trace "
+    "steps + duplicate findings + server-side indicators, with every edge labeled by evidence strength "
+    "(Observed/Inferred/Suspected). JSON output only (--format json) -- the full graph isn't meant to be "
+    "read as flat text.",
+)
 def diagnose(
     url: str,
     max_pages: int,
@@ -389,6 +398,7 @@ def diagnose(
     track_scroll_depth: bool,
     detect_duplicate_tags: bool,
     detect_server_side_tagging: bool,
+    tag_graph: bool,
 ) -> None:
     """Drive a real browser through URL (or a crawl of it), observe the full
     interaction -> dataLayer -> GTM -> GA4 tracking chain, and diagnose
@@ -414,6 +424,7 @@ def diagnose(
     from pytagmanager.reporting.json_report import build_json_report
     from pytagmanager.reporting.terminal import diagnose_journeys, render_terminal_report
     from pytagmanager.tagexec.duplicates import analyze_duplicates
+    from pytagmanager.tagexec.graph import build_graph_json, build_tag_execution_graph
     from pytagmanager.tagexec.report import (
         build_duplicate_findings_json,
         build_server_side_indicators_json,
@@ -452,8 +463,10 @@ def diagnose(
     all_state_diffs = []
     all_duplicate_findings = []
     all_server_side_indicators = []
+    all_scans = []
     expectations_by_selector: dict = {}
-    needs_page_traces = detect_duplicate_tags or detect_server_side_tagging
+    needs_page_html = detect_duplicate_tags or tag_graph
+    needs_page_traces = detect_duplicate_tags or detect_server_side_tagging or tag_graph
 
     for page_url, scenarios, recs in pages_and_scenarios:
         with ObservationSession(
@@ -470,14 +483,16 @@ def diagnose(
                 session.wait(duration)
             events = session.events
             all_state_diffs.extend(session.state_diffs)
-            page_html = session.capture_html() if detect_duplicate_tags else None
+            page_html = session.capture_html() if needs_page_html else None
         journeys = correlate_events(events, window_seconds=correlation_window)
         all_journeys.extend(journeys)
         if recs:
             all_untested.extend(find_untested_recommendations(recs, journeys))
         page_traces = build_interaction_traces(journeys) if needs_page_traces else []
-        if detect_duplicate_tags and page_html is not None:
-            page_scan = scan_html(page_html, page_url)
+        page_scan = scan_html(page_html, page_url) if page_html is not None else None
+        if page_scan is not None:
+            all_scans.append(page_scan)
+        if detect_duplicate_tags and page_scan is not None:
             all_duplicate_findings.extend(analyze_duplicates(page_scan, page_traces))
         if detect_server_side_tagging:
             all_server_side_indicators.extend(analyze_server_side_indicators(page_traces))
@@ -497,13 +512,18 @@ def diagnose(
     diagnosed = diagnose_journeys(all_journeys, ctx)
 
     traces = []
-    if include_trace:
+    if include_trace or tag_graph:
         state_diffs_by_journey_id = {}
         for journey in diagnosed:
             diff = ctx.state_diff_for_journey(journey)
             if diff is not None:
                 state_diffs_by_journey_id[journey.journey_id] = diff
         traces = build_interaction_traces(diagnosed, state_diffs_by_journey_id)
+
+    tag_execution_graph_json = None
+    if tag_graph:
+        graph = build_tag_execution_graph(all_scans, traces, all_duplicate_findings, all_server_side_indicators)
+        tag_execution_graph_json = build_graph_json(graph)
 
     if site_wide:
         from pytagmanager.sitewide.aggregation import analyze_template_consistency, compute_site_health
@@ -581,6 +601,8 @@ def diagnose(
                 report_dict["server_side_tagging_indicators"] = build_server_side_indicators_json(
                     all_server_side_indicators
                 )
+            if tag_execution_graph_json is not None:
+                report_dict["tag_execution_graph"] = tag_execution_graph_json
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_site_health_report(
@@ -592,6 +614,11 @@ def diagnose(
                 report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
             if all_server_side_indicators:
                 report += "\n\n" + "\n".join(render_server_side_indicators(all_server_side_indicators))
+            if tag_execution_graph_json is not None:
+                report += (
+                    f"\n\nTag Execution Graph: {len(tag_execution_graph_json['nodes'])} nodes, "
+                    f"{len(tag_execution_graph_json['edges'])} edges (use --format json for the full graph)."
+                )
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
     else:
@@ -606,6 +633,8 @@ def diagnose(
                 report_dict["server_side_tagging_indicators"] = build_server_side_indicators_json(
                     all_server_side_indicators
                 )
+            if tag_execution_graph_json is not None:
+                report_dict["tag_execution_graph"] = tag_execution_graph_json
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_terminal_report(
@@ -615,6 +644,11 @@ def diagnose(
                 report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
             if all_server_side_indicators:
                 report += "\n\n" + "\n".join(render_server_side_indicators(all_server_side_indicators))
+            if tag_execution_graph_json is not None:
+                report += (
+                    f"\n\nTag Execution Graph: {len(tag_execution_graph_json['nodes'])} nodes, "
+                    f"{len(tag_execution_graph_json['edges'])} edges (use --format json for the full graph)."
+                )
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
 
