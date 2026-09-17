@@ -26,6 +26,15 @@ _AGENT_JS_PATH = Path(__file__).parent / "agent.js"
 # list rather than one hardcoded URL, since GA4 alone has several valid
 # collect endpoints (classic gtag.js hits, Measurement Protocol, regional
 # domains) and GTM's own loader/activity pings are separately useful signals.
+#
+# The last two entries are host-agnostic path-shape patterns, not anchored
+# to a specific domain: a first-party server-side GTM proxy (Phase 1.85
+# item 3, tagexec/server_side.py) commonly reuses GA4's own `/g/collect` /
+# `/mp/collect` path shape on the site's own domain -- if this observer only
+# ever captured known third-party hosts, a first-party-proxied collection
+# request would be silently invisible to the network_request event stream,
+# and server_side.py's first-party-endpoint detector would never have
+# anything to analyze in a real run.
 _ANALYTICS_URL_PATTERNS = [
     re.compile(r"google-analytics\.com/g/collect"),
     re.compile(r"google-analytics\.com/mp/collect"),
@@ -33,6 +42,8 @@ _ANALYTICS_URL_PATTERNS = [
     re.compile(r"googletagmanager\.com/gtm\.js"),
     re.compile(r"googletagmanager\.com/gtag/js"),
     re.compile(r"googletagmanager\.com/a\?"),
+    re.compile(r"/g/collect(\?|$)"),
+    re.compile(r"/mp/collect(\?|$)"),
 ]
 
 _SOURCE_BY_EVENT_TYPE: Dict[str, str] = {

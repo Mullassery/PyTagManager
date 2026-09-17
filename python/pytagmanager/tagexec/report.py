@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import List, Sequence, Tuple
 
 from pytagmanager.tagexec.duplicates import DuplicateFinding
+from pytagmanager.tagexec.server_side import ServerSideIndicator
 from pytagmanager.tagexec.static_scan import StaticScanResult
 
 JSON_SCHEMA_VERSION = 1
@@ -99,4 +100,28 @@ def build_duplicate_findings_json(findings: Sequence[DuplicateFinding]) -> List[
             ],
         }
         for finding in findings
+    ]
+
+
+def render_server_side_indicators(indicators: Sequence[ServerSideIndicator]) -> List[str]:
+    if not indicators:
+        return []
+    lines = ["SERVER-SIDE TAGGING INDICATORS (hedged -- not confirmed from the browser)", "-" * 71]
+    for indicator in indicators:
+        lines.append(f"  - [{indicator.confidence}] {indicator.message}")
+    lines.append("")
+    return lines
+
+
+def build_server_side_indicators_json(indicators: Sequence[ServerSideIndicator]) -> List[dict]:
+    return [
+        {
+            "kind": i.kind,
+            "page_url": i.page_url,
+            "business_event": i.business_event,
+            "evidence": i.evidence,
+            "confidence": i.confidence,
+            "message": i.message,
+        }
+        for i in indicators
     ]

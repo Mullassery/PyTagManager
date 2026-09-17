@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head><title>Tag Execution Server-Side Fixture</title></head>
+<body>
+<button data-testid="add-to-cart">Add to Cart</button>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.querySelector('[data-testid="add-to-cart"]').addEventListener('click', function () {
+    dataLayer.push({ event: 'add_to_cart', value: 9.99 });
+    // First-party request shaped like a GA4 Measurement Protocol hit --
+    // same origin as this page, simulating a server-side GTM proxy.
+    fetch('/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart&cid=555');
+    // Two distinct external vendor destinations for the same action --
+    // simulating a fan-out.
+    fetch('https://vendor-a.example/mp/collect?en=add_to_cart');
+    fetch('https://vendor-b.example/g/collect?en=add_to_cart');
+  });
+</script>
+</body>
+</html>

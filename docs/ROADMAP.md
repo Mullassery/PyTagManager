@@ -600,7 +600,7 @@ tests in `test_interaction_trace.py`, and 4 new real-Chromium tests in
 scroll-depth observer (both the raw milestone-emission mechanism and its
 CLI wiring).
 
-### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(2 of 6 items shipped)*
+### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(3 of 6 items shipped)*
 
 **Goal:** per `docs/VISION.md` §17 — understand GTM and website
 instrumentation as a distributed system (client-side GTM, server-side
@@ -703,7 +703,24 @@ IDs, the request count, and the payload-parameter similarity score.
    that isn't actually observable from network traffic alone. Wired into
    `pytagmanager diagnose --detect-duplicate-tags` (per-page static scan +
    per-page traces, both text and JSON, both `--site-wide` and single-run). (M)
-3. `tagexec/server_side.py` — hedged server-side tagging indicators. (M)
+3. `tagexec/server_side.py` — hedged server-side tagging indicators.
+   **Shipped**: `CONFIDENCE_LEVELS` deliberately excludes "Confirmed" --
+   the strongest claim is "Likely" -- and every indicator's message is
+   worded as a possibility, asserted directly by a dedicated test that
+   scans every emitted message for unhedged language. Two detectors:
+   `detect_first_party_collection_endpoints()` (a first-party network
+   request whose query params match GA4 Measurement Protocol's shape --
+   `tid`/`v`/`en` -- consistent with a server-side GTM proxy on the site's
+   own domain) and `detect_fanout()` (one interaction's network requests
+   spanning >1 distinct external host, consistent with -- not proof of --
+   server-side relay to multiple vendor destinations). Required
+   broadening `observability/session.py`'s network-request capture filter
+   (previously anchored only to specific third-party Google domains) with
+   two host-agnostic path patterns (`/g/collect`, `/mp/collect`) -- without
+   that, a first-party-proxied collection request would have been
+   silently invisible to the event stream this detector reads, shipping a
+   feature that could never fire on a real page. Wired into
+   `pytagmanager diagnose --detect-server-side-tagging`. (M)
 4. Background/post-load observer extensions in `agent.js`. (M)
 5. `tagexec/graph.py` — Tag Execution Graph assembly + per-edge evidence
    labels. (L)
@@ -729,6 +746,17 @@ headless-Chromium CLI end-to-end tests in
 `test_diagnose_duplicate_tags_cli.py` against a new
 `tagexec_duplicate.html` fixture (two real GTM containers, one click
 firing two GA4-style requests for the same business action).
+
+**Tests (item 3):** 12 unit tests in `test_tagexec_server_side.py`,
+including a dedicated test that scans every emitted indicator's
+confidence/message for unhedged language across multiple scenarios, plus
+2 real-headless-Chromium CLI end-to-end tests in
+`test_diagnose_server_side_cli.py` against a new
+`tagexec_server_side.html` fixture (a first-party GA4-Measurement-
+Protocol-shaped request plus two distinct external hosts fired for the
+same interaction) -- confirmed real Chromium `page.on("request")` events
+fire even for requests to non-resolving hostnames, so no route
+interception was needed to test the fan-out path realistically.
 
 ### Phase 1.9 — Playwright Discovery & Test Intelligence
 

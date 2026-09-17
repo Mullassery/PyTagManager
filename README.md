@@ -393,6 +393,22 @@ network requests corroborate duplicate firing: two or more analytics
 requests for the same interaction, with a payload-parameter similarity
 score. Phase 1.85 item 2 of 6.
 
+#### Server-side tagging indicators (`diagnose --detect-server-side-tagging`)
+
+```bash
+pytagmanager diagnose https://example.com --detect-server-side-tagging --format json
+```
+
+Flags two hedged server-side GTM/tagging signals: a first-party network
+request shaped like a GA4 Measurement Protocol hit (`tid`/`v`/`en` query
+params, but served from the site's own domain — consistent with a
+server-side GTM proxy), and one interaction's network requests spanning
+more than one distinct external vendor host (consistent with — not proof
+of — server-side fan-out to multiple destinations). **Every indicator is
+hedged by construction**: confidence is always "Likely" or "Possible",
+never "Confirmed" — server-side relaying isn't something a browser can
+actually observe, only infer from request shape. Phase 1.85 item 3 of 6.
+
 ### Privacy
 
 Telemetry never leaves your machine unless you supply GTM/GA4 credentials
@@ -436,7 +452,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 252 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 266 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

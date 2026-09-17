@@ -355,6 +355,15 @@ def data_dictionary(
     "GTM containers, GTM + a hard-coded vendor equivalent, a vendor wired in twice) escalated to a finding "
     "only when a business interaction's network requests corroborate duplicate firing at runtime.",
 )
+@click.option(
+    "--detect-server-side-tagging",
+    "detect_server_side_tagging",
+    is_flag=True,
+    help="Flag hedged server-side GTM/tagging indicators (docs/VISION.md §17): first-party requests shaped "
+    "like a GA4 Measurement Protocol hit, and a single interaction fanning out to multiple external vendor "
+    "hosts. Every indicator is worded as a possibility ('Likely'/'Possible'), never a confirmed fact -- "
+    "server-side relaying isn't observable from the browser.",
+)
 def diagnose(
     url: str,
     max_pages: int,
@@ -379,6 +388,7 @@ def diagnose(
     include_trace: bool,
     track_scroll_depth: bool,
     detect_duplicate_tags: bool,
+    detect_server_side_tagging: bool,
 ) -> None:
     """Drive a real browser through URL (or a crawl of it), observe the full
     interaction -> dataLayer -> GTM -> GA4 tracking chain, and diagnose
@@ -404,7 +414,13 @@ def diagnose(
     from pytagmanager.reporting.json_report import build_json_report
     from pytagmanager.reporting.terminal import diagnose_journeys, render_terminal_report
     from pytagmanager.tagexec.duplicates import analyze_duplicates
-    from pytagmanager.tagexec.report import build_duplicate_findings_json, render_duplicate_findings
+    from pytagmanager.tagexec.report import (
+        build_duplicate_findings_json,
+        build_server_side_indicators_json,
+        render_duplicate_findings,
+        render_server_side_indicators,
+    )
+    from pytagmanager.tagexec.server_side import analyze_server_side_indicators
     from pytagmanager.tagexec.static_scan import scan_html
 
     gtm_triggers = gtm_tags = None
@@ -435,7 +451,9 @@ def diagnose(
     all_untested = []
     all_state_diffs = []
     all_duplicate_findings = []
+    all_server_side_indicators = []
     expectations_by_selector: dict = {}
+    needs_page_traces = detect_duplicate_tags or detect_server_side_tagging
 
     for page_url, scenarios, recs in pages_and_scenarios:
         with ObservationSession(
@@ -457,10 +475,12 @@ def diagnose(
         all_journeys.extend(journeys)
         if recs:
             all_untested.extend(find_untested_recommendations(recs, journeys))
+        page_traces = build_interaction_traces(journeys) if needs_page_traces else []
         if detect_duplicate_tags and page_html is not None:
             page_scan = scan_html(page_html, page_url)
-            page_traces = build_interaction_traces(journeys)
             all_duplicate_findings.extend(analyze_duplicates(page_scan, page_traces))
+        if detect_server_side_tagging:
+            all_server_side_indicators.extend(analyze_server_side_indicators(page_traces))
 
     ga4_ingestion: dict = {}
     if ga4_client and ga4_property:
@@ -557,6 +577,10 @@ def diagnose(
                 report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
             if all_duplicate_findings:
                 report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(all_duplicate_findings)
+            if all_server_side_indicators:
+                report_dict["server_side_tagging_indicators"] = build_server_side_indicators_json(
+                    all_server_side_indicators
+                )
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_site_health_report(
@@ -566,6 +590,8 @@ def diagnose(
                 report += f"\n\nREGRESSION: {regression.message}"
             if all_duplicate_findings:
                 report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
+            if all_server_side_indicators:
+                report += "\n\n" + "\n".join(render_server_side_indicators(all_server_side_indicators))
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
     else:
@@ -576,6 +602,10 @@ def diagnose(
                 report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
             if all_duplicate_findings:
                 report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(all_duplicate_findings)
+            if all_server_side_indicators:
+                report_dict["server_side_tagging_indicators"] = build_server_side_indicators_json(
+                    all_server_side_indicators
+                )
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_terminal_report(
@@ -583,6 +613,8 @@ def diagnose(
             )
             if all_duplicate_findings:
                 report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
+            if all_server_side_indicators:
+                report += "\n\n" + "\n".join(render_server_side_indicators(all_server_side_indicators))
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
 

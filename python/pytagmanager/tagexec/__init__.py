@@ -8,9 +8,18 @@ from pytagmanager.tagexec.duplicates import (
 )
 from pytagmanager.tagexec.report import (
     build_duplicate_findings_json,
+    build_server_side_indicators_json,
     build_static_scan_json,
     render_duplicate_findings,
+    render_server_side_indicators,
     render_static_scan_report,
+)
+from pytagmanager.tagexec.server_side import (
+    CONFIDENCE_LEVELS,
+    ServerSideIndicator,
+    analyze_server_side_indicators,
+    detect_fanout,
+    detect_first_party_collection_endpoints,
 )
 from pytagmanager.tagexec.static_scan import (
     GtmContainerDetection,
@@ -38,4 +47,11 @@ __all__ = [
     "analyze_duplicates",
     "render_duplicate_findings",
     "build_duplicate_findings_json",
+    "ServerSideIndicator",
+    "CONFIDENCE_LEVELS",
+    "detect_first_party_collection_endpoints",
+    "detect_fanout",
+    "analyze_server_side_indicators",
+    "render_server_side_indicators",
+    "build_server_side_indicators_json",
 ]
