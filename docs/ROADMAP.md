@@ -600,7 +600,7 @@ tests in `test_interaction_trace.py`, and 4 new real-Chromium tests in
 scroll-depth observer (both the raw milestone-emission mechanism and its
 CLI wiring).
 
-### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(item 1 of 6 shipped)*
+### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(2 of 6 items shipped)*
 
 **Goal:** per `docs/VISION.md` §17 — understand GTM and website
 instrumentation as a distributed system (client-side GTM, server-side
@@ -655,6 +655,11 @@ the single easiest place in this whole roadmap to overclaim.
 the same `add_to_cart` event to GA4 produces one "potential duplicate
 instrumentation" finding naming both container IDs, the two network
 requests, and their payload similarity — not two unrelated findings.
+**Met** — verified live: `tagexec_duplicate.html` (two real GTM container
+snippets, one click handler firing two GA4-style requests for the same
+`add_to_cart` action) produces exactly one `DuplicateFinding` via
+`pytagmanager diagnose --detect-duplicate-tags`, naming both container
+IDs, the request count, and the payload-parameter similarity score.
 
 **Work breakdown** — size: **L**
 
@@ -684,7 +689,20 @@ requests, and their payload similarity — not two unrelated findings.
    delayed-load detection) so it's reachable standalone, ahead of items
    2/5/6 (duplicates/graph/evidence-schema) that will consume it later. (L)
 2. `tagexec/duplicates.py` — duplicate-implementation detection, gated on
-   runtime evidence. (M)
+   runtime evidence. **Shipped**: `find_duplicate_candidates()` flags three
+   static shapes (multiple GTM containers, a GTM container alongside a
+   hard-coded *analytics*-category vendor -- deliberately excludes
+   non-overlapping categories like chat/payment, which have nothing to
+   duplicate -- and the same vendor wired in twice with distinct evidence),
+   but `analyze_duplicates()` is the only function that returns actual
+   `DuplicateFinding`s, and it drops every candidate with no corroborating
+   runtime evidence: a business interaction (Phase 1.8's `InteractionTrace`)
+   whose network-request steps show >1 analytics request, with a Jaccard
+   payload-parameter similarity score. Findings are hedged -- they name what's
+   *consistent* with the static candidates, not a per-request attribution
+   that isn't actually observable from network traffic alone. Wired into
+   `pytagmanager diagnose --detect-duplicate-tags` (per-page static scan +
+   per-page traces, both text and JSON, both `--site-wide` and single-run). (M)
 3. `tagexec/server_side.py` — hedged server-side tagging indicators. (M)
 4. Background/post-load observer extensions in `agent.js`. (M)
 5. `tagexec/graph.py` — Tag Execution Graph assembly + per-edge evidence
@@ -703,6 +721,14 @@ timestamp (e.g. several scroll-depth milestones crossed in one
 `requestAnimationFrame` tick) previously produced a zero-width
 correlation window that dropped the earlier anchor from its own journey;
 covered by a new regression test in `test_correlation.py`.
+
+**Tests (item 2):** 12 unit tests in `test_tagexec_duplicates.py`
+(candidate detection per shape, payload-similarity scoring, and the
+"no runtime evidence -> no finding" rule specifically), plus 2 real-
+headless-Chromium CLI end-to-end tests in
+`test_diagnose_duplicate_tags_cli.py` against a new
+`tagexec_duplicate.html` fixture (two real GTM containers, one click
+firing two GA4-style requests for the same business action).
 
 ### Phase 1.9 — Playwright Discovery & Test Intelligence
 

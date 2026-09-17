@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+<title>Tag Execution Duplicate Fixture</title>
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-FIRST111');</script>
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-SECOND222');</script>
+</head>
+<body>
+<button data-testid="add-to-cart">Add to Cart</button>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  document.querySelector('[data-testid="add-to-cart"]').addEventListener('click', function () {
+    dataLayer.push({ event: 'add_to_cart', value: 9.99, currency: 'USD' });
+    // Simulates each GTM container's own GA4 tag firing independently --
+    // the same business event, sent twice, by two separate implementations.
+    fetch('https://www.google-analytics.com/g/collect?v=2&en=add_to_cart&tid=G-CONTAINER1&ep.value=9.99');
+    fetch('https://www.google-analytics.com/g/collect?v=2&en=add_to_cart&tid=G-CONTAINER2&ep.value=9.99');
+  });
+</script>
+</body>
+</html>

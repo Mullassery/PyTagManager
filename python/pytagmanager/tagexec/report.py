@@ -4,8 +4,9 @@
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
+from typing import List, Sequence, Tuple
 
+from pytagmanager.tagexec.duplicates import DuplicateFinding
 from pytagmanager.tagexec.static_scan import StaticScanResult
 
 JSON_SCHEMA_VERSION = 1
@@ -62,3 +63,40 @@ def build_static_scan_json(result: StaticScanResult, delayed_container_ids: Tupl
             {"vendor": v.vendor, "category": v.category, "evidence": v.evidence} for v in result.vendors
         ],
     }
+
+
+def render_duplicate_findings(findings: Sequence[DuplicateFinding]) -> List[str]:
+    """Rendered as a list of lines (not a full report string) so callers
+    like `pytagmanager diagnose` can splice this section into their own
+    larger report alongside diagnostics/traces, mirroring how
+    `render_terminal_report`'s "ADDITIONAL FINDINGS" section is built."""
+    if not findings:
+        return []
+    lines = ["DUPLICATE/CONFLICTING TAG IMPLEMENTATIONS", "-" * 41]
+    for finding in findings:
+        lines.append(f"  - [{finding.confidence}] {finding.message}")
+    lines.append("")
+    return lines
+
+
+def build_duplicate_findings_json(findings: Sequence[DuplicateFinding]) -> List[dict]:
+    return [
+        {
+            "kind": finding.candidate.kind,
+            "description": finding.candidate.description,
+            "involved": list(finding.candidate.involved),
+            "confidence": finding.confidence,
+            "message": finding.message,
+            "runtime_evidence": [
+                {
+                    "journey_id": e.journey_id,
+                    "business_event": e.business_event,
+                    "request_count": e.request_count,
+                    "request_urls": list(e.request_urls),
+                    "payload_similarity": round(e.payload_similarity, 4),
+                }
+                for e in finding.runtime_evidence
+            ],
+        }
+        for finding in findings
+    ]

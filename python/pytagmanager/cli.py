@@ -347,6 +347,14 @@ def data_dictionary(
     help="Treat 25/50/75/90/100% scroll-depth milestones as first-class interactions (docs/VISION.md §14), "
     "each becoming its own journey checked for scroll/dataLayer/GTM/network signals.",
 )
+@click.option(
+    "--detect-duplicate-tags",
+    "detect_duplicate_tags",
+    is_flag=True,
+    help="Flag duplicate/conflicting tag implementations (docs/VISION.md §17): static candidates (multiple "
+    "GTM containers, GTM + a hard-coded vendor equivalent, a vendor wired in twice) escalated to a finding "
+    "only when a business interaction's network requests corroborate duplicate firing at runtime.",
+)
 def diagnose(
     url: str,
     max_pages: int,
@@ -370,6 +378,7 @@ def diagnose(
     capture_storage_values: bool,
     include_trace: bool,
     track_scroll_depth: bool,
+    detect_duplicate_tags: bool,
 ) -> None:
     """Drive a real browser through URL (or a crawl of it), observe the full
     interaction -> dataLayer -> GTM -> GA4 tracking chain, and diagnose
@@ -394,6 +403,9 @@ def diagnose(
     from pytagmanager.observability.session import ObservationSession
     from pytagmanager.reporting.json_report import build_json_report
     from pytagmanager.reporting.terminal import diagnose_journeys, render_terminal_report
+    from pytagmanager.tagexec.duplicates import analyze_duplicates
+    from pytagmanager.tagexec.report import build_duplicate_findings_json, render_duplicate_findings
+    from pytagmanager.tagexec.static_scan import scan_html
 
     gtm_triggers = gtm_tags = None
     if gtm_container and gtm_credentials:
@@ -422,6 +434,7 @@ def diagnose(
     all_journeys = []
     all_untested = []
     all_state_diffs = []
+    all_duplicate_findings = []
     expectations_by_selector: dict = {}
 
     for page_url, scenarios, recs in pages_and_scenarios:
@@ -439,10 +452,15 @@ def diagnose(
                 session.wait(duration)
             events = session.events
             all_state_diffs.extend(session.state_diffs)
+            page_html = session.capture_html() if detect_duplicate_tags else None
         journeys = correlate_events(events, window_seconds=correlation_window)
         all_journeys.extend(journeys)
         if recs:
             all_untested.extend(find_untested_recommendations(recs, journeys))
+        if detect_duplicate_tags and page_html is not None:
+            page_scan = scan_html(page_html, page_url)
+            page_traces = build_interaction_traces(journeys)
+            all_duplicate_findings.extend(analyze_duplicates(page_scan, page_traces))
 
     ga4_ingestion: dict = {}
     if ga4_client and ga4_property:
@@ -537,6 +555,8 @@ def diagnose(
                 }
             if traces:
                 report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
+            if all_duplicate_findings:
+                report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(all_duplicate_findings)
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_site_health_report(
@@ -544,6 +564,8 @@ def diagnose(
             )
             if regression:
                 report += f"\n\nREGRESSION: {regression.message}"
+            if all_duplicate_findings:
+                report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
     else:
@@ -552,11 +574,15 @@ def diagnose(
             report_dict = build_json_report(diagnosed, all_untested, extra_findings, all_state_diffs)
             if traces:
                 report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
+            if all_duplicate_findings:
+                report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(all_duplicate_findings)
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_terminal_report(
                 diagnosed, all_untested, verbose=verbose, extra_findings=extra_findings, state_diffs=all_state_diffs
             )
+            if all_duplicate_findings:
+                report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
 

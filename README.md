@@ -368,14 +368,30 @@ page, including ones that only load after a delay: it snapshots the
 rendered DOM at load and again after `--wait` seconds, and flags any
 container/vendor present only in the second snapshot. This is Phase 1.85
 item 1 of `docs/ROADMAP.md` (of 6) — the Tag Execution Graph that will
-consume this alongside duplicate-implementation and server-side-tagging
-detection isn't built yet, but the static scan itself is real and
-standalone-reachable today, not stranded behind the larger phase. See
+consume this alongside server-side-tagging detection isn't built yet, but
+the static scan itself is real and standalone-reachable today, not
+stranded behind the larger phase. See
 `python/pytagmanager/tagexec/static_scan.py`'s module docstring for why it
 scans real DOM elements (`<script src>`/`<iframe src>` attributes, inline
 script bodies) rather than regexing the raw HTML text — the latter
 false-positives on IDs that merely appear as string literals inside
 unrelated, not-yet-fired event-handler code.
+
+#### Duplicate/conflicting tag detection (`diagnose --detect-duplicate-tags`)
+
+```bash
+pytagmanager diagnose https://example.com --detect-duplicate-tags --format json
+```
+
+Flags duplicate/conflicting implementations (multiple GTM containers, GTM
+alongside a hard-coded analytics vendor, the same vendor wired in twice)
+— but, deliberately, a static shape alone is never reported as a finding
+(a site can legitimately run two GTM containers for two unrelated
+business units without ever double-firing anything). A candidate only
+escalates to a `DuplicateFinding` once a real business interaction's
+network requests corroborate duplicate firing: two or more analytics
+requests for the same interaction, with a payload-parameter similarity
+score. Phase 1.85 item 2 of 6.
 
 ### Privacy
 
@@ -420,7 +436,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 238 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 252 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See
