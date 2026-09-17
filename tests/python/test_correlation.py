@@ -54,3 +54,22 @@ def test_correlate_events_respects_window_boundary():
 def test_correlate_events_no_interactions_yields_no_journeys():
     events = [_event(0.0, "gtm", "gtm_event", event_name="gtm.js")]
     assert correlate_events(events) == []
+
+
+def test_correlate_events_handles_simultaneous_anchors_with_identical_timestamps():
+    # Regression: multiple interaction anchors sharing the exact same
+    # timestamp (e.g. several scroll-depth milestones crossed within one
+    # requestAnimationFrame callback) used to produce a zero-width window
+    # for the earlier anchor, excluding it from its own journey.
+    events = [
+        _event(5.0, "browser", "scroll_depth", event_name="25", selector=None),
+        _event(5.0, "browser", "scroll_depth", event_name="50", selector=None),
+        _event(5.0, "browser", "scroll_depth", event_name="75", selector=None),
+    ]
+    journeys = correlate_events(events, window_seconds=5.0)
+
+    assert len(journeys) == 3
+    for journey in journeys:
+        assert journey.observations, f"journey {journey.business_event} lost its own anchor event"
+        assert journey.stage_present("interaction")
+    assert [j.business_event for j in journeys] == ["scroll_depth:25", "scroll_depth:50", "scroll_depth:75"]

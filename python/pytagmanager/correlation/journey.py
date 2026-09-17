@@ -121,8 +121,8 @@ def correlate_events(
         related = [
             event
             for event in ordered
-            if anchor.timestamp <= event.timestamp < boundary
-            and (event is anchor or event.event_type not in _INTERACTION_TYPES)
+            if event is anchor
+            or (anchor.timestamp <= event.timestamp < boundary and event.event_type not in _INTERACTION_TYPES)
         ]
 
         journeys.append(

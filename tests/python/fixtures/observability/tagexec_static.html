@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+<head>
+<title>Tag Execution Static Scan Fixture</title>
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','GTM-TEST1234');</script>
+<script src="https://connect.facebook.net/en_US/fbevents.js"></script>
+<script>window.dataLayer = window.dataLayer || []; window.dataLayer.push({event: 'gtm.js'});</script>
+</head>
+<body>
+<button data-testid="accept-consent">Accept Cookies</button>
+<script>
+  document.querySelector('[data-testid="accept-consent"]').addEventListener('click', function () {
+    // Simulates a consent-gated GTM container that only loads after the
+    // user accepts -- a second, distinct container ID injected on demand.
+    var script = document.createElement('script');
+    script.async = true;
+    script.src = 'https://www.googletagmanager.com/gtm.js?id=GTM-DELAYED9';
+    document.head.appendChild(script);
+  });
+</script>
+</body>
+</html>

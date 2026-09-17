@@ -1,7 +1,7 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.0
-**Last Updated:** 2026-09-15
+**Last Updated:** 2026-09-17
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -30,9 +30,16 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **220 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **238 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
+- **`pytagmanager scan-tags`** — Phase 1.85 item 1 (of 6): static code intelligence.
+  Detects GTM containers and 24 hard-coded vendor SDK signatures (GA4, Google Ads,
+  Floodlight, Meta Pixel, Adobe Analytics/AEP/Launch, and others) from a page's
+  rendered DOM, including ones that load only after a delay (`--wait` + a
+  before/after snapshot diff). Items 2/3/4/5/6 of Phase 1.85 (duplicate-
+  implementation detection, server-side indicators, background observers, the Tag
+  Execution Graph itself, unified evidence schema) are not yet built.
 - **`pytagmanager crawl --intent ollama`** — swaps the deterministic keyword heuristic
   for `OllamaIntentClassifier` (a local Ollama model, default `qwen2.5:0.5b`), with
   automatic fallback to the heuristic if Ollama isn't reachable. Also exported from
@@ -65,8 +72,12 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   cross-referenced against the dictionary/drift, which needs real container
   credentials this environment doesn't have. Everything else in Phase 1.7 (presence
   labeling, schema drift, purpose classification) is shipped as of this pass.
-- **Phase 1.85 onward** (GTM client/server execution graph, Playwright discovery/test
-  intelligence, script-impact/performance intelligence) — not started.
+- **Phase 1.85 remainder** (static scan shipped; five of six items did not):
+  duplicate/conflicting-implementation detection, hedged server-side tagging
+  indicators, background/post-load observer extensions, the Tag Execution Graph
+  itself, and the unified finding/evidence schema.
+- **Phase 1.9 / 1.95** (Playwright discovery/test intelligence, script-impact/
+  performance intelligence) — not started.
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
   Phase 2) — planned, not implemented. Only the local-Ollama and deterministic paths
   exist today.
@@ -118,10 +129,10 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 ## Where most work is pending, at a glance
 
 Of the roadmap's post-v1 phases, six are shipped (0, 0.5, 1.5, 1.6, 1.7, 1.8) --
-1.7 minus one GTM-config-dependent enrichment (see above) -- and everything from
-Phase 1.85 onward — plus cloud-LLM intent classification and all of the
-"deliberately deferred" list in `docs/ARCHITECTURE.md` — hasn't been started. The
-nearest-term real gaps are keeping CI actually exercising new features as they ship
-(the diagnostics-extras gap above shipped a whole feature with broken CI for an
-unknown period before that pass caught it) and restoring v0.2.0's full multi-platform
-PyPI wheel coverage (see below).
+1.7 minus one GTM-config-dependent enrichment (see above) -- Phase 1.85 is 1 of 6
+items in (static scan), and Phase 1.9/1.95 plus cloud-LLM intent classification and
+all of the "deliberately deferred" list in `docs/ARCHITECTURE.md` haven't been
+started. The nearest-term real gaps are keeping CI actually exercising new features
+as they ship (the diagnostics-extras gap above shipped a whole feature with broken
+CI for an unknown period before that pass caught it) and restoring v0.2.0's full
+multi-platform PyPI wheel coverage (see below).

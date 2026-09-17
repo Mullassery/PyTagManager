@@ -353,6 +353,30 @@ record and compare one run at a time. Run this on whatever cadence you
 want via your own cron/CI; a regression alert only has a chance to fire
 the next time you invoke it.
 
+### Tag Execution Static Scan (`pytagmanager scan-tags`, needs `[diagnostics]`)
+
+```bash
+pytagmanager scan-tags https://example.com
+pytagmanager scan-tags https://example.com --wait 5 --format json -o scan.json
+```
+
+Detects GTM container snippets and hard-coded vendor tracking
+implementations (GA4, Google Ads, Floodlight, Meta Pixel, Adobe
+Analytics/AEP/Launch, Segment, Mixpanel, Hotjar, Optimizely, Intercom,
+Stripe, and others — 24 signatures total, curated not exhaustive) on a
+page, including ones that only load after a delay: it snapshots the
+rendered DOM at load and again after `--wait` seconds, and flags any
+container/vendor present only in the second snapshot. This is Phase 1.85
+item 1 of `docs/ROADMAP.md` (of 6) — the Tag Execution Graph that will
+consume this alongside duplicate-implementation and server-side-tagging
+detection isn't built yet, but the static scan itself is real and
+standalone-reachable today, not stranded behind the larger phase. See
+`python/pytagmanager/tagexec/static_scan.py`'s module docstring for why it
+scans real DOM elements (`<script src>`/`<iframe src>` attributes, inline
+script bodies) rather than regexing the raw HTML text — the latter
+false-positives on IDs that merely appear as string literals inside
+unrelated, not-yet-fired event-handler code.
+
 ### Privacy
 
 Telemetry never leaves your machine unless you supply GTM/GA4 credentials
@@ -396,7 +420,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 220 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 238 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

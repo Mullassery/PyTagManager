@@ -568,5 +568,61 @@ def diagnose(
         click.echo(report)
 
 
+@main.command(name="scan-tags")
+@click.argument("url")
+@click.option("--headless/--no-headless", default=True, show_default=True)
+@click.option("--browser", type=click.Choice(["chromium", "firefox", "webkit"]), default="chromium", show_default=True)
+@click.option(
+    "--wait",
+    "wait_seconds",
+    default=3.0,
+    show_default=True,
+    type=float,
+    help="Seconds to wait after page load before a second snapshot, to catch GTM containers/vendor "
+    "scripts that load asynchronously (consent-gated, interaction-gated, or just slow).",
+)
+@click.option("-o", "--output", "output_path", type=click.Path(), default=None)
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+def scan_tags(
+    url: str,
+    headless: bool,
+    browser: str,
+    wait_seconds: float,
+    output_path: str | None,
+    output_format: str,
+) -> None:
+    """Static code intelligence (docs/VISION.md §17): detect GTM containers
+    and hard-coded vendor tracking implementations (GA4, Meta Pixel, Adobe
+    Analytics, and others) on URL, including ones that load after a delay.
+    Requires `pip install pytagmanager[diagnostics]`.
+    """
+    from pytagmanager.observability.session import ObservationSession
+    from pytagmanager.tagexec.report import build_static_scan_json, render_static_scan_report
+    from pytagmanager.tagexec.static_scan import detect_delayed_containers, scan_html
+
+    click.echo(f"Loading {url}...", err=True)
+    with ObservationSession(headless=headless, browser_name=browser) as session:
+        session.load(url)
+        baseline_html = session.capture_html()
+        session.wait(wait_seconds)
+        later_html = session.capture_html()
+
+    baseline = scan_html(baseline_html, url)
+    result = scan_html(later_html, url)
+    delayed = detect_delayed_containers(baseline, result)
+
+    if output_format == "json":
+        report = json.dumps(build_static_scan_json(result, delayed_container_ids=delayed), indent=2)
+    else:
+        report = render_static_scan_report(result, delayed_container_ids=delayed)
+
+    if output_path:
+        with open(output_path, "w") as f:
+            f.write(report)
+        click.echo(f"Wrote static scan report to {output_path}")
+    else:
+        click.echo(report)
+
+
 if __name__ == "__main__":
     main()

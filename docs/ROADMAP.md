@@ -600,7 +600,7 @@ tests in `test_interaction_trace.py`, and 4 new real-Chromium tests in
 scroll-depth observer (both the raw milestone-emission mechanism and its
 CLI wiring).
 
-### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph
+### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(item 1 of 6 shipped)*
 
 **Goal:** per `docs/VISION.md` §17 — understand GTM and website
 instrumentation as a distributed system (client-side GTM, server-side
@@ -658,7 +658,31 @@ requests, and their payload similarity — not two unrelated findings.
 
 **Work breakdown** — size: **L**
 
-1. `tagexec/static_scan.py` — GTM/vendor static detection. (L)
+1. `tagexec/static_scan.py` — GTM/vendor static detection. **Shipped**:
+   `scan_html()` extracts real `<script src>`/`<iframe src>` attribute
+   values and inline `<script>` bodies via a stdlib `html.parser.HTMLParser`
+   pass (`_TagSourceExtractor`) -- not raw-text regex over the whole HTML
+   dump, which was tried first and rejected after it false-positived on a
+   container ID that only appeared as a string literal inside an unrelated,
+   not-yet-fired event handler's source. GTM container detection checks
+   only real script/iframe src values (an ID counts as "loaded" only if an
+   actual DOM element references it); vendor detection (24 signatures
+   across GA4/Google Ads/Floodlight/Meta Pixel/Adobe Analytics-AEP-Launch/
+   Segment/Mixpanel/Amplitude/Hotjar/Clarity/Optimizely/VWO/Intercom/Drift/
+   Zendesk/Stripe/PayPal/YouTube/Vimeo/TikTok/LinkedIn) also checks inline
+   script text, since a vendor init call is real static evidence wherever
+   it sits in a page's own source. `detect_delayed_containers()`/
+   `detect_delayed_vendors()` diff two snapshots (e.g. page-load vs. after
+   a consent-accept click) to surface consent/interaction-gated
+   implementations without guessing from source structure. Reads
+   Playwright's rendered `page.content()` via the new
+   `ObservationSession.capture_html()`, not the Rust crawler's pre-render
+   source -- deliberate, since it catches both original-source and
+   JS-injected containers (see the module's docstring for the one
+   noscript-in-a-JS-enabled-browser caveat this implies). Wired into a new
+   `pytagmanager scan-tags <url>` CLI command (text/JSON, `--wait` for
+   delayed-load detection) so it's reachable standalone, ahead of items
+   2/5/6 (duplicates/graph/evidence-schema) that will consume it later. (L)
 2. `tagexec/duplicates.py` — duplicate-implementation detection, gated on
    runtime evidence. (M)
 3. `tagexec/server_side.py` — hedged server-side tagging indicators. (M)
@@ -666,6 +690,19 @@ requests, and their payload similarity — not two unrelated findings.
 5. `tagexec/graph.py` — Tag Execution Graph assembly + per-edge evidence
    labels. (L)
 6. Unified finding/evidence schema shared with Phase 1.8/1.95. (S)
+
+**Tests (item 1):** 13 unit tests in `test_tagexec_static_scan.py`
+(container/vendor detection, dedup, delayed-snapshot diffing), 2 real-
+headless-Chromium tests in `test_tagexec_static_scan_e2e.py` (a new
+`tagexec_static.html` fixture with a real GTM loader snippet, a Meta Pixel
+script reference, and a consent-accept button that injects a second,
+delayed GTM container), and 2 CLI end-to-end tests in
+`test_scan_tags_cli.py`. Also fixed a latent `correlate_events` edge case
+this work exposed: multiple interaction anchors sharing an identical
+timestamp (e.g. several scroll-depth milestones crossed in one
+`requestAnimationFrame` tick) previously produced a zero-width
+correlation window that dropped the earlier anchor from its own journey;
+covered by a new regression test in `test_correlation.py`.
 
 ### Phase 1.9 — Playwright Discovery & Test Intelligence
 

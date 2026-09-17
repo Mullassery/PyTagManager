@@ -230,6 +230,14 @@ class ObservationSession:
     def scroll_into_view(self, selector: str) -> None:
         self._page.locator(selector).first.scroll_into_view_if_needed()
 
+    def capture_html(self) -> str:
+        """The live, rendered DOM's HTML right now (Playwright's
+        `page.content()`) -- includes anything JS has injected since load,
+        unlike the crawler's pre-render source. See
+        `pytagmanager.tagexec.static_scan`'s module docstring for why this
+        matters for GTM/vendor-snippet detection."""
+        return self._page.content()
+
     def wait(self, seconds: float) -> None:
         self._page.wait_for_timeout(int(seconds * 1000))
 
