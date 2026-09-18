@@ -817,7 +817,7 @@ with an `Observed` edge).
 observed). Confirmed the test fails without the fix (1 of 2 expected
 insertions observed) before confirming it passes with the fix.
 
-### Phase 1.9 — Playwright Discovery & Test Intelligence *(3 of 5 items shipped)*
+### Phase 1.9 — Playwright Discovery & Test Intelligence *(shipped)*
 
 **Goal:** per `docs/VISION.md` §15 — turn Phase 1.6–1.8's findings into
 evidence-backed **Test Candidates** an engineer reviews before formalizing
@@ -850,6 +850,12 @@ detection (field-level regression).
 `purchase` event's `transaction_id` field was removed produces one
 regression-category Test Candidate naming the exact field and the two
 crawls compared, with suggested Playwright verification steps attached.
+**Met** — verified live via the real CLI, not a unit-test approximation:
+`pytagmanager dictionary <new-fixture-url> --compare-to baseline.json
+--test-candidates` against two real crawls (one fixture page, one
+identical page with a field removed) produces exactly one regression
+candidate naming the removed field and the event, with a paired draft
+Playwright script.
 
 **Work breakdown** — size: **M**
 
@@ -885,8 +891,22 @@ crawls compared, with suggested Playwright verification steps attached.
    churn is real drift but not what this category is scoped to); fields
    already explained by a `PossibleRename` are excluded, since a
    restructure isn't the same claim as an outright removal. (M)
-4. `testintel/playwright_export.py`. (S)
-5. CLI: `pytagmanager diagnose <url> --site-wide --test-candidates`. (S)
+4. `testintel/playwright_export.py`. **Shipped**: every draft leads with a
+   docstring naming the candidate's category/severity/observed-problem/
+   evidence pages before a single line of test code, and the generated
+   test body always ends in `raise NotImplementedError` -- a draft can
+   never be mistaken for a passing (or even runnable) verified test if
+   run unreviewed. Verified every export is syntactically valid Python
+   (`compile(script, ..., "exec")`) across multiple candidate shapes,
+   including zero evidence pages. (S)
+5. CLI. **Shipped**, split across the two commands whose data each
+   category naturally needs rather than forcing both into `diagnose`:
+   `pytagmanager diagnose <url> [--site-wide] --test-candidates` for the
+   diagnosis- and consistency-category candidates (consistency only when
+   `--site-wide` supplies `BusinessActionConsistencyReport`s), and
+   `pytagmanager dictionary <url> --compare-to old.json --test-candidates`
+   for regression-category candidates, since that command is where both
+   `DataDictionary` snapshots the diff needs already live. (S)
 
 **Tests (items 1-3):** 12 unit tests in `test_testintel_candidates.py`
 (grouping/evidence-aggregation logic, category mapping, and a direct
@@ -896,6 +916,17 @@ exact exit criteria: a `purchase` event's `transaction_id` field removed
 between two `DataDictionary` snapshots produces one regression candidate
 naming the exact field, and a check that a removed cookie -- real drift,
 wrong category -- produces no candidate).
+
+**Tests (items 4+5):** 11 unit tests in `test_testintel_playwright_export.py`
+(evidence listing + capping, syntactic-validity via `compile()`, and the
+"can never run as a passing test" guarantee), plus 4 real-headless-Chromium
+CLI end-to-end tests: 2 in `test_diagnose_test_candidates_cli.py` (a real
+missing-event finding against `missing_datalayer.html` produces one
+event-existence candidate with a real page URL as evidence) and 2 in
+`test_dictionary_test_candidates_cli.py` (the phase's exact exit criteria,
+reproduced against a new `runtime_state_regression.html` fixture -- an
+otherwise-identical copy of `runtime_state.html` with the `price` dataLayer
+field removed).
 
 ### Phase 1.95 — Automated Script Impact & Web Performance Intelligence
 

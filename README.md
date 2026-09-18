@@ -431,6 +431,34 @@ visibility/scroll-depth observers' dedup caches, so a rebuilt element
 reusing the same selector would silently stop being reported after the
 first route) is fixed in `agent.js`.
 
+### Test Candidates (`diagnose --test-candidates`, `dictionary --compare-to --test-candidates`)
+
+```bash
+# Diagnosis- and consistency-category candidates from a diagnose run:
+pytagmanager diagnose https://example.com --site-wide --test-candidates --format json
+
+# Regression-category candidates: a dataLayer field present in a previous
+# crawl but missing from the current one:
+pytagmanager dictionary https://example.com --compare-to baseline.json --test-candidates --format json
+```
+
+Turns findings from `diagnose`/`--site-wide`/the Data Dictionary into
+structured, evidence-backed **Test Candidates** — not an assertion the
+product makes on its own authority, but a hypothesis an engineer reviews
+before formalizing as a real Playwright test (docs/VISION.md §15). Each
+candidate carries a category (event existence/payload, timing,
+consistency, network transmission, consent behavior, regression — two of
+the nine VISION categories, data type and storage behavior, have no
+generator yet since no existing rule detects either), a severity from a
+five-stage scale that's **structurally capped at "Requires verification"**
+— no generator ever self-certifies a "Confirmed defect", only a human or
+a real Playwright run does — and a draft Playwright script
+(`playwright_draft` in JSON output) that always ends in
+`raise NotImplementedError`, so it can never be mistaken for a passing
+test if run unreviewed. The same underlying problem observed across many
+pages becomes one candidate with an evidence list, not one candidate per
+page.
+
 ### Privacy
 
 Telemetry never leaves your machine unless you supply GTM/GA4 credentials
@@ -474,7 +502,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 297 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 312 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

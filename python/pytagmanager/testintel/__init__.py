@@ -5,7 +5,9 @@ from pytagmanager.testintel.candidates import (
     generate_consistency_candidates,
     generate_diagnosis_candidates,
 )
+from pytagmanager.testintel.playwright_export import export_playwright_script
 from pytagmanager.testintel.regression import generate_regression_candidates
+from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
 
 __all__ = [
     "CATEGORIES",
@@ -14,4 +16,7 @@ __all__ = [
     "generate_diagnosis_candidates",
     "generate_consistency_candidates",
     "generate_regression_candidates",
+    "export_playwright_script",
+    "render_test_candidates",
+    "build_test_candidates_json",
 ]

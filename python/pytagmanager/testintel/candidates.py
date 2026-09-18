@@ -170,6 +170,12 @@ _ROOT_CAUSE_LABELS: Dict[str, str] = {
 
 @dataclass(frozen=True)
 class TestCandidate:
+    # VISION.md §15's own term -- named accurately rather than avoiding
+    # "Test" for pytest's sake. __test__ = False tells pytest's collector
+    # this dataclass isn't a test class, silencing the otherwise-harmless
+    # "cannot collect ... __init__ constructor" warning.
+    __test__ = False
+
     name: str
     category: str  # one of CATEGORIES
     severity: str  # one of SEVERITY_LEVELS, never SEVERITY_CONFIRMED_DEFECT at generation time

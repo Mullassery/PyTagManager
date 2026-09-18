@@ -183,6 +183,13 @@ def diff(old_snapshot_path: str, new_snapshot_path: str) -> None:
     help="Path to a previously saved `dictionary --format json -o old.json` export. Instead of the normal "
     "report, prints a schema-drift report (added/removed fields, type-distribution shifts, possible renames).",
 )
+@click.option(
+    "--test-candidates",
+    "test_candidates",
+    is_flag=True,
+    help="With --compare-to, also generate regression-category Test Candidates (docs/VISION.md §15) for "
+    "any dataLayer field that flipped from present to absent, each paired with a draft Playwright script.",
+)
 def data_dictionary(
     url: str,
     max_pages: int,
@@ -194,6 +201,7 @@ def data_dictionary(
     include_presence: bool,
     purpose_engine: str,
     compare_to_path: str | None,
+    test_candidates: bool,
 ) -> None:
     """Crawl URL and build a Website Data Dictionary (docs/VISION.md §3):
     every cookie/localStorage/sessionStorage key and dataLayer field
@@ -206,6 +214,8 @@ def data_dictionary(
     from pytagmanager.dictionary.schema_drift import build_drift_json, diff_dictionaries, render_drift_report
     from pytagmanager.observability.scenario import auto_scenario_from_recommendations
     from pytagmanager.observability.session import ObservationSession
+    from pytagmanager.testintel.regression import generate_regression_candidates
+    from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
 
     click.echo(f"Crawling {url} (max_pages={max_pages})...", err=True)
     pages = crawl_site(url, max_pages=max_pages)
@@ -230,10 +240,18 @@ def data_dictionary(
         with open(compare_to_path) as f:
             baseline = data_dictionary_from_json(json.load(f))
         drift = diff_dictionaries(baseline, result)
+        regression_candidates = (
+            generate_regression_candidates(drift, compare_to_path, url) if test_candidates else []
+        )
         if output_format == "json":
-            report = json.dumps(build_drift_json(drift), indent=2)
+            report_dict = build_drift_json(drift)
+            if regression_candidates:
+                report_dict["test_candidates"] = build_test_candidates_json(regression_candidates)
+            report = json.dumps(report_dict, indent=2)
         else:
             report = render_drift_report(drift)
+            if regression_candidates:
+                report += "\n\n" + "\n".join(render_test_candidates(regression_candidates))
         if output_path:
             with open(output_path, "w") as f:
                 f.write(report)
@@ -373,6 +391,15 @@ def data_dictionary(
     "(Observed/Inferred/Suspected). JSON output only (--format json) -- the full graph isn't meant to be "
     "read as flat text.",
 )
+@click.option(
+    "--test-candidates",
+    "test_candidates",
+    is_flag=True,
+    help="Generate evidence-backed Test Candidates (docs/VISION.md §15) from this run's findings, each "
+    "paired with a draft Playwright script -- discovery, not a verified test; review before formalizing. "
+    "Severity never reaches 'Confirmed defect' -- only a human/Playwright run confirms a defect. With "
+    "--site-wide, also includes cross-page business-action naming-consistency candidates.",
+)
 def diagnose(
     url: str,
     max_pages: int,
@@ -399,6 +426,7 @@ def diagnose(
     detect_duplicate_tags: bool,
     detect_server_side_tagging: bool,
     tag_graph: bool,
+    test_candidates: bool,
 ) -> None:
     """Drive a real browser through URL (or a crawl of it), observe the full
     interaction -> dataLayer -> GTM -> GA4 tracking chain, and diagnose
@@ -433,6 +461,8 @@ def diagnose(
     )
     from pytagmanager.tagexec.server_side import analyze_server_side_indicators
     from pytagmanager.tagexec.static_scan import scan_html
+    from pytagmanager.testintel.candidates import generate_consistency_candidates, generate_diagnosis_candidates
+    from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
 
     gtm_triggers = gtm_tags = None
     if gtm_container and gtm_credentials:
@@ -525,6 +555,8 @@ def diagnose(
         graph = build_tag_execution_graph(all_scans, traces, all_duplicate_findings, all_server_side_indicators)
         tag_execution_graph_json = build_graph_json(graph)
 
+    all_test_candidates = generate_diagnosis_candidates(diagnosed) if test_candidates else []
+
     if site_wide:
         from pytagmanager.sitewide.aggregation import analyze_template_consistency, compute_site_health
         from pytagmanager.sitewide.anomalies import detect_site_anomalies
@@ -557,6 +589,8 @@ def diagnose(
         anomalies = detect_site_anomalies(templates, journeys_by_page)
         business_action_reports = analyze_business_action_consistency(recs_by_page, diagnosed)
         event_map = build_runtime_event_map(diagnosed)
+        if test_candidates:
+            all_test_candidates += generate_consistency_candidates(business_action_reports)
 
         regression = None
         if history_path:
@@ -603,6 +637,8 @@ def diagnose(
                 )
             if tag_execution_graph_json is not None:
                 report_dict["tag_execution_graph"] = tag_execution_graph_json
+            if all_test_candidates:
+                report_dict["test_candidates"] = build_test_candidates_json(all_test_candidates)
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_site_health_report(
@@ -619,6 +655,8 @@ def diagnose(
                     f"\n\nTag Execution Graph: {len(tag_execution_graph_json['nodes'])} nodes, "
                     f"{len(tag_execution_graph_json['edges'])} edges (use --format json for the full graph)."
                 )
+            if all_test_candidates:
+                report += "\n\n" + "\n".join(render_test_candidates(all_test_candidates))
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
     else:
@@ -635,6 +673,8 @@ def diagnose(
                 )
             if tag_execution_graph_json is not None:
                 report_dict["tag_execution_graph"] = tag_execution_graph_json
+            if all_test_candidates:
+                report_dict["test_candidates"] = build_test_candidates_json(all_test_candidates)
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_terminal_report(
@@ -649,6 +689,8 @@ def diagnose(
                     f"\n\nTag Execution Graph: {len(tag_execution_graph_json['nodes'])} nodes, "
                     f"{len(tag_execution_graph_json['edges'])} edges (use --format json for the full graph)."
                 )
+            if all_test_candidates:
+                report += "\n\n" + "\n".join(render_test_candidates(all_test_candidates))
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
 

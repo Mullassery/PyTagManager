@@ -30,7 +30,7 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **297 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **312 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
 - **`pytagmanager scan-tags`** — Phase 1.85 item 1 (of 6): static code intelligence.
@@ -62,7 +62,7 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   that selector after the first route. Fixed in `agent.js`; verified the fix
   matters by reverting it and confirming the regression test actually fails
   without it.
-- **Phase 1.9 (Playwright Discovery & Test Intelligence) is 3 of 5 items in**: new
+- **Phase 1.9 (Playwright Discovery & Test Intelligence) is fully shipped.** New
   `testintel/` package generates evidence-backed `TestCandidate`s from existing
   findings (`generate_diagnosis_candidates()` groups journeys sharing a root cause
   across pages into one candidate with an evidence list; `generate_consistency_
@@ -70,8 +70,13 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   genuinely new detection (`generate_regression_candidates()`, reusing Phase 1.7's
   Data Dictionary schema drift for field-level present→absent regressions). Severity
   is structurally capped at "Requires verification" -- no generator ever emits
-  "Confirmed defect", enforced by a dedicated test. Not yet wired into the CLI or
-  paired with a Playwright-script exporter (items 4/5).
+  "Confirmed defect", enforced by a dedicated test. Each candidate pairs with a
+  draft Playwright script (`export_playwright_script()`) that always ends in
+  `raise NotImplementedError`, so a draft can never run as a passing test
+  unreviewed. Wired into `pytagmanager diagnose [--site-wide] --test-candidates`
+  (diagnosis + consistency categories) and `pytagmanager dictionary --compare-to
+  --test-candidates` (regression category, since that command is where both
+  `DataDictionary` snapshots already live).
 - **`pytagmanager crawl --intent ollama`** — swaps the deterministic keyword heuristic
   for `OllamaIntentClassifier` (a local Ollama model, default `qwen2.5:0.5b`), with
   automatic fallback to the heuristic if Ollama isn't reachable. Also exported from
@@ -104,9 +109,6 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   cross-referenced against the dictionary/drift, which needs real container
   credentials this environment doesn't have. Everything else in Phase 1.7 (presence
   labeling, schema drift, purpose classification) is shipped as of this pass.
-- **Phase 1.9 remainder** (2 of 5 items): `testintel/playwright_export.py` (draft
-  Playwright script per candidate, paired with its evidence trail) and CLI wiring
-  (`pytagmanager diagnose --site-wide --test-candidates`).
 - **Phase 1.95** (script-impact/performance intelligence) — not started.
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
   Phase 2) — planned, not implemented. Only the local-Ollama and deterministic paths
@@ -158,9 +160,8 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 
 ## Where most work is pending, at a glance
 
-Of the roadmap's post-v1 phases, seven are shipped (0, 0.5, 1.5, 1.6, 1.7, 1.8,
-1.85) -- 1.7 minus one GTM-config-dependent enrichment (see above) -- Phase 1.9 is
-3 of 5 items in (missing only the Playwright export module and CLI wiring), and
+Of the roadmap's post-v1 phases, eight are shipped (0, 0.5, 1.5, 1.6, 1.7, 1.8,
+1.85, 1.9) -- 1.7 minus one GTM-config-dependent enrichment (see above) -- and
 Phase 1.95 plus cloud-LLM intent classification and all of the "deliberately
 deferred" list in `docs/ARCHITECTURE.md` haven't been
 started. The nearest-term real gaps are keeping CI actually exercising new features
