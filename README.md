@@ -425,8 +425,11 @@ indicator's own confidence, `Unknown`/`Not observed` reserved for
 detectors not built yet). No edge is ever labeled with a stronger claim
 than its source data supports. JSON output only — a full graph isn't
 meant to be read as flat text; the text-format report just prints a
-node/edge count. Phase 1.85 items 5+6 of 6 (only item 4, background/
-post-load observer extensions, remains).
+node/edge count. Phase 1.85 is now fully shipped (6 of 6 items) — item 4's
+real, scoped gap (an SPA route change never reset the mutation/
+visibility/scroll-depth observers' dedup caches, so a rebuilt element
+reusing the same selector would silently stop being reported after the
+first route) is fixed in `agent.js`.
 
 ### Privacy
 
@@ -471,7 +474,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 279 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 280 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

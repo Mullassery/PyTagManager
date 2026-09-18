@@ -1,0 +1,21 @@
+<!doctype html>
+<html>
+<head><title>SPA Observer Dedup Reset Fixture</title></head>
+<body>
+<button data-testid="add-node">Add Node</button>
+<button data-testid="navigate">Navigate</button>
+<div style="height: 3000px;"></div>
+<div data-testid="impression-target" style="margin-top: 200px;">Below the fold</div>
+<script>
+  document.querySelector('[data-testid="add-node"]').addEventListener('click', function () {
+    var btn = document.createElement('button');
+    btn.setAttribute('data-testid', 'dynamic-button');
+    btn.textContent = 'Dynamic';
+    document.body.appendChild(btn);
+  });
+  document.querySelector('[data-testid="navigate"]').addEventListener('click', function () {
+    history.pushState({}, '', '/next');
+  });
+</script>
+</body>
+</html>

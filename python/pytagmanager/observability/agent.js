@@ -132,10 +132,30 @@
   }
 
   // ---- SPA navigation observation ----
+  //
+  // Phase 1.85 item 4 (docs/VISION.md §14/§17): "keep watching after SPA
+  // navigation" means more than just emitting a route_change event -- the
+  // mutation/visibility/scroll-depth observers below all dedupe by
+  // selector (seenMutationKeys/seenVisibleSelectors/scrollDepthSeen) so a
+  // single page visit doesn't re-report the same element/milestone
+  // endlessly. Without a reset here, an SPA that rebuilds the same
+  // selector on every route (e.g. a shared <button data-testid=
+  // "add-to-cart">) would silently stop reporting real new occurrences
+  // of that selector after the first route -- indistinguishable from the
+  // element genuinely being gone. onRouteChange() is called before
+  // emitting route_change so a listener reacting to that event already
+  // sees fresh observer state for the new route.
+  function onRouteChange() {
+    seenMutationKeys = {};
+    seenVisibleSelectors = {};
+    scrollDepthSeen = {};
+  }
+
   function wrapHistoryMethod(name) {
     var original = history[name];
     history[name] = function () {
       var result = original.apply(history, arguments);
+      onRouteChange();
       safeEmit("route_change", name.toLowerCase(), { url: location.href });
       return result;
     };
@@ -143,6 +163,7 @@
   wrapHistoryMethod("pushState");
   wrapHistoryMethod("replaceState");
   window.addEventListener("popstate", function () {
+    onRouteChange();
     safeEmit("route_change", "popstate", { url: location.href });
   });
 

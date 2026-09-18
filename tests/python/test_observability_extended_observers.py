@@ -133,3 +133,29 @@ def test_scroll_depth_not_tracked_when_disabled(fixture_server):
         events = session.events
 
     assert not [e for e in events if e.event_type == "scroll_depth"]
+
+
+def test_mutation_dedup_resets_after_spa_route_change(fixture_server):
+    scenario = Scenario(
+        name="add node, navigate, add node again",
+        steps=[
+            ActionStep(action="click", selector='[data-testid="add-node"]'),
+            ActionStep(action="click", selector='[data-testid="navigate"]'),
+            ActionStep(action="click", selector='[data-testid="add-node"]'),
+        ],
+    )
+    with ObservationSession(headless=True) as session:
+        session.load(f"{fixture_server}/spa_dedup_reset.html")
+        session.run_scenario(scenario)
+        session.wait(0.5)
+        events = session.events
+
+    dynamic_button_insertions = [
+        e for e in events if e.event_type == "dom_insert" and e.selector == '[data-testid="dynamic-button"]'
+    ]
+    # Without the SPA-navigation dedup reset, the second insertion (after
+    # the route change) would be silently suppressed as "already seen".
+    assert len(dynamic_button_insertions) == 2
+
+    route_changes = [e for e in events if e.event_type == "route_change"]
+    assert len(route_changes) == 1

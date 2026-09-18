@@ -600,7 +600,7 @@ tests in `test_interaction_trace.py`, and 4 new real-Chromium tests in
 scroll-depth observer (both the raw milestone-emission mechanism and its
 CLI wiring).
 
-### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(5 of 6 items shipped)*
+### Phase 1.85 — GTM Client/Server Execution Intelligence & Tag Execution Graph *(shipped)*
 
 **Goal:** per `docs/VISION.md` §17 — understand GTM and website
 instrumentation as a distributed system (client-side GTM, server-side
@@ -721,7 +721,25 @@ IDs, the request count, and the payload-parameter similarity score.
    silently invisible to the event stream this detector reads, shipping a
    feature that could never fire on a real page. Wired into
    `pytagmanager diagnose --detect-server-side-tagging`. (M)
-4. Background/post-load observer extensions in `agent.js`. (M)
+4. Background/post-load observer extensions in `agent.js`. **Shipped**,
+   with an honest scope note: the mutation observer, dataLayer wrap, and
+   network-request listener were already continuous by construction (set
+   up once in `session.load()`/at injection time, never torn down), so
+   "keep watching after DOMContentLoaded/consent/AJAX/a delayed timer"
+   needed no new code -- those observers never stopped. The one real,
+   verified gap was SPA navigation specifically: `wrapHistoryMethod`/the
+   `popstate` listener fired a `route_change` event but never reset
+   `seenMutationKeys`/`seenVisibleSelectors`/`scrollDepthSeen`, so an SPA
+   that rebuilds the same selector on every route (e.g. a shared
+   `<button data-testid="add-to-cart">`) would silently stop reporting
+   real new mutations/visibility/scroll-milestone crossings on that
+   selector after the first route -- indistinguishable from the element
+   genuinely being gone. Fixed with `onRouteChange()`, called from both
+   `wrapHistoryMethod` and the `popstate` handler before emitting
+   `route_change`. Verified the fix actually matters, not just adds
+   dead code: reverted it and reran the new regression test, which failed
+   (1 mutation observed where 2 were expected) exactly as predicted,
+   confirming the test is real and the bug was real. (M)
 5. `tagexec/graph.py` — Tag Execution Graph assembly + per-edge evidence
    labels. **Shipped**: `build_tag_execution_graph()` assembles item 1's
    static-scan nodes, Phase 1.8's Interaction Trace steps (chained in
@@ -791,6 +809,13 @@ Chromium CLI end-to-end tests in `test_diagnose_tag_graph_cli.py`
 reusing `tagexec_duplicate.html` (two real GTM containers + a
 runtime-corroborated duplicate finding, asserting the graph links them
 with an `Observed` edge).
+
+**Tests (item 4):** 1 real-headless-Chromium regression test in
+`test_observability_extended_observers.py` against a new
+`spa_dedup_reset.html` fixture (add a DOM node, navigate via
+`pushState`, add the same-selector node again -- both insertions must be
+observed). Confirmed the test fails without the fix (1 of 2 expected
+insertions observed) before confirming it passes with the fix.
 
 ### Phase 1.9 — Playwright Discovery & Test Intelligence
 
