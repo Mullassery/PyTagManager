@@ -928,7 +928,7 @@ reproduced against a new `runtime_state_regression.html` fixture -- an
 otherwise-identical copy of `runtime_state.html` with the `price` dataLayer
 field removed).
 
-### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(4 of 10 items shipped)*
+### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(9 of 10 items shipped)*
 
 **Goal:** per `docs/VISION.md` §16 — combine tagging intelligence with
 performance intelligence: script inventory, dependency graph, controlled
@@ -1058,14 +1058,69 @@ largest phases in this roadmap)
    shows a real positive TBT delta; group/all-non-essential isolation
    correctly targets the classified vendor script and never the
    unclassified first-party one. (L)
-5. Tagging-vs-performance join. (M)
+5. Tagging-vs-performance join. **Shipped**: `perf/tagging_join.py`'s
+   `build_tagging_performance_tradeoffs()` joins each classified script's
+   measured isolation-experiment cost with its vendor/category (reusing
+   item 2's classification, itself reusing Phase 1.85's vendor
+   signatures) and, when a Tag Execution Graph is supplied, the specific
+   graph node it corresponds to -- so cost attributes to a node in that
+   graph, per VISION's "GTM → Vendor Loader → Advertising SDK" example,
+   instead of only an isolated script in a flat ranking. An unclassified
+   first-party script is excluded (no known tagging capability to join
+   against); a classified script with no matching isolation result gets
+   `None` cost fields, never a fabricated zero. (M)
 6. `perf/report.py` — ranking, Web-Vitals attribution, per-template
-   aggregation. (M)
-7. Controlled test-environment config, persisted per result. (M)
-8. Performance regression detection via existing history infra. (M)
-9. Playwright Test Candidate integration (reuses 1.9). (S)
+   aggregation. **Shipped**: `rank_scripts_by_cost()` sorts by measured
+   TBT impact (untested scripts sort last, not as zero-cost);
+   `summarize_template_performance()` accepts an already-clustered
+   template label (from `sitewide.templates.detect_templates()`, the same
+   way `diagnose --site-wide` already derives one) plus a per-template
+   baseline/tradeoffs and produces the "Checkout: median LCP 3.7s, major
+   contributors: ..." shape VISION.md §16 names directly -- reusing
+   template *clustering* conceptually rather than re-implementing it; a
+   full multi-page perf-crawl orchestrator that runs `detect_templates()`
+   itself is CLI/integration surface, not report-building logic, and
+   stays out of this module on purpose. (M)
+7. Controlled test-environment config, persisted per result. **Shipped**:
+   `TestEnvironmentConfig` (browser/headless/viewport/run_count/
+   `cpu_throttling_rate`) is attached to every `PerformanceBaseline`.
+   `cpu_throttling_rate` is real, applied via CDP's
+   `Emulation.setCPUThrottlingRate` before each run -- not just a label.
+   **Disclosed, not implemented**: network-condition throttling (a
+   Lighthouse-style "Slow 4G" preset). A caller-supplied `run_count` is
+   always overridden to match the actual number of runs performed, so the
+   persisted config can never claim a run count that didn't happen. (M)
+8. Performance regression detection via existing history infra.
+   **Shipped**, adapted rather than literally reused: `perf/history.py`
+   mirrors `sitewide/history.py`'s exact append-and-diff pattern (a plain
+   JSON file, compare latest against the immediately preceding entry) --
+   not a literal reuse of `HealthHistoryEntry`, whose fields are shaped
+   for a 0-100 health score and don't fit raw LCP/TBT ms metrics. A
+   newly-introduced script present in the latest entry but not the
+   previous one is reported as *correlated* with a regression, per
+   VISION's own framing -- never claimed as the cause. (M)
+9. Playwright Test Candidate integration (reuses 1.9). **Shipped** for
+   two of VISION's named examples: "verify performance stays within
+   threshold" (`generate_performance_budget_candidates()`, from isolation
+   results exceeding a TBT budget) and a performance regression
+   (`generate_performance_regression_candidates()`, from item 8's
+   alerts) -- both reuse Phase 1.9's `TestCandidate` model directly, not
+   a parallel type. **Disclosed, not built**: VISION's other named
+   example, "verify script does not load before consent," needs
+   consent-state-aware script-load-timing correlation no `perf/` module
+   builds in this pass. (S)
 10. CLI: `pytagmanager perf <url> [--isolate <script> |
     --isolate-group <group> | --all-off] -o report.json`. (M)
+
+**Tests (items 5-9):** 30 unit tests across `test_perf_tagging_join.py`
+(join logic, `None`-not-zero for untested scripts, graph-node matching),
+`test_perf_report.py` (ranking, template summary, text/JSON rendering),
+`test_perf_environment_config.py` (2 real-headless-Chromium, confirming a
+caller-supplied `run_count` is overridden to match reality and CPU
+throttling doesn't crash the engine), `test_perf_history.py` (round-trip
+persistence, threshold logic, newly-introduced-script correlation
+wording), and `test_perf_test_candidates.py` (budget/regression candidate
+generation, confirming severity never reaches "Confirmed defect").
 
 ### Phase 1 — Runtime & Visual Grounding
 
