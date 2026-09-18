@@ -928,7 +928,7 @@ reproduced against a new `runtime_state_regression.html` fixture -- an
 otherwise-identical copy of `runtime_state.html` with the `price` dataLayer
 field removed).
 
-### Phase 1.95 — Automated Script Impact & Web Performance Intelligence
+### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(item 1 of 10 shipped)*
 
 **Goal:** per `docs/VISION.md` §16 — combine tagging intelligence with
 performance intelligence: script inventory, dependency graph, controlled
@@ -986,7 +986,23 @@ performance trade-off line for it.
 **Work breakdown** — size: **XL** (tied with the original Phase 6 as the
 largest phases in this roadmap)
 
-1. `perf/measure.py` — CDP-level measurement engine. (L)
+1. `perf/measure.py` — measurement engine. **Shipped**, with a disclosed
+   scope trade-off: uses the standard `PerformanceObserver`/Performance
+   Timeline API (`perf_agent.js`, injected the same way
+   `observability/agent.js` is) for LCP/CLS/FCP/TBT/INP/JS-transfer/
+   request-count -- not CDP tracing or a Lighthouse wrapper, so there's no
+   Speed Index and no lab-simulated CPU/network throttling baked into the
+   metric itself. Every number is a real browser-native measurement, not
+   an approximation. `measure_page_performance()` always loads the page
+   in `runs` (default 3) fresh browser contexts -- never reusing a warm
+   cache/JS heap, which would bias every metric -- and `PerformanceBaseline
+   .median_*` is what callers report, per VISION.md §16's explicit
+   "median/percentile, never a single-run number." `block_url_patterns`
+   is the hook item 4's isolation-experiment runner re-uses this same
+   function through. Verified against a real fixture page with a
+   deliberate 150ms main-thread busy-wait: registers as a real
+   PerformanceObserver `longtask` entry (TBT > 0), not a fabricated
+   number. (L)
 2. `perf/scripts.py` — script inventory. (L)
 3. `perf/dependency_graph.py`. (M)
 4. `perf/experiments.py` — isolation-experiment runner. (L)

@@ -1,0 +1,23 @@
+<!doctype html>
+<html>
+<head>
+<title>Performance Fixture (deliberately heavy)</title>
+<style>
+  #hero { width: 300px; height: 200px; background: #336699; display: block; }
+</style>
+</head>
+<body>
+<div id="hero">Large LCP candidate block</div>
+<script>
+  // Deliberately blocks the main thread for >50ms -- guarantees at least
+  // one PerformanceObserver "longtask" entry, real evidence a script
+  // added measurable cost, not a fabricated number.
+  (function () {
+    var start = Date.now();
+    while (Date.now() - start < 150) {
+      // busy-wait
+    }
+  })();
+</script>
+</body>
+</html>

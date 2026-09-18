@@ -30,9 +30,14 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **312 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **322 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
+- **Phase 1.95 (Script Impact & Performance Intelligence) is 1 of 10 items in**: new
+  `perf/measure.py` measures real LCP/CLS/FCP/TBT/INP via the standard
+  PerformanceObserver API (not CDP tracing/Lighthouse), aggregated over repeated page
+  loads (median, never single-run). Not yet wired into a CLI command or paired with
+  script inventory/isolation experiments (items 2-10).
 - **`pytagmanager scan-tags`** — Phase 1.85 item 1 (of 6): static code intelligence.
   Detects GTM containers and 24 hard-coded vendor SDK signatures (GA4, Google Ads,
   Floodlight, Meta Pixel, Adobe Analytics/AEP/Launch, and others) from a page's
