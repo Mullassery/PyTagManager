@@ -817,7 +817,7 @@ with an `Observed` edge).
 observed). Confirmed the test fails without the fix (1 of 2 expected
 insertions observed) before confirming it passes with the fix.
 
-### Phase 1.9 — Playwright Discovery & Test Intelligence
+### Phase 1.9 — Playwright Discovery & Test Intelligence *(3 of 5 items shipped)*
 
 **Goal:** per `docs/VISION.md` §15 — turn Phase 1.6–1.8's findings into
 evidence-backed **Test Candidates** an engineer reviews before formalizing
@@ -853,11 +853,49 @@ crawls compared, with suggested Playwright verification steps attached.
 
 **Work breakdown** — size: **M**
 
-1. `testintel/candidates.py` — `TestCandidate` model. (M)
-2. Generator over existing Phase 1.5/1.8 findings. (M)
-3. Field-level regression diff in `version_control/diff.py`. (M)
+1. `testintel/candidates.py` — `TestCandidate` model. **Shipped**:
+   `SEVERITY_LEVELS` is VISION's refined five-stage scale, but every
+   generator is structurally prevented from emitting the last stage
+   ("Confirmed defect") -- `_SEVERITY_BY_CONFIDENCE` maps
+   `Diagnosis.confidence` down to at most "Requires verification", even
+   for `confidence == "Confirmed"` (that confidence describes the
+   *observation*, not a human/Playwright-verified defect classification).
+   Of the 9 categories, 7 have a real generator; `data_type` and
+   `storage_behavior` are declared but deliberately left unpopulated --
+   no existing rule in `diagnostics/rules.py` detects either, so nothing
+   is fabricated for them. (M)
+2. Generator over existing Phase 1.5/1.8 findings. **Shipped**:
+   `generate_diagnosis_candidates()` groups `TrackingJourney`s by
+   `(root_cause, business_event)` so the same underlying problem observed
+   across many pages becomes one candidate with an evidence list (per
+   VISION's own "Evidence: 23 product pages" example), not one candidate
+   per page. `generate_consistency_candidates()` reuses Phase 1.8's
+   `BusinessActionConsistencyReport` for the `consistency` category
+   directly -- no new cross-page comparison logic, per VISION.md §15's
+   "cross-implementation comparison stays central." A `root_cause` with no
+   category mapping is skipped, not guessed at. (M)
+3. Field-level regression diff. **Shipped** -- deliberately not in
+   `version_control/diff.py`: `testintel/regression.py` reuses Phase 1.7's
+   `dictionary/schema_drift.py` `DictionaryDrift.removed_variables`
+   (already a field-level, present-to-absent diff between two Website
+   Data Dictionary snapshots) instead of adding new diff logic, exactly
+   matching VISION.md §15's own instruction to "connect to existing
+   infrastructure rather than needing new comparison logic from scratch."
+   Only `datalayer_field` removals become candidates (cookie/storage key
+   churn is real drift but not what this category is scoped to); fields
+   already explained by a `PossibleRename` are excluded, since a
+   restructure isn't the same claim as an outright removal. (M)
 4. `testintel/playwright_export.py`. (S)
 5. CLI: `pytagmanager diagnose <url> --site-wide --test-candidates`. (S)
+
+**Tests (items 1-3):** 12 unit tests in `test_testintel_candidates.py`
+(grouping/evidence-aggregation logic, category mapping, and a direct
+assertion no generator ever emits "Confirmed defect"), 5 unit tests in
+`test_testintel_regression.py` (including a reproduction of this phase's
+exact exit criteria: a `purchase` event's `transaction_id` field removed
+between two `DataDictionary` snapshots produces one regression candidate
+naming the exact field, and a check that a removed cookie -- real drift,
+wrong category -- produces no candidate).
 
 ### Phase 1.95 — Automated Script Impact & Web Performance Intelligence
 
