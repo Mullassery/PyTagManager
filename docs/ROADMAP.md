@@ -928,7 +928,7 @@ reproduced against a new `runtime_state_regression.html` fixture -- an
 otherwise-identical copy of `runtime_state.html` with the `price` dataLayer
 field removed).
 
-### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(3 of 10 items shipped)*
+### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(4 of 10 items shipped)*
 
 **Goal:** per `docs/VISION.md` §16 — combine tagging intelligence with
 performance intelligence: script inventory, dependency graph, controlled
@@ -1036,7 +1036,28 @@ largest phases in this roadmap)
    script inventory: an inline-script-injected vendor script (which has
    no dedicated script-node parent) correctly falls back to the page as
    its dependency root. (M)
-4. `perf/experiments.py` — isolation-experiment runner. (L)
+4. `perf/experiments.py` — isolation-experiment runner. **Shipped** --
+   VISION.md §16's own differentiator claim ("the isolation-experiment
+   layer Lighthouse doesn't have") made real: `isolate_script()`/
+   `isolate_group()`/`isolate_all_non_essential()` block a target (plus
+   everything downstream of it, per item 3's dependency graph) and
+   re-measure against a baseline via item 1's `block_url_patterns` hook.
+   Groups are a disclosed subset of VISION's full list (analytics/ads/
+   heatmap/experimentation/chat/payment/video from `tagexec`'s vendor
+   categories, plus a `tag_management` group matched by GTM loader URL
+   directly) -- `personalization`/`social`/`consent` have no existing
+   detector to group by and aren't fabricated as empty groups.
+   "All non-essential" means every script this product can currently
+   *classify* as tagging/marketing-adjacent, never an unclassified
+   first-party script -- a real, stated scope boundary, not an oversight.
+   Every `IsolationExperimentResult.message` reports *observed
+   experimental impact* for that specific run, explicitly not a general
+   causal claim about the script's cost everywhere. Verified live: a
+   fixture with a deterministic 150ms-busy-wait first-party script and a
+   dynamically-injected Meta Pixel request -- blocking the heavy script
+   shows a real positive TBT delta; group/all-non-essential isolation
+   correctly targets the classified vendor script and never the
+   unclassified first-party one. (L)
 5. Tagging-vs-performance join. (M)
 6. `perf/report.py` — ranking, Web-Vitals attribution, per-template
    aggregation. (M)
