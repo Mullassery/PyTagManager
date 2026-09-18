@@ -459,6 +459,52 @@ test if run unreviewed. The same underlying problem observed across many
 pages becomes one candidate with an evidence list, not one candidate per
 page.
 
+### Automated Script Impact & Web Performance Intelligence (`pytagmanager perf`, needs `[diagnostics]`)
+
+```bash
+# Baseline: real LCP/CLS/FCP/TBT/INP, aggregated over 3 runs (median), plus a script inventory.
+pytagmanager perf https://example.com
+
+# Isolation experiment: block one script and measure the difference.
+pytagmanager perf https://example.com --isolate https://cdn.example.com/heavy-vendor.js
+
+# Block a whole group (ads/analytics/heatmap/experimentation/chat/payment/video/tag_management),
+# or every classifiable script at once:
+pytagmanager perf https://example.com --isolate-group ads
+pytagmanager perf https://example.com --all-off
+
+# Real CDP CPU throttling, regression tracking, and Test Candidates:
+pytagmanager perf https://example.com --isolate-group analytics \
+  --cpu-throttling 4 --history perf_history.json --test-candidates --format json
+```
+
+The pillar VISION.md §16 describes as having "the least existing overlap"
+with anything already built — genuinely new, not an extension of Phase
+0.5/1.5's observability layer. **The isolation-experiment layer is the
+actual differentiator** (inspired by Lighthouse's metrics, but Lighthouse
+has no equivalent): block a script — plus everything downstream of it, so
+blocking GTM correctly accounts for the GA4/Meta Pixel/etc. it loads too —
+and re-measure against a baseline. Every result reports *observed
+experimental impact* for that controlled run, never a general claim about
+a script's cost on every page or visitor.
+
+- Every metric is a real browser-native measurement (the standard
+  `PerformanceObserver`/Performance Timeline API — not a Lighthouse
+  wrapper or CDP tracing), never a single-run number.
+- Script classification reuses Phase 1.85's vendor signatures
+  (`tagexec.static_scan`), so a script's measured cost joins directly with
+  what it's already known to do from the tagging side.
+- `--cpu-throttling` is real (CDP `Emulation.setCPUThrottlingRate`), not a
+  label; the exact environment (browser, viewport, run count, throttling)
+  is persisted alongside every result so comparisons stay meaningful over
+  time.
+- **Disclosed, not fabricated**: per-script CPU execution time and
+  long-task attribution aren't measured (would need CDP's JS Profiler
+  domain); network-condition throttling (a "Slow 4G" preset) isn't wired
+  in; "verify script does not load before consent" Test Candidates aren't
+  generated (would need consent-state/script-timing correlation not built
+  yet).
+
 ### Privacy
 
 Telemetry never leaves your machine unless you supply GTM/GA4 credentials
@@ -502,7 +548,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 384 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 389 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

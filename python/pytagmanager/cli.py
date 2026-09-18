@@ -758,5 +758,185 @@ def scan_tags(
         click.echo(report)
 
 
+@main.command(name="perf")
+@click.argument("url")
+@click.option("--runs", default=3, show_default=True, type=int, help="Page loads to aggregate (median). Never trust a single-run number.")
+@click.option("--headless/--no-headless", default=True, show_default=True)
+@click.option("--browser", type=click.Choice(["chromium", "firefox", "webkit"]), default="chromium", show_default=True)
+@click.option(
+    "--isolate", "isolate_script_url", default=None, help="Isolate one script by exact URL and measure its impact."
+)
+@click.option(
+    "--isolate-group",
+    "isolate_group_name",
+    default=None,
+    help="Isolate one script group (e.g. 'ads', 'analytics', 'heatmap', 'tag_management' -- see "
+    "docs/ROADMAP.md Phase 1.95 item 4 for the full, disclosed-as-partial list) and measure its impact.",
+)
+@click.option(
+    "--all-off",
+    "all_non_essential",
+    is_flag=True,
+    help="Isolate every classifiable (tagging/marketing-adjacent) script at once. Never blocks an "
+    "unclassified first-party script.",
+)
+@click.option(
+    "--cpu-throttling",
+    "cpu_throttling_rate",
+    default=None,
+    type=float,
+    help="Real CDP CPU throttling rate (e.g. 4 == CPU is 4x slower), applied before every run.",
+)
+@click.option(
+    "--history",
+    "history_path",
+    type=click.Path(),
+    default=None,
+    help="Append this run's metrics to a JSON history file and check for an LCP/TBT regression vs. the previous run.",
+)
+@click.option(
+    "--test-candidates",
+    "include_test_candidates",
+    is_flag=True,
+    help="Generate evidence-backed Test Candidates (docs/VISION.md §15) for budget-exceeding isolated "
+    "scripts and detected regressions, reusing Phase 1.9's TestCandidate model.",
+)
+@click.option("-o", "--output", "output_path", type=click.Path(), default=None)
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+def perf(
+    url: str,
+    runs: int,
+    headless: bool,
+    browser: str,
+    isolate_script_url: str | None,
+    isolate_group_name: str | None,
+    all_non_essential: bool,
+    cpu_throttling_rate: float | None,
+    history_path: str | None,
+    include_test_candidates: bool,
+    output_path: str | None,
+    output_format: str,
+) -> None:
+    """Automated Script Impact & Web Performance Intelligence
+    (docs/VISION.md §16): real LCP/CLS/TBT/INP measurement, a script
+    inventory, and -- with --isolate/--isolate-group/--all-off -- a
+    controlled isolation experiment reporting the observed performance
+    impact of blocking a script/group. Requires
+    `pip install pytagmanager[diagnostics]`.
+    """
+    isolate_targets = [t for t in (isolate_script_url, isolate_group_name, all_non_essential) if t]
+    if len(isolate_targets) > 1:
+        raise click.UsageError("--isolate, --isolate-group, and --all-off are mutually exclusive; pass only one.")
+
+    from pytagmanager.perf.experiments import isolate_all_non_essential, isolate_group, isolate_script
+    from pytagmanager.perf.history import (
+        PerformanceHistoryEntry,
+        append_performance_history_entry,
+        detect_performance_regression,
+        load_performance_history,
+    )
+    from pytagmanager.perf.measure import TestEnvironmentConfig, measure_page_performance
+    from pytagmanager.perf.report import build_performance_report_json, render_performance_report
+    from pytagmanager.perf.scripts import build_script_inventory
+    from pytagmanager.perf.tagging_join import build_tagging_performance_tradeoffs
+    from pytagmanager.perf.test_candidates import (
+        generate_performance_budget_candidates,
+        generate_performance_regression_candidates,
+    )
+    from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
+
+    click.echo(f"Building script inventory for {url}...", err=True)
+    inventory = build_script_inventory(url, headless=headless, browser_name=browser)
+
+    environment = TestEnvironmentConfig(
+        browser_name=browser, headless=headless, run_count=runs, cpu_throttling_rate=cpu_throttling_rate
+    )
+
+    click.echo(f"Measuring baseline performance ({runs} run(s))...", err=True)
+    baseline = measure_page_performance(url, runs=runs, headless=headless, browser_name=browser, environment=environment)
+
+    experiment_results = []
+    if isolate_script_url:
+        click.echo(f"Isolating script {isolate_script_url}...", err=True)
+        experiment_results.append(
+            isolate_script(url, isolate_script_url, inventory=inventory, baseline=baseline, runs=runs, headless=headless, browser_name=browser)
+        )
+    elif isolate_group_name:
+        click.echo(f"Isolating group '{isolate_group_name}'...", err=True)
+        experiment_results.append(
+            isolate_group(url, isolate_group_name, inventory=inventory, baseline=baseline, runs=runs, headless=headless, browser_name=browser)
+        )
+    elif all_non_essential:
+        click.echo("Isolating all non-essential (classified) scripts...", err=True)
+        experiment_results.append(
+            isolate_all_non_essential(url, inventory=inventory, baseline=baseline, runs=runs, headless=headless, browser_name=browser)
+        )
+
+    tradeoffs = build_tagging_performance_tradeoffs(inventory, experiment_results)
+
+    regression_alerts = []
+    if history_path:
+        history = load_performance_history(history_path)
+        entry = PerformanceHistoryEntry.from_baseline(baseline, script_urls=[s.url for s in inventory.scripts])
+        regression_alerts = detect_performance_regression(history, entry)
+        append_performance_history_entry(history_path, entry)
+        for alert in regression_alerts:
+            click.echo(f"Regression detected: {alert.message}", err=True)
+
+    all_test_candidates = []
+    if include_test_candidates:
+        all_test_candidates.extend(generate_performance_budget_candidates(experiment_results))
+        all_test_candidates.extend(generate_performance_regression_candidates(regression_alerts))
+
+    if output_format == "json":
+        report_dict = build_performance_report_json(baseline, tradeoffs)
+        if experiment_results:
+            report_dict["isolation_experiments"] = [
+                {
+                    "target_description": r.target_description,
+                    "blocked_urls": list(r.blocked_urls),
+                    "lcp_delta_ms": r.lcp_delta_ms,
+                    "tbt_delta_ms": r.tbt_delta_ms,
+                    "cls_delta": r.cls_delta,
+                    "inp_delta_ms": r.inp_delta_ms,
+                    "message": r.message,
+                }
+                for r in experiment_results
+            ]
+        if regression_alerts:
+            report_dict["regression_alerts"] = [
+                {
+                    "message": a.message,
+                    "metric": a.metric,
+                    "previous_value": a.previous_value,
+                    "current_value": a.current_value,
+                    "new_scripts": list(a.new_scripts),
+                }
+                for a in regression_alerts
+            ]
+        if all_test_candidates:
+            report_dict["test_candidates"] = build_test_candidates_json(all_test_candidates)
+        report = json.dumps(report_dict, indent=2)
+    else:
+        lines = render_performance_report(baseline, tradeoffs)
+        for r in experiment_results:
+            lines.append(f"ISOLATION EXPERIMENT: {r.message}")
+            lines.append("")
+        for alert in regression_alerts:
+            lines.append(f"REGRESSION: {alert.message}")
+        if regression_alerts:
+            lines.append("")
+        if all_test_candidates:
+            lines.extend(render_test_candidates(all_test_candidates))
+        report = "\n".join(lines)
+
+    if output_path:
+        with open(output_path, "w") as f:
+            f.write(report)
+        click.echo(f"Wrote performance report to {output_path}")
+    else:
+        click.echo(report)
+
+
 if __name__ == "__main__":
     main()

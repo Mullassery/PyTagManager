@@ -928,7 +928,7 @@ reproduced against a new `runtime_state_regression.html` fixture -- an
 otherwise-identical copy of `runtime_state.html` with the `price` dataLayer
 field removed).
 
-### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(9 of 10 items shipped)*
+### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(shipped)*
 
 **Goal:** per `docs/VISION.md` §16 — combine tagging intelligence with
 performance intelligence: script inventory, dependency graph, controlled
@@ -981,7 +981,13 @@ subsystem, not an extension of one that already exists. Size accordingly.
 heavy third-party script produces a report naming that script, its
 measured TBT/LCP contribution from an isolation run, and — when its
 domain matches a known analytics/marketing endpoint — a tagging-vs-
-performance trade-off line for it.
+performance trade-off line for it. **Met, in two parts** — see item 10's
+notes: the heavy-script-naming + measured-TBT-delta half is verified live
+via the real CLI (`test_perf_cli.py`); the vendor-domain-match ->
+trade-off-line half is verified at the unit level
+(`test_perf_tagging_join.py`), since combining both properties in one
+live fixture would need route-fulfillment plumbing this CLI command
+doesn't otherwise need.
 
 **Work breakdown** — size: **XL** (tied with the original Phase 6 as the
 largest phases in this roadmap)
@@ -1110,7 +1116,22 @@ largest phases in this roadmap)
    consent-state-aware script-load-timing correlation no `perf/` module
    builds in this pass. (S)
 10. CLI: `pytagmanager perf <url> [--isolate <script> |
-    --isolate-group <group> | --all-off] -o report.json`. (M)
+    --isolate-group <group> | --all-off] -o report.json`. **Shipped**:
+    wires items 1-9 together -- script inventory, baseline measurement
+    (with real `--cpu-throttling`), an optional isolation experiment
+    (`--isolate`/`--isolate-group`/`--all-off`, mutually exclusive),
+    tagging-vs-performance join, `--history` for regression tracking, and
+    `--test-candidates`. Verified live: `pytagmanager perf --isolate
+    <heavy-script-url>` against a fixture with a deterministic
+    150ms-busy-wait script names that exact script and reports a real
+    positive TBT delta -- the phase's exit criteria's first half. The
+    second half (a vendor-domain-matched trade-off line for that *same*
+    heavy script) is verified at the unit level
+    (`test_perf_tagging_join.py`) rather than combined into one live
+    fixture: doing so would need Playwright route-*fulfillment* (serving
+    custom heavy JS content from a URL matching a real vendor regex), a
+    piece of plumbing no other part of this CLI command needs, so it
+    wasn't added solely to make one test's fixture more elaborate. (M)
 
 **Tests (items 5-9):** 30 unit tests across `test_perf_tagging_join.py`
 (join logic, `None`-not-zero for untested scripts, graph-node matching),
@@ -1121,6 +1142,13 @@ throttling doesn't crash the engine), `test_perf_history.py` (round-trip
 persistence, threshold logic, newly-introduced-script correlation
 wording), and `test_perf_test_candidates.py` (budget/regression candidate
 generation, confirming severity never reaches "Confirmed defect").
+
+**Tests (item 10):** 5 real-headless-Chromium CLI end-to-end tests in
+`test_perf_cli.py` -- baseline-only reporting, the phase's exit criteria
+reproduced live (`--isolate` against a real heavy script), `--isolate-
+group` correctly targeting only classified scripts, mutually-exclusive-
+flag rejection, and the `--history`/`--test-candidates` flow round-
+tripping through disk. Phase 1.95 is now fully shipped (10 of 10 items).
 
 ### Phase 1 — Runtime & Visual Grounding
 

@@ -30,10 +30,10 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **384 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **389 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
-- **Phase 1.95 (Script Impact & Performance Intelligence) is 9 of 10 items in**: new
+- **Phase 1.95 (Script Impact & Performance Intelligence) is fully shipped.** New
   `perf/measure.py` measures real LCP/CLS/FCP/TBT/INP via the standard
   PerformanceObserver API (not CDP tracing/Lighthouse), aggregated over repeated page
   loads (median, never single-run). New `perf/scripts.py` builds a real script
@@ -56,8 +56,11 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `perf/history.py` mirrors `sitewide/history.py`'s append-and-diff pattern for
   LCP/TBT regression detection, correlating (never claiming causation from) newly-
   introduced scripts; both feed Phase 1.9's `TestCandidate` model directly for
-  budget-exceeded and regression findings. Not yet wired into a CLI command (item
-  10, the only piece remaining).
+  budget-exceeded and regression findings. `pytagmanager perf <url>
+  [--isolate/--isolate-group/--all-off] [--cpu-throttling] [--history]
+  [--test-candidates]` wires all of the above together -- verified live: reproduces
+  the phase's exit criteria (a deliberately heavy script named with its measured TBT
+  delta from a real isolation run).
 - **`pytagmanager scan-tags`** — Phase 1.85 item 1 (of 6): static code intelligence.
   Detects GTM containers and 24 hard-coded vendor SDK signatures (GA4, Google Ads,
   Floodlight, Meta Pixel, Adobe Analytics/AEP/Launch, and others) from a page's
@@ -134,7 +137,6 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   cross-referenced against the dictionary/drift, which needs real container
   credentials this environment doesn't have. Everything else in Phase 1.7 (presence
   labeling, schema drift, purpose classification) is shipped as of this pass.
-- **Phase 1.95** (script-impact/performance intelligence) — not started.
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
   Phase 2) — planned, not implemented. Only the local-Ollama and deterministic paths
   exist today.
@@ -185,11 +187,14 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 
 ## Where most work is pending, at a glance
 
-Of the roadmap's post-v1 phases, eight are shipped (0, 0.5, 1.5, 1.6, 1.7, 1.8,
-1.85, 1.9) -- 1.7 minus one GTM-config-dependent enrichment (see above) -- and
-Phase 1.95 plus cloud-LLM intent classification and all of the "deliberately
-deferred" list in `docs/ARCHITECTURE.md` haven't been
-started. The nearest-term real gaps are keeping CI actually exercising new features
-as they ship (the diagnostics-extras gap above shipped a whole feature with broken
-CI for an unknown period before that pass caught it) and restoring v0.2.0's full
+Every numbered post-v1 phase through Phase 1.95 is now shipped (0, 0.5, 1.5, 1.6,
+1.7, 1.8, 1.85, 1.9, 1.95) -- 1.7 minus one GTM-config-dependent enrichment, 1.95
+minus a small set of individually-disclosed sub-gaps (see above), neither blocking
+real use. Only cloud-LLM intent classification and the "deliberately deferred" list
+in `docs/ARCHITECTURE.md` -- which includes the differently-numbered Phase 1
+("Runtime & Visual Grounding": screenshot capture, rendered-HTML crawling) plus XDM
+modeling, the enterprise audit engine, and non-web platforms -- remain unstarted.
+The nearest-term real gaps are keeping CI actually exercising new features as they
+ship (the diagnostics-extras gap above shipped a whole feature with broken CI for an
+unknown period before that pass caught it) and restoring v0.2.0's full
 multi-platform PyPI wheel coverage (see below).
