@@ -30,10 +30,10 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **333 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **342 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
-- **Phase 1.95 (Script Impact & Performance Intelligence) is 2 of 10 items in**: new
+- **Phase 1.95 (Script Impact & Performance Intelligence) is 3 of 10 items in**: new
   `perf/measure.py` measures real LCP/CLS/FCP/TBT/INP via the standard
   PerformanceObserver API (not CDP tracing/Lighthouse), aggregated over repeated page
   loads (median, never single-run). New `perf/scripts.py` builds a real script
@@ -41,9 +41,11 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   transfer size, network timing, inferred vendor/category) — genuinely needs CDP
   here, unlike item 1, since only CDP exposes "which script triggered this request."
   Per-script CPU execution time and long-task attribution are disclosed as not
-  measured (would need CDP's JS Profiler domain, not built yet), not fabricated. Not
-  yet wired into a CLI command or paired with the dependency graph/isolation
-  experiments (items 3-10).
+  measured (would need CDP's JS Profiler domain, not built yet), not fabricated. New
+  `perf/dependency_graph.py` builds script→script relationships from that initiator
+  data, with a cycle-safe transitive-closure query (`downstream_of()`) isolation
+  experiments (item 4) need to avoid double-counting savings. Not yet wired into a
+  CLI command or paired with isolation experiments (items 4-10).
 - **`pytagmanager scan-tags`** — Phase 1.85 item 1 (of 6): static code intelligence.
   Detects GTM containers and 24 hard-coded vendor SDK signatures (GA4, Google Ads,
   Floodlight, Meta Pixel, Adobe Analytics/AEP/Launch, and others) from a page's

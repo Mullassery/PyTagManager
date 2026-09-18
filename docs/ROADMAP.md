@@ -928,7 +928,7 @@ reproduced against a new `runtime_state_regression.html` fixture -- an
 otherwise-identical copy of `runtime_state.html` with the `price` dataLayer
 field removed).
 
-### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(2 of 10 items shipped)*
+### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(3 of 10 items shipped)*
 
 **Goal:** per `docs/VISION.md` §16 — combine tagging intelligence with
 performance intelligence: script inventory, dependency graph, controlled
@@ -1024,7 +1024,18 @@ largest phases in this roadmap)
    third-party vendor script (`connect.facebook.net/.../fbevents.js`)
    correctly distinguishes `initiator_type` ("parser" vs. "script") and
    classifies the vendor as Meta Pixel/ads. (L)
-3. `perf/dependency_graph.py`. (M)
+3. `perf/dependency_graph.py`. **Shipped**: `build_dependency_graph()`
+   parents each script to its initiator (from item 2's CDP-sourced
+   `initiator_url`) or to the page itself (`parser`/`other`-initiated, or
+   `script`-initiated with no resolvable URL -- e.g. an inline `<script>`
+   block, which has no `src` of its own and so never becomes its own
+   inventory node). `downstream_of()` computes the transitive closure
+   (BFS, cycle-safe) an isolation experiment (item 4) needs to know
+   everything that would stop loading if a given script were blocked, so
+   savings aren't double-counted or missed. Verified against a real
+   script inventory: an inline-script-injected vendor script (which has
+   no dedicated script-node parent) correctly falls back to the page as
+   its dependency root. (M)
 4. `perf/experiments.py` — isolation-experiment runner. (L)
 5. Tagging-vs-performance join. (M)
 6. `perf/report.py` — ranking, Web-Vitals attribution, per-template
