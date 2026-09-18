@@ -502,7 +502,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 322 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 333 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See

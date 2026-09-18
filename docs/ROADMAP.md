@@ -928,7 +928,7 @@ reproduced against a new `runtime_state_regression.html` fixture -- an
 otherwise-identical copy of `runtime_state.html` with the `price` dataLayer
 field removed).
 
-### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(item 1 of 10 shipped)*
+### Phase 1.95 — Automated Script Impact & Web Performance Intelligence *(2 of 10 items shipped)*
 
 **Goal:** per `docs/VISION.md` §16 — combine tagging intelligence with
 performance intelligence: script inventory, dependency graph, controlled
@@ -1003,7 +1003,27 @@ largest phases in this roadmap)
    deliberate 150ms main-thread busy-wait: registers as a real
    PerformanceObserver `longtask` entry (TBT > 0), not a fabricated
    number. (L)
-2. `perf/scripts.py` — script inventory. (L)
+2. `perf/scripts.py` — script inventory. **Shipped**, and unlike item 1,
+   genuinely needs CDP (not the standard Performance Timeline API): only
+   CDP's `Network.requestWillBeSent` event carries `initiator.type`/
+   `initiator.stack`, the "which script triggered this request" data
+   neither `measure.py` nor `dependency_graph.py` (item 3, which consumes
+   this) could get any other way. Per script: URL, domain, first/
+   third-party, initiator type + URL, load mechanism (async/defer/sync,
+   from a DOM `<script>` query cross-referenced by URL), transfer bytes,
+   network load duration, and inferred vendor/category (reusing item 1 of
+   Phase 1.85's `tagexec.static_scan.classify_vendor_url()`, exposed as a
+   new public function rather than duplicating the vendor signature
+   list). **Disclosed, not fabricated**: per-script CPU execution time and
+   per-script long-task attribution aren't populated -- the standard Long
+   Tasks API's `attribution` field doesn't reliably identify same-frame
+   script culprits, and real attribution needs CDP's JS Profiler domain
+   (sampling + call-tree self-time per URL), a substantial separate
+   undertaking not built in this pass. Verified live: a fixture with both
+   a parser-loaded first-party `async` script and a script-injected
+   third-party vendor script (`connect.facebook.net/.../fbevents.js`)
+   correctly distinguishes `initiator_type` ("parser" vs. "script") and
+   classifies the vendor as Meta Pixel/ads. (L)
 3. `perf/dependency_graph.py`. (M)
 4. `perf/experiments.py` — isolation-experiment runner. (L)
 5. Tagging-vs-performance join. (M)

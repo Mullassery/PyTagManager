@@ -1,0 +1,17 @@
+<!doctype html>
+<html>
+<head><title>Perf Script Inventory Fixture</title></head>
+<body>
+<div id="content">Hello</div>
+<script src="local_first_party.js" async></script>
+<script>
+  // Dynamically-injected, script-initiated (not parser-initiated) request
+  // to a real vendor URL pattern -- exercises the CDP initiator.type ==
+  // "script" path and classify_vendor_url() classification, without
+  // needing the request to actually succeed over the network.
+  var s = document.createElement('script');
+  s.src = 'https://connect.facebook.net/en_US/fbevents.js';
+  document.body.appendChild(s);
+</script>
+</body>
+</html>

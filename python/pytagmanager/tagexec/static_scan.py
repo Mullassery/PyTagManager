@@ -234,6 +234,20 @@ def scan_html(html: str, page_url: str) -> StaticScanResult:
     )
 
 
+def classify_vendor_url(url: str) -> Optional[Tuple[str, str]]:
+    """(vendor, category) for a single URL (e.g. a script `src`), reusing
+    the same curated `_VENDOR_SIGNATURES` list `scan_html()` matches
+    against -- a public entry point so other modules (`perf/scripts.py`'s
+    script inventory, Phase 1.95 item 2) can classify one URL at a time
+    without reaching into this module's private internals. Returns None
+    if no signature matches, same "absent, not fabricated" discipline as
+    the rest of this module."""
+    for vendor, category, pattern in _VENDOR_SIGNATURES:
+        if pattern.search(url):
+            return (vendor, category)
+    return None
+
+
 def detect_delayed_containers(baseline: StaticScanResult, later: StaticScanResult) -> Tuple[str, ...]:
     """GTM container IDs present in `later` but absent from `baseline` --
     evidence the container loaded sometime between the two snapshots
