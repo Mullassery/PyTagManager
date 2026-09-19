@@ -4,7 +4,7 @@ import json
 
 import click
 
-from pytagmanager.discovery.crawl import crawl_site
+from pytagmanager.discovery.crawl import crawl_site, crawl_site_rendered
 from pytagmanager.export.base import EXPORTERS
 from pytagmanager.intent.ollama_classifier import DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL, OllamaIntentClassifier
 from pytagmanager.recommend.heuristics import recommend_for_graph
@@ -77,6 +77,41 @@ def _parse_headers(raw_headers: tuple[str, ...]) -> list[tuple[str, str]]:
     show_default=True,
     help="Ollama base URL to use when --intent=ollama.",
 )
+@click.option(
+    "--render",
+    "render_mode",
+    is_flag=True,
+    help="Render each page in a real browser before building its DOM graph, so client-rendered "
+    "(JS-injected) content is visible to recommendations -- not just the raw HTTP response body. "
+    "Slower (one extra browser fetch per page); requires pytagmanager[diagnostics].",
+)
+@click.option(
+    "--screenshots-dir",
+    "screenshot_dir",
+    type=click.Path(),
+    default=None,
+    help="With --render: save desktop/mobile, above-fold/full-page PNG screenshots per page to this directory.",
+)
+@click.option(
+    "--sniff-analytics",
+    "sniff_analytics",
+    is_flag=True,
+    help="With --render: report already-firing analytics vendors and window.dataLayer presence per page.",
+)
+@click.option(
+    "--simulate-interactions",
+    "simulate_interactions_flag",
+    is_flag=True,
+    help="With --render: click each page's top-N recommended elements and report DOM mutations / "
+    "network requests observed -- a real runtime check, not just a static selector guess.",
+)
+@click.option(
+    "--interaction-top-n",
+    default=5,
+    show_default=True,
+    type=int,
+    help="With --simulate-interactions: how many top-confidence recommended elements to interact with per page.",
+)
 def crawl(
     url: str,
     max_pages: int,
@@ -90,20 +125,58 @@ def crawl(
     intent_engine: str,
     ollama_model: str,
     ollama_url: str,
+    render_mode: bool,
+    screenshot_dir: str | None,
+    sniff_analytics: bool,
+    simulate_interactions_flag: bool,
+    interaction_top_n: int,
 ) -> None:
     """Crawl URL, generate tracking recommendations, and optionally export them."""
     headers = _parse_headers(raw_headers)
     classifier = OllamaIntentClassifier(model=ollama_model, base_url=ollama_url) if intent_engine == "ollama" else None
-    click.echo(f"Crawling {url} (max_pages={max_pages}, concurrency={concurrency})...")
-    pages = crawl_site(
-        url,
-        max_pages=max_pages,
-        concurrency=concurrency,
-        respect_robots=not no_robots,
-        rate_limit=rate_limit,
-        headers=headers,
-    )
+
+    if render_mode:
+        click.echo(f"Crawling {url} in render mode (max_pages={max_pages}, concurrency={concurrency})...")
+        pages = crawl_site_rendered(
+            url,
+            max_pages=max_pages,
+            concurrency=concurrency,
+            respect_robots=not no_robots,
+            rate_limit=rate_limit,
+            headers=headers,
+            screenshot_dir=screenshot_dir,
+            sniff_analytics=sniff_analytics,
+            simulate_interactions=simulate_interactions_flag,
+            interaction_top_n=interaction_top_n,
+        )
+    else:
+        click.echo(f"Crawling {url} (max_pages={max_pages}, concurrency={concurrency})...")
+        pages = crawl_site(
+            url,
+            max_pages=max_pages,
+            concurrency=concurrency,
+            respect_robots=not no_robots,
+            rate_limit=rate_limit,
+            headers=headers,
+        )
     click.echo(f"Crawled {len(pages)} page(s).")
+
+    if render_mode:
+        for page in pages:
+            if page.sniff is not None:
+                vendor_names = ", ".join(page.sniff.vendors) or "none"
+                click.echo(
+                    f"  {page.url}: vendors observed firing = [{vendor_names}], "
+                    f"dataLayer present = {page.sniff.data_layer_present}"
+                )
+            if page.screenshots is not None:
+                click.echo(f"  {page.url}: screenshots saved under {screenshot_dir} (id={page.screenshots.page_id})")
+            for obs in page.interactions:
+                status = f"error: {obs.error}" if obs.error else f"{obs.mutation_count} mutation(s)"
+                click.echo(
+                    f"  {page.url}: {obs.action} {obs.selector} -> {status}, "
+                    f"{len(obs.network_requests_fired)} new request(s)"
+                )
 
     all_recs = []
     recs_by_url = {}

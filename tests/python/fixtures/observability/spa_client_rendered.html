@@ -1,0 +1,20 @@
+<!doctype html>
+<html>
+<head><title>Client-Rendered SPA Fixture</title></head>
+<body>
+<div id="app"></div>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  dataLayer.push({ event: 'app_init' });
+  fetch('https://www.googletagmanager.com/gtag/js?id=G-TEST123');
+  document.getElementById('app').innerHTML = '<button id="cta">Add to Cart</button>';
+  document.getElementById('cta').addEventListener('click', function () {
+    dataLayer.push({ event: 'add_to_cart' });
+    fetch('https://www.google-analytics.com/g/collect?v=2&en=add_to_cart&tid=G-TEST123');
+    var confirmation = document.createElement('span');
+    confirmation.textContent = 'Added!';
+    document.body.appendChild(confirmation);
+  });
+</script>
+</body>
+</html>

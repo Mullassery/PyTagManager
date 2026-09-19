@@ -108,6 +108,41 @@ pytagmanager crawl <url>
         └──▶ version_control/snapshot.py — save a snapshot for `pytagmanager diff`
 ```
 
+### Client-Rendered Crawling (`pytagmanager crawl --render`, needs `[diagnostics]`)
+
+A static crawl only ever sees a page's raw HTTP response body. Most modern
+sites inject their real content (and their CTAs) via JS after load, so a
+static crawl of one produces zero recommendations — not because there's
+nothing there, but because the crawler never saw it. `--render` re-fetches
+each discovered page through a real headless browser instead, so the
+DOM graph (and everything downstream of it) is built from what a visitor
+actually sees:
+
+```
+pytagmanager crawl <url> --render [--screenshots-dir DIR] [--sniff-analytics] [--simulate-interactions]
+```
+
+- **Rendered DOM graph**: `runtime/renderer.py` loads the page in Chromium,
+  waits for it to settle, and feeds the *live* `page.content()` HTML back
+  through the same `_core.parse_html()` the static crawl uses — no Rust
+  changes needed, no separate recommendation logic.
+- **`--screenshots-dir DIR`**: saves 4 real PNGs per page (desktop/mobile ×
+  above-fold/full-page).
+- **`--sniff-analytics`**: reports which analytics vendors are already
+  observed firing network requests, and whether `window.dataLayer` is
+  present — reusing the same vendor-signature list `scan-tags` and
+  `pytagmanager perf` already match against, not a second list.
+- **`--simulate-interactions [--interaction-top-n N]`**: clicks the page's
+  top-N highest-confidence recommended elements (fresh browser context per
+  candidate) and reports real DOM mutations and network requests observed
+  — a selector that can't be interacted with is reported with an error,
+  not fatal to the rest of the crawl.
+
+**Disclosed trade-off**: every page is fetched twice under `--render` (once
+by the Rust crawler for URL discovery, once by the browser for the actual
+render) — discovery-without-fetching-bodies would need Rust-side changes
+out of scope for this pass.
+
 ### Website Data Dictionary (`pytagmanager dictionary`, needs `[diagnostics]`)
 
 ```bash
@@ -548,7 +583,7 @@ doesn't).
 
 ## What's working now (verified)
 
-40 Rust tests + 389 Python tests, covering the CLI end-to-end (`crawl`,
+40 Rust tests + 404 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
 with real headless Chromium, not mocks — the full Tracking Observability
 correlation and diagnostic-rules pipeline. See
@@ -596,7 +631,7 @@ Cargo.toml / pyproject.toml   # Rust crate + maturin/Python packaging
 src/                          # Rust: crawler/ + dom/ (semantic graph, selectors)
 python/pytagmanager/          # Python: discovery/ recommend/ intent/ export/ version_control/ cli.py
                                #         observability/ correlation/ diagnostics/ analytics_api/ reporting/
-                               #         sitewide/ dictionary/
+                               #         sitewide/ dictionary/ tagexec/ testintel/ perf/ runtime/
 tests/python/                 # Python tests + HTML fixtures (Rust tests live next to their modules)
 docs/VISION.md                 # north-star: what PyTagManager is for, independent of what's shipped
 docs/ARCHITECTURE.md          # implemented vs. deliberately deferred, plus the full long-term spec

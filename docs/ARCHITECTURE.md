@@ -33,7 +33,7 @@ that framing and are being read through it going forward.
 | Site-Wide Tagging QA: semantic page-type classification (LLM-backed, optional relabeling of templates) | **Implemented** (local model via Ollama, deterministic URL-keyword fallback) | `python/pytagmanager/sitewide/page_type.py`, `diagnose --site-wide --semantic-labels` |
 | Site-Wide Tagging QA: cross-page consistency, tracking matrix, template/site health scoring | **Implemented** | `python/pytagmanager/sitewide/{aggregation,report}.py`, wired into `diagnose --site-wide` |
 | Site-Wide Tagging QA: ecommerce parameter validation, duplicate-purchase detection, confidence-labeled diagnoses | **Implemented** | `diagnostics/rules.py`'s `rule_ecommerce_missing_parameters`/`find_duplicate_purchases`, `Diagnosis.confidence` |
-| Runtime/client-rendered DOM discovery for *generating new* recommendations (SPA content invisible to the static crawler) | **Deliberately deferred** — see note below | — |
+| Runtime/client-rendered DOM discovery for *generating new* recommendations (SPA content invisible to the static crawler) | **Implemented** (`docs/ROADMAP.md` Phase 1) | `python/pytagmanager/runtime/{renderer,screenshots,sniffer,interactions}.py`, `discovery/crawl.py`'s `crawl_site_rendered()`, `crawl --render` |
 | Statistical anomaly detection across a site-wide crawl (unusual event repetition, GTM/GA4 config drift relative to a template's own norm) | **Implemented** | `python/pytagmanager/sitewide/anomalies.py`, wired into `diagnose --site-wide` |
 | Historical tracking-health scores + regression detection + webhook alerting across runs | **Implemented** (recurring invocation itself is left to the caller's cron/CI — see note below) | `python/pytagmanager/sitewide/{history,notify}.py`, `diagnose --site-wide --history ... --alert-webhook ...` |
 | Runtime State Capture: cookies (incl. HttpOnly)/localStorage/sessionStorage/full dataLayer snapshot per page + before/after diffing per interaction | **Implemented** (raw cookie/storage values are opt-in via `--capture-storage-values`; keys/types/lengths are always captured, and sensitive-looking keys are redacted even with the opt-in on) | `python/pytagmanager/observability/state.py`, `session.py`'s `capture_state()`/`state_snapshots`/`state_diffs`, wired into `diagnose`'s terminal/JSON reports |
@@ -41,17 +41,18 @@ that framing and are being read through it going forward.
 | Crawler per-host rate limiting (429/503 retry+backoff) and custom request headers for authenticated crawls | **Implemented** | `src/crawler/fetcher.rs`'s `Fetcher::build`, `crawl --rate-limit --header` |
 | Broadened interactive-element discovery (ARIA-role-based, not just `<button>`/`<a>`; menu/accordion/tab/dropdown/pagination/filter/video/wishlist/cart-modification keyword categories) | **Implemented** | `python/pytagmanager/recommend/heuristics.py` |
 | Cross-implementation business-action consistency (does "Add to Cart" fire the same event shape everywhere it appears on the site, across templates) | **Implemented** | `python/pytagmanager/sitewide/interaction_consistency.py`, wired into `diagnose --site-wide` |
-| Visual understanding (screenshots, computer vision) | **Deliberately deferred** — see note below | — |
+| Per-page screenshot capture (desktop/mobile, above-fold/full-page) | **Implemented** (`docs/ROADMAP.md` Phase 1) | `python/pytagmanager/runtime/screenshots.py`, `crawl --render --screenshots-dir DIR` |
+| Computer-vision element understanding (hero/pricing-table/carousel detection from pixels) | **Deliberately deferred** — see note below | — |
 | XDM-native event modeling (Adobe) | **Deliberately deferred** — see note below | — |
 | Enterprise audit engine (GTM/Adobe/Tealium/Segment/Snowplow import + gap analysis) | **Deliberately deferred** — see note below | — |
 | Any non-web platform (Android, iOS, kiosk, desktop, IoT, AR/VR, wearables, voice) | **Deliberately deferred** — see note below | — |
 
-Notably: the DOM graph is built from **static HTML only**. Fields the
-original spec calls for that require a real browser renderer — bounding
-box, z-index, visibility state, scroll position, shadow DOM, iframe
-context — are not derivable from a static parse and are out of scope until
-a Python-side Playwright layer (Phase 3/4 in Appendix A) hands rendered
-HTML back through `parse_html()`, which is already designed to accept it.
+Notably: the default `pytagmanager crawl` still builds its DOM graph from
+**static HTML only**; `crawl --render` (`docs/ROADMAP.md` Phase 1) opts
+into a real Playwright render first. Even with `--render`, fields the
+original spec calls for beyond rendered HTML itself — bounding box,
+z-index, precise scroll position, shadow DOM, iframe context — are not
+derivable from `page.content()`'s serialized DOM and remain out of scope.
 
 The rule-based recommendation engine's "AI explainability" (every
 recommendation carries a `rationale` string naming exactly which signals
@@ -214,26 +215,19 @@ by design (see "Deliberately deferred" below).
 These items are genuinely out of scope for this pass — not silently
 dropped, but each deferred for a distinct, specific reason:
 
-- **Runtime/client-rendered DOM discovery for *generating new*
-  recommendations** — Tracking Observability's browser *verifies* whether
-  already-known interactions (from a crawl's static recommendations or a
-  hand-authored scenario) behave correctly at runtime; it does not feed
-  discovered client-rendered DOM back into `recommend_for_graph()` to find
-  *new* trackable elements invisible to the static HTTP-fetch crawler.
-  Those are different problems — verification vs. discovery — and only
-  the first was in scope here.
 - **The scheduler itself** — `diagnose --site-wide --history` records and
   compares scores (see the new subsection below); *triggering* it weekly
   (or on any cadence) is left to the caller's own cron/CI, deliberately.
   PyTagManager is a CLI that runs once and exits; embedding a scheduler
   into it would be the wrong layer for that concern, the same way `git`
   doesn't schedule its own `git fetch`.
-- **Visual understanding (screenshots, computer vision)** — this is a
-  fundamentally different crawling paradigm (rendered-page/pixel analysis
-  vs. the static-HTML DOM graph this project builds today) that would need
-  its own rendering pipeline, its own test/validation approach (visual
-  regression, not JSON-shape assertions), and a multimodal model — a new
-  subsystem, not an extension of the existing one.
+- **Computer-vision element understanding** (hero/pricing-table/carousel
+  detection from pixels) — real per-page screenshot capture and
+  client-rendered DOM discovery both shipped in `docs/ROADMAP.md` Phase 1;
+  what remains out of scope is pixel-based visual classification, which
+  needs its own test/validation approach (visual regression, not
+  JSON-shape assertions) and a multimodal model — a new subsystem, revisited
+  once there's a concrete case the DOM-based approach can't handle.
 - **XDM-native event modeling (Adobe)** — Adobe Experience Platform's XDM
   schema system (identity fields, commerce/product/cart objects, mixins,
   schema registries) is a deep, Adobe-proprietary modeling layer distinct
@@ -264,13 +258,13 @@ dropped, but each deferred for a distinct, specific reason:
   `python/pytagmanager/intent/base.py` now has a real implementation
   (`OllamaIntentClassifier`, see above); a future real Claude API
   integration would fill in `ClaudeIntentClassifier` the same way.
-- **Browser rendering for new-recommendation discovery**: Playwright is
-  now in the codebase (`observability/session.py`), but only for
-  *verifying* already-known interactions. Feeding its rendered HTML back
-  through `pytagmanager._core.parse_html(rendered_html, url)` to run
-  `recommend_for_graph()` against client-rendered (not just static) DOM —
-  finding *new* trackable elements a SPA only renders after JS runs — is
-  the remaining half of this extension point.
+- **Browser rendering for new-recommendation discovery**: shipped
+  (`docs/ROADMAP.md` Phase 1) — `runtime/renderer.py` feeds rendered HTML
+  back through `pytagmanager._core.parse_html(rendered_html, url)`, and
+  `crawl --render` runs `recommend_for_graph()` against that client-rendered
+  DOM. The remaining extension point here is computer-vision element
+  understanding from pixels (see "Deliberately deferred" above), not
+  DOM-based discovery, which is done.
 - **New observer type**: add a listener to `observability/agent.js`
   emitting a new `event_type` (see `observability/events.py`'s
   `EVENT_TYPES`), map it to a stage in

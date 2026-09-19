@@ -1,7 +1,7 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.0
-**Last Updated:** 2026-09-17
+**Last Updated:** 2026-09-19
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -14,6 +14,29 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   semantic DOM graph → rule-based tracking recommendations → export to 7 platforms
   (GTM/GA4/Segment/Snowplow/Tealium/RudderStack/Adobe Tags) → optional
   `--save-snapshot`.
+- **`pytagmanager crawl --render`** — Phase 1 (Runtime & Visual Grounding, the
+  differently-numbered phase, distinct from the 0.5/1.x track), now fully shipped
+  (all 6 items). New `runtime/` package: `renderer.py` re-fetches each discovered
+  page through real Chromium and feeds the rendered `page.content()` HTML back
+  through the same `_core.parse_html()` the static crawl uses — no Rust changes
+  needed. `screenshots.py` captures 4 real PNGs per page (desktop/mobile x
+  above-fold/full-page). `sniffer.py` reuses `tagexec.static_scan.
+  classify_vendor_url()` (one vendor-signature list for the whole codebase) against
+  every outgoing request, plus a real `window.dataLayer` read. `interactions.py`
+  clicks/hovers/scrolls the top-N highest-confidence recommended elements (fresh
+  browser context per candidate, bounding cost) and reports real DOM-mutation counts
+  and newly-fired network requests, with per-candidate error handling so one
+  unreachable selector doesn't hide the rest. Verified against the phase's exit
+  criteria with a real client-rendered SPA fixture: a static crawl of it recommends
+  nothing (the CTA only exists after JS runs); `--render` finds it. **Disclosed
+  trade-off**: every page is fetched twice under `--render` (Rust crawler for
+  discovery, browser for the actual render) — a Rust-side
+  discover-without-fetching-bodies mode was out of scope. **Disclosed, not
+  implemented**: mutation counting is a raw `MutationObserver` record count, not
+  `observability/agent.js`'s selector-scoped deduplicated event stream (a different,
+  narrower question this doesn't need). Deliberately deferred: computer-vision
+  element understanding from pixels (hero/pricing-table/carousel detection) — see
+  `docs/ARCHITECTURE.md`.
 - **`pytagmanager diff`** — crawl-to-crawl change detection (pages, DOM elements,
   recommendations).
 - **`pytagmanager dictionary`** — Website Data Dictionary: variable-level inventory
@@ -30,7 +53,7 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **389 Python tests** (2 of which are environment-flaky — see
+- **40 Rust tests** + **404 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
 - **Phase 1.95 (Script Impact & Performance Intelligence) is fully shipped.** New
@@ -120,13 +143,6 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   flags runtime state that changed suspiciously long after the trigger that needed it
   already fired.
 
-## 🟡 Built but not reachable via the public API/CLI
-
-- **`_core.parse_html()`** (real Rust PyO3 function, well-tested) — intentionally not
-  wrapped by any Python-level convenience function yet; it's a documented future hook
-  for a Playwright-rendered-HTML path (`docs/ARCHITECTURE.md`), reachable today only as
-  `pytagmanager._core.parse_html(html, url)`.
-
 ## 🔴 Not built / explicitly deferred
 
 Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
@@ -140,9 +156,11 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
   Phase 2) — planned, not implemented. Only the local-Ollama and deterministic paths
   exist today.
-- **Visual/screenshot grounding, XDM modeling, the enterprise audit engine, and
-  non-web platforms** — deliberately deferred, each with a stated reason in
-  `docs/ARCHITECTURE.md`, not silently missing.
+- **Computer-vision element understanding** (hero/pricing-table/carousel detection
+  from pixels), **XDM modeling, the enterprise audit engine, and non-web
+  platforms** — deliberately deferred, each with a stated reason in
+  `docs/ARCHITECTURE.md`, not silently missing. (Real per-page screenshot capture
+  and client-rendered DOM discovery are no longer on this list — see Phase 1 above.)
 
 ## ⚠️ CI/CD — current status
 
@@ -188,13 +206,14 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 ## Where most work is pending, at a glance
 
 Every numbered post-v1 phase through Phase 1.95 is now shipped (0, 0.5, 1.5, 1.6,
-1.7, 1.8, 1.85, 1.9, 1.95) -- 1.7 minus one GTM-config-dependent enrichment, 1.95
-minus a small set of individually-disclosed sub-gaps (see above), neither blocking
-real use. Only cloud-LLM intent classification and the "deliberately deferred" list
-in `docs/ARCHITECTURE.md` -- which includes the differently-numbered Phase 1
-("Runtime & Visual Grounding": screenshot capture, rendered-HTML crawling) plus XDM
-modeling, the enterprise audit engine, and non-web platforms -- remain unstarted.
-The nearest-term real gaps are keeping CI actually exercising new features as they
-ship (the diagnostics-extras gap above shipped a whole feature with broken CI for an
-unknown period before that pass caught it) and restoring v0.2.0's full
-multi-platform PyPI wheel coverage (see below).
+1.7, 1.8, 1.85, 1.9, 1.95), plus the differently-numbered Phase 1 ("Runtime &
+Visual Grounding": rendered-HTML crawling, screenshot capture, analytics sniffing,
+bounded interaction simulation) -- 1.7 minus one GTM-config-dependent enrichment,
+1.95 minus a small set of individually-disclosed sub-gaps (see above), neither
+blocking real use. Only cloud-LLM intent classification and the remainder of the
+"deliberately deferred" list in `docs/ARCHITECTURE.md` -- computer-vision element
+understanding from pixels, XDM modeling, the enterprise audit engine, and non-web
+platforms -- remain unstarted. The nearest-term real gaps are keeping CI actually
+exercising new features as they ship (the diagnostics-extras gap above shipped a
+whole feature with broken CI for an unknown period before that pass caught it) and
+restoring v0.2.0's full multi-platform PyPI wheel coverage (see below).

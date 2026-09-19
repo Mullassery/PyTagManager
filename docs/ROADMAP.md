@@ -1150,7 +1150,7 @@ group` correctly targeting only classified scripts, mutually-exclusive-
 flag rejection, and the `--history`/`--test-candidates` flow round-
 tripping through disk. Phase 1.95 is now fully shipped (10 of 10 items).
 
-### Phase 1 — Runtime & Visual Grounding
+### Phase 1 — Runtime & Visual Grounding *(shipped)*
 
 **Goal:** stop being blind to anything that isn't in the initial HTML
 response — modern sites are mostly client-rendered.
@@ -1169,7 +1169,11 @@ response — modern sites are mostly client-rendered.
 
 **Exit criteria:** recommendations are generated for a client-rendered
 SPA test page that Phase 0's static crawl produces zero recommendations
-for. Screenshots are retrievable per crawled page.
+for. Screenshots are retrievable per crawled page. **Met**: see
+`tests/python/test_runtime_renderer.py::test_static_crawl_finds_nothing_but_rendered_crawl_finds_the_cta`
+(static parse of `spa_client_rendered.html` recommends nothing; rendering
+first finds the "Add to Cart" CTA) and
+`tests/python/test_runtime_screenshots.py` (4 real PNGs written per page).
 
 **Deliberately deferred:** full computer-vision element understanding
 (hero/pricing-table/carousel detection from pixels). Runtime DOM +
@@ -1181,23 +1185,65 @@ approach can't handle.
 
 1. `python/pytagmanager/runtime/renderer.py` — Playwright wrapper: launch,
    navigate, wait-for-network-idle, return rendered HTML + console/network
-   log. (M)
+   log. (M) **Shipped**: `render_page()` returns a `RenderResult` (final
+   URL, status, rendered `page.content()` HTML, console logs, network
+   requests with per-request status once its response arrives).
 2. Wire rendered HTML through the existing `_core.parse_html(html, url)` —
    no Rust changes needed. Add a `--render` mode to
    `discovery/crawl.py`/the CLI that uses Rust's crawler purely for URL
    discovery (fast, robots/sitemap-aware) and swaps in Playwright for the
-   actual per-page fetch when enabled. (M)
+   actual per-page fetch when enabled. (M) **Shipped**:
+   `crawl_site_rendered()` calls the real `crawl_site()` for discovery,
+   then re-fetches each URL via `render_page()` and rebuilds the graph via
+   `_core.parse_html()`. **Disclosed trade-off**: every page is fetched
+   twice (Rust discovery + browser render) — a Rust-side
+   "discover-URLs-without-fetching-bodies" mode is out of scope (would
+   need Rust changes this item explicitly avoids). `pytagmanager crawl
+   --render [--screenshots-dir DIR] [--sniff-analytics]
+   [--simulate-interactions] [--interaction-top-n N]`.
 3. `runtime/screenshots.py` — full-page/above-fold/mobile/desktop capture,
-   filed under an output dir keyed by page id. (S)
+   filed under an output dir keyed by page id. (S) **Shipped**:
+   `capture_page_screenshots()` writes 4 real PNGs (desktop/mobile x
+   above-fold/full-page) per page, using two fixed, disclosed viewport
+   sizes (not a full device-emulation profile — no UA/touch/DPR spoofing).
 4. `runtime/interactions.py` — click/hover/scroll simulation limited to
    the top-N heuristic candidates (bounds cost), diffing DOM state and
-   capturing fired network requests per interaction. (L)
+   capturing fired network requests per interaction. (L) **Shipped**:
+   `simulate_interactions()` takes the CLI's `--interaction-top-n`
+   highest-confidence `recommend_for_graph()` selectors, opens a fresh
+   context per candidate, and reports a raw `MutationObserver` record
+   count plus any new network requests fired. A selector that can't be
+   interacted with (timeout, detached) is reported per-candidate with an
+   error, not raised — one bad candidate doesn't hide the rest.
+   **Disclosed, not implemented**: this is a raw mutation *count*, not
+   `observability/agent.js`'s selector-scoped, deduplicated event stream —
+   that agent is built for known-selector tracking during a scripted
+   `Scenario`, a different question than "did anything change" on an
+   arbitrary candidate.
 5. `runtime/sniffer.py` — intercept requests matching known analytics
    endpoints (GA/gtag, Segment, Adobe, Snowplow collector patterns) and
    read `window.dataLayer` via `page.evaluate`. This is what Phase 5's
-   audit engine needs to know what's already firing. (M)
+   audit engine needs to know what's already firing. (M) **Shipped**:
+   `sniff_page()` reuses `tagexec.static_scan.classify_vendor_url()` (the
+   same curated vendor-signature list `scan-tags` and `perf/scripts.py`
+   already match against — one vendor list for the whole codebase, not a
+   second divergent set of endpoint patterns) against every outgoing
+   request, plus a real `window.dataLayer` read.
 6. Fixture: a small client-rendered test page/app that a static crawl
    produces zero recommendations for, used as the Phase 1 regression test. (S)
+   **Shipped**: `tests/python/fixtures/observability/spa_client_rendered.html`
+   — raw HTML has an empty `#app` div; an inline script injects the "Add to
+   Cart" CTA, pushes to `dataLayer`, and fires a GA4-shaped request only
+   after load.
+
+**Tests**: `test_runtime_renderer.py`, `test_runtime_screenshots.py`,
+`test_runtime_sniffer.py`, `test_runtime_interactions.py`,
+`test_discovery_crawl_rendered.py`, `test_cli_render.py` — all real
+headless-Chromium E2E against the local `fixture_server`, no mocked
+Playwright. Discovery is faked in tests only (`SimpleNamespace(url=...)`),
+matching every other real-crawl test in this suite, because the Rust
+crawler's SSRF guard correctly refuses to fetch the loopback fixture
+server — a real security feature, not something to route around.
 
 ### Phase 2 — AI Business Intent Classification
 
