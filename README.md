@@ -581,6 +581,14 @@ PyO3 extension-module crates need for plain `cargo build`/`cargo test` to
 work outside of maturin (maturin sets these automatically; raw `cargo`
 doesn't).
 
+## Contributing, security, and license
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev workflow and this
+project's documentation-honesty policy, [`SECURITY.md`](SECURITY.md) for
+vulnerability reporting and disclosed risk areas (this is a solo-maintained
+project with no SLA), and [`CHANGELOG.md`](CHANGELOG.md) for release
+history. Licensed under [Apache-2.0](LICENSE).
+
 ## What's working now (verified)
 
 40 Rust tests + 404 Python tests, covering the CLI end-to-end (`crawl`,

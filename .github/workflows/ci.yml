@@ -51,3 +51,34 @@ jobs:
 
       - name: pytest tests/python
         run: pytest tests/python -v
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit --locked
+
+      - name: cargo audit (Rust dependency vulnerabilities)
+        run: cargo audit
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+
+      - name: Install pip-audit and this project's declared dependencies
+        run: |
+          python -m pip install --upgrade pip pip-audit
+          python -m pip install 'click>=8.0' 'playwright>=1.40' 'pyyaml>=6.0' \
+            'google-api-python-client>=2.100' 'google-auth>=2.23' \
+            'google-auth-oauthlib>=1.1'
+
+      - name: pip-audit (Python dependency vulnerabilities)
+        run: pip-audit --strict

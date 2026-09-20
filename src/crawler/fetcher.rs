@@ -76,7 +76,7 @@ impl Fetcher {
             header_map.insert(header_name, header_value);
         }
         let client = reqwest::Client::builder()
-            .user_agent("PyTagManagerBot/0.1 (+https://github.com/pytagmanager)")
+            .user_agent("PyTagManagerBot/0.2 (+https://github.com/Mullassery/PyTagManager)")
             .default_headers(header_map)
             .build()
             .expect("failed to build HTTP client");

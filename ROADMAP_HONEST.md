@@ -1,7 +1,7 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.0
-**Last Updated:** 2026-09-19
+**Last Updated:** 2026-09-20
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -202,6 +202,66 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   where something answers on `localhost:11434` but doesn't actually serve the expected
   model, since `_ollama_reachable()`'s check doesn't verify the model itself. CI
   doesn't run Ollama, so this specific flake shouldn't appear there.
+- **New `dependency-audit` CI job (this pass), unverified**: `ci.yml` now has a second
+  job running `cargo audit` (Rust) and `pip-audit --strict` (Python, against the
+  declared `dependencies`/`diagnostics` extras). Syntax-checked with `actionlint`
+  (passes) and the pip install line's shell quoting was hand-verified (`bash -n`), but
+  **the job itself has never actually run on a GitHub Actions runner** — this sandbox
+  has no network access to github.com, so whether `cargo-audit`/`pip-audit` install
+  cleanly and whether the current dependency set actually has zero known
+  vulnerabilities is unverified, not confirmed clean. Watch its first real run.
+
+## Technical debt
+
+Concrete, file:line findings — not a generic "could be cleaner" list. None of these
+block real use; they're disclosed here so a future session can decide whether/when
+to spend time on them.
+
+- **Dependency versions are unverified against known CVEs** (see the new
+  `dependency-audit` CI job above) — `Cargo.toml`'s `pyo3 = "0.22"`, `tokio = "1"`,
+  `reqwest = "0.12"`, `scraper = "0.20"` and `pyproject.toml`'s `playwright>=1.40`,
+  `google-api-python-client>=2.100` are all range/floor constraints, not pinned exact
+  versions cross-checked against an advisory database — this sandbox has no network
+  access to run that check now, so "no known vulnerabilities" is an unconfirmed
+  absence, not a verified clean bill of health.
+- **No Python lint/format tooling wired into CI or `pyproject.toml`** — a
+  `.ruff_cache/` directory exists locally (someone has run `ruff` manually, e.g. via
+  an editor integration) but there is no `[tool.ruff]` config in `pyproject.toml` and
+  no lint/format step in `ci.yml`. Unlike the Rust side (`cargo fmt --check` +
+  `cargo clippy -D warnings`, both enforced in CI), Python code has zero automated
+  style/lint enforcement — a contributor's formatting is whatever their own editor
+  does, with nothing to catch drift.
+- **`src/lib.rs:41`**: `tokio::runtime::Runtime::new().expect("failed to start tokio
+  runtime")` — every `crawl()` PyO3 call constructs a fresh Tokio runtime and panics
+  (via PyO3's automatic panic-to-`PanicException` conversion) if that fails, e.g.
+  under OS-level thread/file-descriptor exhaustion, rather than raising a clean,
+  catchable Python exception describing the actual resource problem. Low likelihood,
+  poor failure message if it ever fires.
+- **`src/crawler/fetcher.rs:82`**: `reqwest::Client::builder()....build().expect("failed
+  to build HTTP client")` inside `Fetcher::build()`, a function that already returns
+  `Result<Self, AppError>` for its other failure modes (invalid headers) two lines
+  above — the HTTP-client-build failure path panics instead of being propagated
+  through the same `Result` the function already has, for no structural reason.
+  Same PyO3-panic-conversion caveat as above applies.
+- **`python/pytagmanager/testintel/playwright_export.py:63`**: the generated draft
+  Playwright script contains a `# TODO: implement the steps above against a real page
+  URL from Evidence.` comment before its mandatory `raise NotImplementedError` — this
+  is intentional (it's a template for code the *user* fills in, documented extensively
+  in the README/this file's Phase 1.9 section), not undisclosed rot in PyTagManager's
+  own codebase. Listed here only so a future search for `TODO` in this repo isn't
+  surprised by it.
+- **No coverage measurement** (`pytest-cov` or equivalent) is configured — 404 passing
+  Python tests is a real, verified count (this pass ran the full suite live), but
+  there is no line/branch coverage number backing it, so "well-tested" is a claim
+  about test *count* and CI-verified breadth, not a measured coverage percentage.
+- **`src/crawler/fetcher.rs:79`'s HTTP `User-Agent` string was stale** (`PyTagManagerBot/0.1`
+  pointing at a nonexistent `github.com/pytagmanager` URL, while the crate itself was
+  already at `0.2.0` under `github.com/Mullassery/PyTagManager`) — fixed in this pass to
+  `PyTagManagerBot/0.2 (+https://github.com/Mullassery/PyTagManager)`. Low-impact (no
+  test asserted the old string, and it's sent on every outbound crawl request, so a
+  site operator inspecting request logs would have seen a slightly wrong version/URL),
+  but it's the kind of small drift worth catching in the same pass as the `Cargo.toml`
+  version-drift fix noted above.
 
 ## Where most work is pending, at a glance
 

@@ -1,0 +1,46 @@
+name: Feature request
+description: Propose a new capability or improvement
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: check `docs/VISION.md` and `docs/ROADMAP.md` — your
+        idea may already be a planned (or deliberately deferred, with a
+        stated reason) phase. If so, comment on that context instead of
+        opening a duplicate.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the gap or friction you're hitting today, not just the feature itself
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Including any existing PyTagManager flag/feature that gets partway there
+
+  - type: dropdown
+    id: north-star
+    attributes:
+      label: Which of the five north-star questions (docs/VISION.md) does this serve?
+      options:
+        - "What data exists?"
+        - "Where does it exist?"
+        - "When does it exist?"
+        - "Is it usable by the tagging layer?"
+        - "What is missing or broken?"
+        - "Not sure / none of these"
+    validations:
+      required: false
