@@ -1,6 +1,6 @@
 # PyTagManager — Honest Status
 
-**Current Version:** v0.2.0
+**Current Version:** v0.2.1
 **Last Updated:** 2026-09-22
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence

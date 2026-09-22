@@ -12,8 +12,10 @@ file is a release-oriented complement to it, not a duplicate.
 
 ## [Unreleased]
 
-Everything shipped on `main` since the v0.2.0 version bump (2026-08-31)
-has **not** been published to PyPI yet — see `ROADMAP_HONEST.md`'s CI/CD
+## [0.2.1] - 2026-09-22
+
+Everything shipped on `main` since the v0.2.0 version bump (2026-08-31),
+published to PyPI as v0.2.1 on 2026-09-22 — see `ROADMAP_HONEST.md`'s CI/CD
 section for the current PyPI status. Highlights, in shipped order:
 
 - Tracking Observability & Diagnostics: Runtime State Capture (cookies/
