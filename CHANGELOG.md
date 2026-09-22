@@ -48,8 +48,23 @@ section for the current PyPI status. Highlights, in shipped order:
   push since Tracking Observability landed failed pytest's collection
   phase outright (`ModuleNotFoundError: No module named 'yaml'`).
 
+### Fixed
+
+- `src/lib.rs`: the `crawl()` pyfunction no longer panics (via PyO3's
+  panic-to-`PanicException` conversion) if `tokio::runtime::Runtime::new()`
+  fails — the failure now propagates as a catchable Python `RuntimeError`
+  through a new `AppError::Internal` variant.
+- `src/crawler/fetcher.rs`: `Fetcher::build()` no longer panics if
+  `reqwest::Client::builder().build()` fails — propagated through the
+  `Result<Self, AppError>` the function already returns, same as its other
+  failure modes.
+- `src/crawler/orchestrator.rs`: corrected a stale doc comment on
+  `crawl_with_fetcher` claiming the real entry point calls `Fetcher::new()`
+  — it actually calls `Fetcher::build(true, ...)` directly.
+
 See `ROADMAP_HONEST.md` for exactly which sub-items of the above are
-fully shipped vs. disclosed-partial, and for known bugs/tech debt.
+fully shipped vs. disclosed-partial, and for known bugs/tech debt, plus
+the now-verified (and currently red) `dependency-audit` CI job results.
 
 ## [0.2.0] — version bumped in repo 2026-08-31, published to PyPI 2026-09-14
 

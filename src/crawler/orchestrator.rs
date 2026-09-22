@@ -54,11 +54,12 @@ pub async fn crawl(
 }
 
 /// Same as `crawl`, but with an explicit `Fetcher`. `crawl` above is the
-/// only real (CLI/Python-facing) entry point and always passes
-/// `Fetcher::new()`, which has the SSRF guard enabled. This variant is
-/// exposed so integration tests can pass a `Fetcher::with_ssrf_guard(false)`
-/// to exercise the BFS/batching loop against a local mock HTTP server on
-/// loopback, which the guard would otherwise correctly refuse to fetch.
+/// only real (CLI/Python-facing) entry point and always builds its
+/// `Fetcher` via `Fetcher::build(true, ...)`, which has the SSRF guard
+/// enabled. This variant is exposed so integration tests can pass a
+/// `Fetcher::with_ssrf_guard(false)` to exercise the BFS/batching loop
+/// against a local mock HTTP server on loopback, which the guard would
+/// otherwise correctly refuse to fetch.
 pub async fn crawl_with_fetcher(
     fetcher: Fetcher,
     start_url: &str,

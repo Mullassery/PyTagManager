@@ -79,7 +79,7 @@ impl Fetcher {
             .user_agent("PyTagManagerBot/0.2 (+https://github.com/Mullassery/PyTagManager)")
             .default_headers(header_map)
             .build()
-            .expect("failed to build HTTP client");
+            .map_err(|e| AppError::Internal(format!("failed to build HTTP client: {e}")))?;
         Ok(Self {
             client,
             ssrf_guard,

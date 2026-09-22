@@ -12,6 +12,12 @@ pub enum AppError {
     /// A `--header`/`headers=` value passed to the crawler wasn't a valid
     /// HTTP header name or value.
     InvalidHeader(String),
+    /// A process-level failure unrelated to any particular request or URL
+    /// (e.g. failing to construct the async runtime or the HTTP client
+    /// itself, typically under OS-level resource exhaustion) -- something
+    /// has gone wrong with this process's own resources, not with the
+    /// site being crawled.
+    Internal(String),
 }
 
 impl fmt::Display for AppError {
@@ -21,6 +27,7 @@ impl fmt::Display for AppError {
             AppError::InvalidUrl(msg) => write!(f, "Invalid URL: {}", msg),
             AppError::Blocked(msg) => write!(f, "Blocked by SSRF guard: {}", msg),
             AppError::InvalidHeader(msg) => write!(f, "Invalid header: {}", msg),
+            AppError::Internal(msg) => write!(f, "Internal error: {}", msg),
         }
     }
 }

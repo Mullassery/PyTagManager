@@ -1,7 +1,7 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.0
-**Last Updated:** 2026-09-20
+**Last Updated:** 2026-09-22
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -202,14 +202,36 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   where something answers on `localhost:11434` but doesn't actually serve the expected
   model, since `_ollama_reachable()`'s check doesn't verify the model itself. CI
   doesn't run Ollama, so this specific flake shouldn't appear there.
-- **New `dependency-audit` CI job (this pass), unverified**: `ci.yml` now has a second
-  job running `cargo audit` (Rust) and `pip-audit --strict` (Python, against the
-  declared `dependencies`/`diagnostics` extras). Syntax-checked with `actionlint`
-  (passes) and the pip install line's shell quoting was hand-verified (`bash -n`), but
-  **the job itself has never actually run on a GitHub Actions runner** — this sandbox
-  has no network access to github.com, so whether `cargo-audit`/`pip-audit` install
-  cleanly and whether the current dependency set actually has zero known
-  vulnerabilities is unverified, not confirmed clean. Watch its first real run.
+- **`dependency-audit` CI job verified for real 2026-09-22 — and it is currently
+  RED, on both sub-jobs.** This sandbox has network access after all (confirmed
+  against crates.io, pypi.org, github.com); ran the job's exact steps locally
+  instead of waiting for a GitHub Actions run:
+  - `cargo audit` (against the committed `Cargo.lock`): **3 real vulnerabilities +
+    2 warnings.** `pyo3` 0.22.6 — RUSTSEC-2025-0020 (buffer-overflow risk in
+    `PyString::from_object`, fixed >=0.24.1) and RUSTSEC-2026-0177 (missing `Sync`
+    bound on `PyCFunction::new_closure` closures, fixed >=0.29.0); `rustls` 0.23.43
+    (a `reqwest` transitive dep) — RUSTSEC-2026-0285, severity 5.3/medium (TLS 1.3
+    handshake messages accepted across encryption-level boundaries, fixed
+    >=0.23.45). Plus warnings: `fxhash` 0.2.1 unmaintained, `chacha20` 0.10.1
+    yanked. `cargo audit` exits nonzero on any finding.
+  - `pip-audit --strict` (replicated the job's exact install steps —
+    `click>=8.0 playwright>=1.40 pyyaml>=6.0 google-api-python-client>=2.100
+    google-auth>=2.23 google-auth-oauthlib>=1.1` — in a clean venv): **15 known
+    vulnerabilities across 7 packages** — `click` 8.1.8 (PYSEC-2026-2132),
+    `requests` 2.32.5 (a `google-api-python-client` transitive dep,
+    PYSEC-2026-2275), `filelock`/`msgpack` (playwright transitives), and
+    `pip`/`setuptools` (the venv's own bootstrap tooling — present because
+    `pip-audit` scans the whole environment, not just declared deps). Exit code 1.
+  - **Net: this job will fail on its first real GitHub Actions run, on both
+    sub-jobs.** Not a flake — reproducible on demand. The `pyo3` fix in
+    particular is a major-version bump (0.22 → 0.29) that's a real breaking-change
+    migration (PyO3 0.23+ changed several trait/API surfaces this crate uses),
+    correctly out of scope for a quick-fix pass; left as a documented, real
+    finding rather than force-fit here. A future pass should either remediate
+    (bump `pyo3`/`rustls`/the flagged Python packages and re-verify) or, if a
+    finding is accepted as a risk, add a scoped `cargo audit --ignore
+    RUSTSEC-...`/`pip-audit` allowlist entry with a comment explaining why —
+    not leave the job red indefinitely.
 
 ## Technical debt
 
@@ -217,32 +239,44 @@ Concrete, file:line findings — not a generic "could be cleaner" list. None of 
 block real use; they're disclosed here so a future session can decide whether/when
 to spend time on them.
 
-- **Dependency versions are unverified against known CVEs** (see the new
-  `dependency-audit` CI job above) — `Cargo.toml`'s `pyo3 = "0.22"`, `tokio = "1"`,
-  `reqwest = "0.12"`, `scraper = "0.20"` and `pyproject.toml`'s `playwright>=1.40`,
-  `google-api-python-client>=2.100` are all range/floor constraints, not pinned exact
-  versions cross-checked against an advisory database — this sandbox has no network
-  access to run that check now, so "no known vulnerabilities" is an unconfirmed
-  absence, not a verified clean bill of health.
+- **Dependency versions verified against known CVEs 2026-09-22 — real findings,
+  not clean** (see the `dependency-audit` CI status above for the full breakdown):
+  3 Rust advisories (`pyo3` x2, `rustls`) + 15 Python advisories (mostly
+  transitive — `click`, `requests`, `filelock`, `msgpack`, plus `pip`/`setuptools`
+  in the audit environment itself). "No known vulnerabilities" is no longer the
+  honest claim — it's "known vulnerabilities exist upstream, none remediated yet."
+  The `pyo3` fix is a breaking 0.22→0.29 major-version migration, correctly out
+  of scope for a quick-fix pass.
 - **No Python lint/format tooling wired into CI or `pyproject.toml`** — a
   `.ruff_cache/` directory exists locally (someone has run `ruff` manually, e.g. via
   an editor integration) but there is no `[tool.ruff]` config in `pyproject.toml` and
   no lint/format step in `ci.yml`. Unlike the Rust side (`cargo fmt --check` +
   `cargo clippy -D warnings`, both enforced in CI), Python code has zero automated
   style/lint enforcement — a contributor's formatting is whatever their own editor
-  does, with nothing to catch drift.
-- **`src/lib.rs:41`**: `tokio::runtime::Runtime::new().expect("failed to start tokio
-  runtime")` — every `crawl()` PyO3 call constructs a fresh Tokio runtime and panics
-  (via PyO3's automatic panic-to-`PanicException` conversion) if that fails, e.g.
-  under OS-level thread/file-descriptor exhaustion, rather than raising a clean,
-  catchable Python exception describing the actual resource problem. Low likelihood,
-  poor failure message if it ever fires.
-- **`src/crawler/fetcher.rs:82`**: `reqwest::Client::builder()....build().expect("failed
-  to build HTTP client")` inside `Fetcher::build()`, a function that already returns
-  `Result<Self, AppError>` for its other failure modes (invalid headers) two lines
-  above — the HTTP-client-build failure path panics instead of being propagated
-  through the same `Result` the function already has, for no structural reason.
-  Same PyO3-panic-conversion caveat as above applies.
+  does, with nothing to catch drift. **Checked 2026-09-22 whether adding a CI gate
+  was a quick fix**: with default/unconfigured settings, `ruff check python
+  tests/python` reports 788 errors (132 auto-fixable) and `black --check python
+  tests/python` would reformat 126 of 146 files — this is massive pre-existing
+  formatting/lint debt, not a gap a one-line CI addition can close without either
+  reformatting the whole tree unreviewed or shipping a CI job that's red on arrival.
+  Deliberately not added this pass; a future pass should run `black`/`ruff --fix`
+  as its own reviewed commit (or land a deliberately narrow `[tool.ruff]` config
+  that only catches new drift) before wiring either into `ci.yml`.
+- ~~**`src/lib.rs:41`**: `tokio::runtime::Runtime::new().expect(...)` panicked on
+  Tokio runtime creation failure.~~ **Fixed 2026-09-22**: the `crawl()` pyfunction's
+  `py.allow_threads` closure already produces a `Result<Vec<Page>, AppError>`, so
+  the `.expect()` became `.map_err(|e| AppError::Internal(...))?` — a new
+  `AppError::Internal(String)` variant (for process-level failures unrelated to any
+  particular request/URL) now carries this through PyO3's existing
+  `From<AppError> for PyErr` into a catchable Python `RuntimeError` instead of a
+  panic.
+- ~~**`src/crawler/fetcher.rs:82`**: `reqwest::Client::builder()....build().expect(...)`
+  panicked instead of using the enclosing `Result<Self, AppError>`.~~ **Fixed
+  2026-09-22**: `Fetcher::build()` already returns `Result<Self, AppError>` for its
+  other failure modes two lines above, so this became `.build().map_err(|e|
+  AppError::Internal(...))?` — no structural reason remained for the panic. Verified
+  with `cargo build`, `cargo test` (40/40 passing), `cargo fmt --check`, and
+  `cargo clippy --all-targets -- -D warnings` (clean).
 - **`python/pytagmanager/testintel/playwright_export.py:63`**: the generated draft
   Playwright script contains a `# TODO: implement the steps above against a real page
   URL from Evidence.` comment before its mandatory `raise NotImplementedError` — this

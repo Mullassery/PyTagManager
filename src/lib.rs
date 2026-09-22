@@ -38,7 +38,9 @@ fn crawl(
     headers: Vec<(String, String)>,
 ) -> PyResult<Vec<Page>> {
     let result: Result<Vec<Page>, error::AppError> = py.allow_threads(|| {
-        let rt = tokio::runtime::Runtime::new().expect("failed to start tokio runtime");
+        let rt = tokio::runtime::Runtime::new().map_err(|e| {
+            error::AppError::Internal(format!("failed to start tokio runtime: {e}"))
+        })?;
         rt.block_on(crawler::crawl(
             start_url,
             max_pages,
