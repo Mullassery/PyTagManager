@@ -12,6 +12,8 @@ file is a release-oriented complement to it, not a duplicate.
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-09-27
+
 ### Fixed
 
 - `src/crawler/frontier.rs`: `Frontier::has_capacity()` no longer also checks
