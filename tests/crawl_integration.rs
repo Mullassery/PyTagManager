@@ -349,6 +349,66 @@ async fn max_pages_caps_total_pages_discovered_and_the_crawl_terminates() {
 }
 
 #[tokio::test]
+async fn max_pages_1_still_fetches_the_seed_page() {
+    // Regression test for a real off-by-one in `Frontier::has_capacity`:
+    // it used to also require `seen.len() < max_pages`, so pushing the seed
+    // URL alone (seen becomes 1) already exhausted a `max_pages=1` budget
+    // *before* the BFS loop ever popped and fetched it -- `crawl(url,
+    // max_pages=1)` returned zero pages instead of the one page it should
+    // always be able to return. Fixed by having `has_capacity` only check
+    // queue emptiness, since `push()` already enforces the cap on entry.
+    let mut routes = HashMap::new();
+    routes.insert(
+        "/".to_string(),
+        MockResponse::html("<html><body>no links here</body></html>"),
+    );
+    let server = MockServer::start(routes).await;
+    let fetcher = Fetcher::with_ssrf_guard(false);
+    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 1, 1, false)
+        .await
+        .expect("crawl should succeed");
+    assert_eq!(
+        pages.len(),
+        1,
+        "max_pages=1 must still fetch the seed page, not return an empty result"
+    );
+}
+
+#[tokio::test]
+async fn max_pages_caps_exactly_when_more_pages_are_reachable() {
+    // Tighter sibling of `max_pages_caps_total_pages_discovered_and_the_crawl_terminates`
+    // above (which only asserted `<= max_pages` because the old `has_capacity`
+    // could silently under-fetch). With the off-by-one fixed, requesting
+    // max_pages=3 against a chain of 10 reachable pages must return exactly
+    // 3, not fewer.
+    let mut routes = HashMap::new();
+    let chain: Vec<String> = (0..10).map(|i| format!("/p{i}")).collect();
+    for (i, path) in chain.iter().enumerate() {
+        let next = chain.get(i + 1).cloned().unwrap_or_default();
+        let body = if next.is_empty() {
+            "<html><body>end</body></html>".to_string()
+        } else {
+            format!(r#"<html><body><a href="{next}">next</a></body></html>"#)
+        };
+        routes.insert(path.clone(), MockResponse::html(body));
+    }
+    routes.insert(
+        "/".to_string(),
+        MockResponse::html(r#"<html><body><a href="/p0">start</a></body></html>"#),
+    );
+    let server = MockServer::start(routes).await;
+    let fetcher = Fetcher::with_ssrf_guard(false);
+    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 3, 1, true)
+        .await
+        .expect("crawl should succeed");
+    assert_eq!(
+        pages.len(),
+        3,
+        "expected exactly 3 pages fetched when 3+ are reachable and max_pages=3"
+    );
+}
+
+#[tokio::test]
 async fn ssrf_guard_blocks_start_url_and_crawl_returns_empty_rather_than_erroring() {
     // Unlike every other test in this file, this one uses `Fetcher::new()`
     // (the SSRF guard ON) -- the same constructor every real CLI/Python

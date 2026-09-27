@@ -68,10 +68,9 @@ def test_crawl_ssrf_guard_rejects_loopback_across_ffi():
     page-fetch failures (including SSRF-guard rejections) rather than
     propagating them (a real, pre-existing crawl() behavior, not specific
     to the guard) -- so the observable result of a fully-blocked crawl is
-    an empty page list, not a raised exception. `max_pages=2` is used
-    because `max_pages=1` alone is enough to make `crawl()` return `[]`
-    (the start URL is already counted as "seen" before the fetch loop
-    runs), which would make this assertion pass for the wrong reason.
+    an empty page list, not a raised exception. `max_pages=2` is just a
+    normal small budget here; the fetch itself fails (SSRF-blocked), so no
+    page is ever produced regardless of the exact `max_pages` value.
     """
     pages = _core.crawl("http://127.0.0.1:1/", max_pages=2, concurrency=1, respect_robots=False)
     assert pages == []
@@ -88,12 +87,12 @@ def test_crawl_returns_real_page_objects_over_ffi():
     real HTTP fetch, real DOM parse) against a stable, IANA-reserved
     documentation domain, asserting on the real marshaled `Page` objects.
 
-    `max_pages=2`, not `1`: with `max_pages=1` the start URL is already
-    counted as "seen" before the fetch loop's capacity check runs, so
-    `crawl()` returns `[]` without ever fetching anything -- a real,
-    pre-existing boundary quirk of `Frontier`/`has_capacity`, not a bug
-    introduced here. `example.com` has no further links, so `max_pages=2`
-    still yields exactly the one page.
+    `max_pages=2` gives a little headroom over the single page actually
+    expected; `example.com` has no further same-domain links, so the result
+    is exactly one page either way. (`max_pages=1` now also fetches the
+    seed page correctly -- see `Frontier::has_capacity`'s regression test in
+    `tests/crawl_integration.rs` for the off-by-one that used to make
+    `max_pages=1` return `[]` instead.)
     """
     pages = _core.crawl("https://example.com", max_pages=2, concurrency=1, respect_robots=False)
 

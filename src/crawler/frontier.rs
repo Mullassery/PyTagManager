@@ -64,8 +64,21 @@ impl Frontier {
         self.queue.pop_front()
     }
 
+    /// Whether the BFS loop should keep draining the queue. Deliberately
+    /// does NOT also check `self.seen.len() < self.max_pages`: `push()`
+    /// above already refuses to enqueue anything once `seen` reaches
+    /// `max_pages`, so `seen` can never exceed the cap. Re-checking it here
+    /// used to cut the loop off as soon as `seen` *reached* (not exceeded)
+    /// `max_pages`, even while the queue still held already-accepted,
+    /// not-yet-fetched URLs -- e.g. `max_pages=1` hit the cap the instant
+    /// the seed URL was pushed, so the seed itself was queued but the loop
+    /// exited before ever popping and fetching it, returning zero pages for
+    /// a request that should return exactly one. Draining strictly by queue
+    /// emptiness still terminates (the queue can only ever hold up to
+    /// `max_pages` URLs across the crawl's lifetime, by the same `push()`
+    /// guard) while actually fetching everything the cap allowed in.
     pub fn has_capacity(&self) -> bool {
-        self.seen.len() < self.max_pages && !self.queue.is_empty()
+        !self.queue.is_empty()
     }
 }
 
@@ -92,5 +105,22 @@ mod tests {
     fn respects_max_pages() {
         let mut f = Frontier::new("https://example.com", 1).unwrap();
         assert!(!f.push("https://example.com/about"));
+    }
+
+    #[test]
+    fn has_capacity_stays_true_until_the_queue_actually_drains() {
+        // Regression test: `has_capacity` must reflect "is there still
+        // something queued to fetch," not "is `seen` below `max_pages`" --
+        // the seed push alone can already put `seen` at `max_pages`, and
+        // the seed itself is still sitting in the queue at that point.
+        let mut f = Frontier::new("https://example.com", 1).unwrap();
+        // The cap (max_pages=1) was reached by the seed push itself...
+        assert!(!f.push("https://example.com/about"));
+        // ...but the seed is still unpopped in the queue, so there must
+        // still be capacity to drain it.
+        assert!(f.has_capacity());
+        assert_eq!(f.pop().as_deref(), Some("https://example.com/"));
+        // Now the queue is genuinely empty.
+        assert!(!f.has_capacity());
     }
 }
