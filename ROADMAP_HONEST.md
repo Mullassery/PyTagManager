@@ -1,7 +1,7 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.1
-**Last Updated:** 2026-09-22
+**Last Updated:** 2026-09-27
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -239,6 +239,66 @@ Concrete, file:line findings — not a generic "could be cleaner" list. None of 
 block real use; they're disclosed here so a future session can decide whether/when
 to spend time on them.
 
+- ~~**`src/crawler/frontier.rs`'s `Frontier::has_capacity()` had a real off-by-one
+  that under-fetched crawls, including returning zero pages for `max_pages=1`.**~~
+  **Fixed 2026-09-27** (deep code-review pass, not a documented/known issue before
+  this): `has_capacity()` used to also require `self.seen.len() < self.max_pages`,
+  but `push()` already increments `seen` *before* the BFS loop ever pops and fetches
+  the URL -- so pushing the seed URL alone could already put `seen` at `max_pages`,
+  and the orchestrator's outer `while frontier.has_capacity()` loop
+  (`src/crawler/orchestrator.rs:92`) would exit before ever fetching anything sitting
+  in the queue. Concretely verified before the fix: `crawl(url, max_pages=1)` (a
+  very plausible "just check the homepage" CLI invocation) returned **zero pages**,
+  not one; a 10-page reachable chain with `max_pages=3` returned only 2 pages, not
+  3. Fixed by having `has_capacity()` check only queue emptiness (`push()` already
+  enforces the cap on insertion, so the queue can never hold more than `max_pages`
+  URLs across the crawl's lifetime either way). Regression tests added:
+  `src/crawler/frontier.rs`'s `has_capacity_stays_true_until_the_queue_actually_drains`
+  (unit-level), and `tests/crawl_integration.rs`'s `max_pages_1_still_fetches_the_seed_page`
+  / `max_pages_caps_exactly_when_more_pages_are_reachable` (end-to-end against a mock
+  server) -- all three fail against the pre-fix code and pass after. Verified with
+  `cargo test` (43/43 passing, up from 40), `cargo fmt --check`, `cargo clippy
+  --all-targets -- -D warnings` (clean), and the full Python suite (404/404 passing,
+  unaffected -- no Python test relied on the buggy under-fetch behavior). Two
+  existing test docstrings (`tests/python/test_core_ffi.py`) that had previously
+  noted this as a known, accepted "pre-existing boundary quirk... not a bug" (and
+  worked around it with `max_pages=2`) were updated to stop describing since-fixed
+  behavior as current.
+- **Export-taxonomy gap: 7 of the 21 CTA business objectives added in Phase 1.8
+  export as a generic fallback event on every non-GTM platform, silently losing
+  the specific business action.** `python/pytagmanager/recommend/heuristics.py`'s
+  `_CTA_KEYWORDS` (lines 47-67, added for Phase 1.8 per the inline comment at line
+  40) introduced `"Cart Modification"`, `"Wishlist Intent"`, `"Content Discovery"`,
+  `"Pagination"`, `"Video Engagement"`, `"Navigation"`, and `"Modal Interaction"` as
+  new `business_objective` values. `python/pytagmanager/export/_taxonomy.py`'s
+  `CANONICAL_EVENT_MAP` (lines 17-25) was never updated to include any of them, so
+  `canonical_event()` falls back to `DEFAULT_CANONICAL_EVENT = "custom_event"` for
+  all seven. Every exporter that routes through `canonical_event()` --
+  `export/ga4.py`, `export/segment.py`, `export/snowplow.py`, `export/tealium.py`,
+  `export/rudderstack.py`, `export/adobe_tags.py` (`export/gtm.py` is unaffected --
+  it uses `rec.event_name` directly, not the canonical taxonomy) -- then falls back
+  to *that platform's own* generic default (verified by reading each exporter's
+  `_DEFAULT_*` spec and confirming none of the seven keys appear in any of the six
+  platform-specific spec dicts): GA4 emits `select_content`, Segment emits
+  `"Custom Event Triggered"`, Tealium emits the literal string `"custom_event"` as
+  the `tealium_event` value. Concretely verified: a `business_objective="Wishlist
+  Intent"` recommendation exports to GA4 as `{"name": "select_content", ...}` and to
+  Segment as `{"name": "Custom Event Triggered", ...}` -- the specific business
+  objective survives only in each exporter's side-channel metadata field
+  (`_pytagmanager.businessObjective` / `rules.labels.pytagmanager_business_objective`
+  / etc.), not in the actual event name a GTM/GA4/Segment/Tealium/RudderStack/Adobe
+  admin would see or build a report/audience/tag-trigger against. Tealium is the
+  worst-affected case: since it has no per-canonical-event spec dict at all (just
+  `event_name = canonical_event(rec)` directly, `export/tealium.py:35`), a page with
+  *both* a wishlist-add and a pagination click would emit **the same** Tealium event
+  name (`"custom_event"`) for both, with a single shared Load Rule keyed off it --
+  making them indistinguishable at the platform level even though
+  `business_objective` differs in the UDO payload. **Not fixed here**: closing this
+  gap means deciding a real, platform-documented event name (and, for GA4/Segment/
+  Snowplow/RudderStack, a parameter schema) for each of 7 objectives across 6
+  platforms -- the same category of judgment call the original exporters required,
+  not a mechanical one-line fix, so left as a documented, verified gap rather than
+  force-fit.
 - **Dependency versions verified against known CVEs 2026-09-22 — real findings,
   not clean** (see the `dependency-audit` CI status above for the full breakdown):
   3 Rust advisories (`pyo3` x2, `rustls`) + 15 Python advisories (mostly

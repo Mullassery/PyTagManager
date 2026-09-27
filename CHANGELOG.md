@@ -12,6 +12,16 @@ file is a release-oriented complement to it, not a duplicate.
 
 ## [Unreleased]
 
+### Fixed
+
+- `src/crawler/frontier.rs`: `Frontier::has_capacity()` no longer also checks
+  `seen.len() < max_pages` -- that extra check caused the BFS loop to exit as
+  soon as `seen` (URLs *discovered*, not fetched) reached `max_pages`, even
+  while already-accepted URLs were still sitting unfetched in the queue.
+  Concretely, `crawl(url, max_pages=1)` returned zero pages instead of the
+  seed page it should always return. See `ROADMAP_HONEST.md` for full
+  verification detail and the regression tests added.
+
 ## [0.2.1] - 2026-09-22
 
 Everything shipped on `main` since the v0.2.0 version bump (2026-08-31),
