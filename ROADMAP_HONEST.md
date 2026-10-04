@@ -1,6 +1,7 @@
 # PyTagManager — Honest Status
 
-**Current Version:** v0.3.0 (not yet published to PyPI as of this edit -- see note below)
+**Current Version:** v0.3.0 (published to PyPI 2026-10-04, `v0.3.0` git tag present;
+macOS arm64 wheel + sdist only -- no Linux/Windows wheels, same disclosed gap as past releases)
 **Last Updated:** 2026-10-04 (crawl engine migrated onto Mudfish's
 fetch/frontier/robots/circuit-breaker building blocks; see the `pytagmanager
 crawl` entry below. `docs/VISION.md`/`docs/ARCHITECTURE.md` describe this
