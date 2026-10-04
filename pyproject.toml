@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "pytagmanager"
-version = "0.2.2"
+version = "0.3.0"
 description = "AI-native analytics implementation platform: crawl -> semantic DOM graph -> rule-based tracking recommendations -> GTM export, plus Tracking Observability & Diagnostics (real-browser runtime verification) and Site-Wide Tagging QA"
 readme = "README.md"
 requires-python = ">=3.9"

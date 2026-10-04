@@ -12,6 +12,8 @@ file is a release-oriented complement to it, not a duplicate.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-04
+
 ### Changed
 
 - Crawl engine now runs on Mudfish (`mudfish-core`/`mudfish-frontier`/
