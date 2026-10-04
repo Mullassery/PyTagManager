@@ -19,14 +19,17 @@ pub mod error;
 
 use pyo3::prelude::*;
 
-use crawler::Page;
+use crawler::{Cookie, NetworkRequest, Page};
 use dom::{SemanticGraph, SemanticNode};
 
 /// Crawl a site starting from `start_url` and return each visited page's
 /// semantic DOM graph. Blocks the calling Python thread but releases the
 /// GIL while the async crawl runs internally on a Tokio runtime.
+/// `browser_mode` is one of "off" (default, zero overhead)/"auto" (render
+/// pages that look like a near-empty client-rendered shell)/"always"
+/// (render every HTML page) -- see `crawler::orchestrator::BrowserMode`.
 #[pyfunction]
-#[pyo3(signature = (start_url, max_pages=50, concurrency=10, respect_robots=true, rate_limit_per_sec=None, headers=vec![]))]
+#[pyo3(signature = (start_url, max_pages=50, concurrency=10, respect_robots=true, rate_limit_per_sec=None, headers=vec![], browser_mode="off"))]
 #[allow(clippy::too_many_arguments)]
 fn crawl(
     py: Python<'_>,
@@ -36,6 +39,7 @@ fn crawl(
     respect_robots: bool,
     rate_limit_per_sec: Option<f64>,
     headers: Vec<(String, String)>,
+    browser_mode: &str,
 ) -> PyResult<Vec<Page>> {
     let result: Result<Vec<Page>, error::AppError> = py.allow_threads(|| {
         let rt = tokio::runtime::Runtime::new().map_err(|e| {
@@ -48,6 +52,7 @@ fn crawl(
             respect_robots,
             rate_limit_per_sec,
             headers,
+            browser_mode,
         ))
     });
     result.map_err(PyErr::from)
@@ -65,6 +70,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SemanticNode>()?;
     m.add_class::<SemanticGraph>()?;
     m.add_class::<Page>()?;
+    m.add_class::<NetworkRequest>()?;
+    m.add_class::<Cookie>()?;
     m.add_function(wrap_pyfunction!(crawl, m)?)?;
     m.add_function(wrap_pyfunction!(parse_html, m)?)?;
     Ok(())

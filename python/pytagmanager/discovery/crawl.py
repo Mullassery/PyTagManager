@@ -14,17 +14,37 @@ def crawl_site(
     respect_robots: bool = True,
     rate_limit: float | None = None,
     headers: List[tuple[str, str]] | None = None,
+    browser_mode: str = "off",
 ) -> List["_core.Page"]:
-    """Crawl a site starting at `url`, returning one Page (URL, status, and
-    semantic DOM graph) per visited page. Thin wrapper over the Rust
-    extension -- all crawl logic (frontier, robots.txt, sitemap, fetching,
-    DOM parsing) lives in Rust.
+    """Crawl a site starting at `url`, returning one Page (URL, status,
+    semantic DOM graph, structured `crawl_status`, and -- only when that
+    page was rendered -- captured network requests/cookies) per visited
+    page. Thin wrapper over the Rust extension -- all crawl logic
+    (frontier, robots.txt, sitemap, fetching, DOM parsing, circuit
+    breaking, browser escalation) lives in Rust, built on Mudfish's
+    crawling engine.
 
     `rate_limit` (requests/second) is unset by default, matching prior
     behavior; pass it when crawling a production site you don't control, to
     avoid tripping a WAF or getting rate-limited/blocked mid-crawl.
     `headers` (e.g. `[("Cookie", "session=...")]`) lets the crawler reach
     pages that require auth (staging basic-auth, a logged-in session).
+
+    `browser_mode` is one of:
+    - `"off"` (default): never render -- zero overhead, matches prior
+      behavior exactly.
+    - `"auto"`: render only pages whose static HTML looks like a
+      near-empty client-rendered shell (a cheap heuristic -- see
+      Mudfish's `static_html_looks_js_dependent`), so a lightweight tag
+      manager or SPA whose real content needs JS doesn't crawl as an
+      empty page.
+    - `"always"`: render every HTML page.
+
+    This is a much lighter-weight render than `crawl_site_rendered()`
+    below -- it waits for `load` plus a short settle period and captures
+    basic network requests, but doesn't do console-log capture,
+    screenshots, or interaction simulation. Use `--render` /
+    `crawl_site_rendered()` when those are needed.
     """
     return _core.crawl(
         url,
@@ -33,6 +53,7 @@ def crawl_site(
         respect_robots=respect_robots,
         rate_limit_per_sec=rate_limit,
         headers=headers or [],
+        browser_mode=browser_mode,
     )
 
 

@@ -1,10 +1,12 @@
-//! End-to-end integration tests for `crawler::orchestrator::crawl_with_fetcher`
-//! (the real BFS/batching crawl loop, robots.txt/sitemap.xml handling, and
-//! `Fetcher`'s HTTP behavior) driven against a local mock HTTP server.
+//! End-to-end integration tests for `crawler::orchestrator::crawl_with_config`
+//! (the real crawl loop built on Mudfish's `HttpFetcher`/`Frontier`/
+//! `RobotsManager`/`PolitenessManager`, plus this crate's own sitemap
+//! seeding and `SemanticGraph` building) driven against a local mock HTTP
+//! server.
 //!
-//! These use `Fetcher::with_ssrf_guard(false)` -- the mock server runs on
-//! loopback, which the SSRF guard (correctly) blocks by default. See
-//! `crawler::orchestrator::crawl_with_fetcher`'s doc comment for why this
+//! These pass `allow_private_networks: true` -- the mock server runs on
+//! loopback, which Mudfish's SSRF guard (correctly) blocks by default. See
+//! `crawler::orchestrator::crawl_with_config`'s doc comment for why this
 //! injection point exists and why it's safe (no real/CLI/Python entry
 //! point can reach it).
 
@@ -12,8 +14,7 @@ mod support;
 
 use std::collections::HashMap;
 
-use _core::crawler::crawl_with_fetcher;
-use _core::crawler::fetcher::Fetcher;
+use _core::crawler::{build_config, crawl_with_config, BrowserMode};
 
 use support::{MockResponse, MockServer};
 
@@ -21,6 +22,12 @@ fn urls(pages: &[_core::crawler::Page]) -> Vec<String> {
     let mut v: Vec<String> = pages.iter().map(|p| p.url.clone()).collect();
     v.sort();
     v
+}
+
+fn config(max_pages: usize, concurrency: usize, respect_robots: bool) -> mudfish_core::CrawlConfig {
+    let mut c = build_config(max_pages, concurrency, respect_robots, None, vec![], true);
+    c.max_urls = Some(max_pages as u64);
+    c
 }
 
 #[tokio::test]
@@ -48,9 +55,8 @@ async fn bfs_crawls_all_linked_same_domain_pages_and_skips_off_domain_links() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 4, true)
+    let pages = crawl_with_config(config(50, 4, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -68,8 +74,8 @@ async fn bfs_crawls_all_linked_same_domain_pages_and_skips_off_domain_links() {
 
 #[tokio::test]
 async fn bfs_handles_fan_out_across_multiple_concurrency_batches() {
-    // 4 leaf pages linked from the root; with concurrency=2 the orchestrator
-    // must process them across 2 batches of 2, not just the first batch.
+    // 4 leaf pages linked from the root; with concurrency=2 the crawl must
+    // process them all, not just a first batch of 2.
     let mut routes = HashMap::new();
     routes.insert(
         "/".to_string(),
@@ -88,9 +94,8 @@ async fn bfs_handles_fan_out_across_multiple_concurrency_batches() {
     }
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 2, true)
+    let pages = crawl_with_config(config(50, 2, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -129,9 +134,8 @@ async fn respects_robots_txt_disallow_for_wildcard_agent() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 4, true)
+    let pages = crawl_with_config(config(50, 4, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -159,9 +163,8 @@ async fn robots_txt_disallow_is_ignored_when_respect_robots_is_false() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 4, false)
+    let pages = crawl_with_config(config(50, 4, false), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -193,8 +196,7 @@ async fn sitemap_xml_seeds_a_page_with_no_inbound_links() {
     );
     server.set_route("/sitemap.xml", MockResponse::xml(sitemap_xml));
 
-    let fetcher = Fetcher::with_ssrf_guard(false);
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 4, true)
+    let pages = crawl_with_config(config(50, 4, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -223,9 +225,8 @@ async fn follows_redirects_and_records_the_final_url_and_status() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 4, true)
+    let pages = crawl_with_config(config(50, 4, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -262,9 +263,8 @@ async fn non_2xx_status_pages_are_recorded_rather_than_dropped() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 4, true)
+    let pages = crawl_with_config(config(50, 4, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -279,10 +279,9 @@ async fn non_2xx_status_pages_are_recorded_rather_than_dropped() {
 #[tokio::test]
 async fn a_dead_link_does_not_abort_the_rest_of_the_crawl() {
     // "/" links to a normal page plus a same-domain (by host, ignoring
-    // port) address nothing is listening on. The orchestrator's batch
-    // fetch drops failed fetches (`.ok()`) rather than propagating the
-    // error, so the crawl should still complete and return the page(s)
-    // that did succeed.
+    // port) address nothing is listening on. A failed fetch must not
+    // propagate an error, so the crawl should still complete and return
+    // the page(s) that did succeed.
     let mut routes = HashMap::new();
     routes.insert(
         "/".to_string(),
@@ -294,9 +293,8 @@ async fn a_dead_link_does_not_abort_the_rest_of_the_crawl() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 4, true)
+    let pages = crawl_with_config(config(50, 4, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed despite one unreachable link");
 
@@ -331,9 +329,8 @@ async fn max_pages_caps_total_pages_discovered_and_the_crawl_terminates() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 3, 1, true)
+    let pages = crawl_with_config(config(3, 1, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
 
@@ -350,21 +347,13 @@ async fn max_pages_caps_total_pages_discovered_and_the_crawl_terminates() {
 
 #[tokio::test]
 async fn max_pages_1_still_fetches_the_seed_page() {
-    // Regression test for a real off-by-one in `Frontier::has_capacity`:
-    // it used to also require `seen.len() < max_pages`, so pushing the seed
-    // URL alone (seen becomes 1) already exhausted a `max_pages=1` budget
-    // *before* the BFS loop ever popped and fetched it -- `crawl(url,
-    // max_pages=1)` returned zero pages instead of the one page it should
-    // always be able to return. Fixed by having `has_capacity` only check
-    // queue emptiness, since `push()` already enforces the cap on entry.
     let mut routes = HashMap::new();
     routes.insert(
         "/".to_string(),
         MockResponse::html("<html><body>no links here</body></html>"),
     );
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 1, 1, false)
+    let pages = crawl_with_config(config(1, 1, false), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
     assert_eq!(
@@ -376,11 +365,6 @@ async fn max_pages_1_still_fetches_the_seed_page() {
 
 #[tokio::test]
 async fn max_pages_caps_exactly_when_more_pages_are_reachable() {
-    // Tighter sibling of `max_pages_caps_total_pages_discovered_and_the_crawl_terminates`
-    // above (which only asserted `<= max_pages` because the old `has_capacity`
-    // could silently under-fetch). With the off-by-one fixed, requesting
-    // max_pages=3 against a chain of 10 reachable pages must return exactly
-    // 3, not fewer.
     let mut routes = HashMap::new();
     let chain: Vec<String> = (0..10).map(|i| format!("/p{i}")).collect();
     for (i, path) in chain.iter().enumerate() {
@@ -397,8 +381,7 @@ async fn max_pages_caps_exactly_when_more_pages_are_reachable() {
         MockResponse::html(r#"<html><body><a href="/p0">start</a></body></html>"#),
     );
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::with_ssrf_guard(false);
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 3, 1, true)
+    let pages = crawl_with_config(config(3, 1, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
     assert_eq!(
@@ -409,16 +392,16 @@ async fn max_pages_caps_exactly_when_more_pages_are_reachable() {
 }
 
 #[tokio::test]
-async fn ssrf_guard_blocks_start_url_and_crawl_returns_empty_rather_than_erroring() {
-    // Unlike every other test in this file, this one uses `Fetcher::new()`
-    // (the SSRF guard ON) -- the same constructor every real CLI/Python
-    // crawl uses -- to prove the guard is effective at the full orchestrator
-    // level, not just in `Fetcher::fetch` in isolation. Per-page fetch
-    // failures (including SSRF-guard rejections) are swallowed by the
-    // orchestrator's batch loop (`.ok()`), so the observable result is an
-    // empty page list, not a propagated error.
-    let fetcher = Fetcher::new();
-    let pages = crawl_with_fetcher(fetcher, "http://127.0.0.1:1/", 2, 1, false)
+async fn ssrf_guard_blocks_start_url_when_private_networks_are_not_allowed() {
+    // Unlike every other test in this file, this one builds its config via
+    // `build_config` with the real (non-test) `allow_private_networks:
+    // false` default, to prove Mudfish's SSRF guard is effective at the
+    // full crawl-loop level, not just inside `HttpFetcher::fetch` in
+    // isolation. A blocked/failed fetch of the seed URL itself still
+    // returns an empty page list rather than a propagated error (the
+    // fetch error path doesn't special-case depth 0).
+    let config = build_config(2, 1, false, None, vec![], false);
+    let pages = crawl_with_config(config, "http://127.0.0.1:1/", BrowserMode::Off)
         .await
         .expect("a blocked/failed fetch should not fail the whole crawl");
     assert!(pages.is_empty());
@@ -433,17 +416,20 @@ async fn custom_headers_are_sent_with_every_request() {
     );
 
     let server = MockServer::start(routes).await;
-    let fetcher = Fetcher::build(
-        false,
+    let mut cfg = build_config(
+        50,
+        1,
+        true,
         None,
-        &[
+        vec![
             ("Cookie".to_string(), "session=abc123".to_string()),
             ("X-Api-Key".to_string(), "secret".to_string()),
         ],
-    )
-    .expect("valid headers should build a Fetcher");
+        true,
+    );
+    cfg.max_urls = Some(50);
 
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 1, true)
+    let pages = crawl_with_config(cfg, &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed");
     assert_eq!(pages.len(), 1);
@@ -482,8 +468,7 @@ async fn fetch_retries_a_503_and_returns_the_eventual_success() {
         MockResponse::html(r#"<html><body><a href="/flaky">flaky</a></body></html>"#),
     );
 
-    let fetcher = Fetcher::with_ssrf_guard(false);
-    let pages = crawl_with_fetcher(fetcher, &server.base_url(), 50, 1, true)
+    let pages = crawl_with_config(config(50, 1, true), &server.base_url(), BrowserMode::Off)
         .await
         .expect("crawl should succeed despite the first 503");
 
@@ -497,5 +482,74 @@ async fn fetch_retries_a_503_and_returns_the_eventual_success() {
         server.request_count("/flaky"),
         2,
         "expected exactly one retry after the initial 503"
+    );
+}
+
+#[tokio::test]
+async fn browser_mode_auto_renders_a_js_shell_and_captures_its_network_activity() {
+    // A near-empty shell: a static (non-browser) crawl would see an empty
+    // `#root` and never discover the JS-injected link to `/discovered`,
+    // or the `fetch('/beacon')` call this page's own script makes.
+    let mut routes = HashMap::new();
+    routes.insert(
+        "/".to_string(),
+        MockResponse::html(
+            r#"<html><body>
+                <div id="root"></div>
+                <script>
+                    document.getElementById('root').innerHTML =
+                        '<a href="/discovered">found via JS</a>';
+                    fetch('/beacon');
+                </script>
+            </body></html>"#,
+        ),
+    );
+    routes.insert(
+        "/discovered".to_string(),
+        MockResponse::html("<html><body>only reachable via rendered DOM</body></html>"),
+    );
+    routes.insert("/beacon".to_string(), MockResponse::text(204, ""));
+
+    let server = MockServer::start(routes).await;
+    let mut cfg = config(50, 2, true);
+    cfg.max_urls = Some(50);
+
+    let pages = crawl_with_config(cfg, &server.base_url(), BrowserMode::Auto)
+        .await
+        .expect("crawl should succeed");
+
+    let base = server.base_url();
+    let root = pages
+        .iter()
+        .find(|p| p.url == format!("{base}/"))
+        .expect("the root page should have been crawled");
+    assert!(
+        root.rendered,
+        "the near-empty shell should trigger a render"
+    );
+    assert_eq!(root.crawl_status, "success");
+    let beacon_url = format!("{base}/beacon");
+    assert!(
+        root.network_requests.iter().any(|r| r.url == beacon_url),
+        "expected the fetch('/beacon') call to be captured, got: {:?}",
+        root.network_requests
+            .iter()
+            .map(|r| &r.url)
+            .collect::<Vec<_>>()
+    );
+
+    assert!(
+        pages.iter().any(|p| p.url == format!("{base}/discovered")),
+        "the JS-injected link should have been discovered and crawled \
+         only because the page was rendered"
+    );
+
+    let discovered = pages
+        .iter()
+        .find(|p| p.url == format!("{base}/discovered"))
+        .unwrap();
+    assert!(
+        !discovered.rendered,
+        "a page with substantial static text shouldn't be escalated in Auto mode"
     );
 }

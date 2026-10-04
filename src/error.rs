@@ -12,6 +12,8 @@ pub enum AppError {
     /// A `--header`/`headers=` value passed to the crawler wasn't a valid
     /// HTTP header name or value.
     InvalidHeader(String),
+    /// A `browser_mode` value other than "off"/"auto"/"always".
+    InvalidBrowserMode(String),
     /// A process-level failure unrelated to any particular request or URL
     /// (e.g. failing to construct the async runtime or the HTTP client
     /// itself, typically under OS-level resource exhaustion) -- something
@@ -27,6 +29,11 @@ impl fmt::Display for AppError {
             AppError::InvalidUrl(msg) => write!(f, "Invalid URL: {}", msg),
             AppError::Blocked(msg) => write!(f, "Blocked by SSRF guard: {}", msg),
             AppError::InvalidHeader(msg) => write!(f, "Invalid header: {}", msg),
+            AppError::InvalidBrowserMode(msg) => write!(
+                f,
+                "Invalid browser_mode '{}': expected 'off', 'auto', or 'always'",
+                msg
+            ),
             AppError::Internal(msg) => write!(f, "Internal error: {}", msg),
         }
     }
@@ -49,5 +56,14 @@ impl From<reqwest::Error> for AppError {
 impl From<url::ParseError> for AppError {
     fn from(err: url::ParseError) -> Self {
         AppError::InvalidUrl(err.to_string())
+    }
+}
+
+impl From<mudfish_fetch::FetchError> for AppError {
+    fn from(err: mudfish_fetch::FetchError) -> Self {
+        match err {
+            mudfish_fetch::FetchError::InvalidHeader(msg) => AppError::InvalidHeader(msg),
+            other => AppError::Http(other.to_string()),
+        }
     }
 }

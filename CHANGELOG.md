@@ -12,6 +12,21 @@ file is a release-oriented complement to it, not a duplicate.
 
 ## [Unreleased]
 
+### Changed
+
+- Crawl engine now runs on Mudfish (`mudfish-core`/`mudfish-frontier`/
+  `mudfish-fetch`/`mudfish-browser`, git dependencies on
+  `github.com/Mullassery/MudFish`) instead of this crate's own
+  fetcher/frontier/robots implementation, which has been deleted
+  (`src/crawler/{fetcher,frontier,robots}.rs`). `Page` gained
+  `crawl_status`, `rendered`, `network_requests`, and `cookies` fields.
+  New `crawl_site(..., browser_mode="off"|"auto"|"always")` /
+  `pytagmanager crawl --browser {off,auto,always}` option (default `off`,
+  no behavior change) for lightweight per-page browser rendering via
+  Mudfish's real headless-Chrome engine. See `ROADMAP_HONEST.md` for the
+  disclosed limitations (notably: the browser-render path doesn't go
+  through Mudfish's SSRF guard yet).
+
 ## [0.2.2] - 2026-09-27
 
 ### Fixed

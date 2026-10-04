@@ -47,10 +47,14 @@ class FakeGraph:
 
 
 class FakePage:
-    def __init__(self, url, status, nodes):
+    def __init__(self, url, status, nodes, crawl_status="success"):
         self.url = url
         self.status = status
         self.graph = FakeGraph(url, nodes)
+        self.crawl_status = crawl_status
+        self.rendered = False
+        self.network_requests = []
+        self.cookies = []
 
 
 def _page_with_cta(url="https://example.com/"):
@@ -179,7 +183,7 @@ def test_crawl_defaults_respect_robots_true(monkeypatch, runner):
 def test_crawl_passes_rate_limit_and_headers_through_to_crawl_site(monkeypatch, runner):
     captured = {}
 
-    def fake_crawl_site(url, max_pages, concurrency, respect_robots, rate_limit=None, headers=None):
+    def fake_crawl_site(url, max_pages, concurrency, respect_robots, rate_limit=None, headers=None, **_kwargs):
         captured["rate_limit"] = rate_limit
         captured["headers"] = headers
         return []

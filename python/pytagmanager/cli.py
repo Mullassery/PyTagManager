@@ -81,9 +81,20 @@ def _parse_headers(raw_headers: tuple[str, ...]) -> list[tuple[str, str]]:
     "--render",
     "render_mode",
     is_flag=True,
-    help="Render each page in a real browser before building its DOM graph, so client-rendered "
-    "(JS-injected) content is visible to recommendations -- not just the raw HTTP response body. "
-    "Slower (one extra browser fetch per page); requires pytagmanager[diagnostics].",
+    help="Render each page in a real Playwright browser session before building its DOM graph, "
+    "capturing console logs/network/dataLayer along the way -- not just the raw HTTP response "
+    "body. Slower (one extra browser fetch per page); requires pytagmanager[diagnostics]. Takes "
+    "priority over --browser if both are given.",
+)
+@click.option(
+    "--browser",
+    "browser_mode",
+    type=click.Choice(["off", "auto", "always"]),
+    default="off",
+    show_default=True,
+    help="Lighter-weight per-page rendering built into the crawl itself (via Mudfish's browser "
+    "engine): 'auto' renders only pages that look like a near-empty client-rendered shell; "
+    "'always' renders every HTML page. Ignored if --render is also given.",
 )
 @click.option(
     "--screenshots-dir",
@@ -126,6 +137,7 @@ def crawl(
     ollama_model: str,
     ollama_url: str,
     render_mode: bool,
+    browser_mode: str,
     screenshot_dir: str | None,
     sniff_analytics: bool,
     simulate_interactions_flag: bool,
@@ -158,8 +170,18 @@ def crawl(
             respect_robots=not no_robots,
             rate_limit=rate_limit,
             headers=headers,
+            browser_mode=browser_mode,
         )
     click.echo(f"Crawled {len(pages)} page(s).")
+
+    if not render_mode:
+        issue_counts: dict[str, int] = {}
+        for page in pages:
+            if page.crawl_status != "success":
+                issue_counts[page.crawl_status] = issue_counts.get(page.crawl_status, 0) + 1
+        if issue_counts:
+            issues = ", ".join(f"{count} {status}" for status, count in sorted(issue_counts.items()))
+            click.echo(f"Crawl issues: {issues}")
 
     if render_mode:
         for page in pages:

@@ -1,7 +1,13 @@
 # PyTagManager — Honest Status
 
 **Current Version:** v0.2.1
-**Last Updated:** 2026-09-27
+**Last Updated:** 2026-10-04 (crawl engine migrated onto Mudfish's
+fetch/frontier/robots/circuit-breaker building blocks; see the `pytagmanager
+crawl` entry below. `docs/VISION.md`/`docs/ARCHITECTURE.md` describe this
+crate as having its own bespoke crawler -- that's now only true for the
+sitemap-seeding and DOM-graph-building pieces; fetch/scheduling/politeness/
+robots/circuit-breaking are Mudfish's, consumed as git dependencies on
+`github.com/Mullassery/MudFish`, not reimplemented here.)
 
 `docs/VISION.md` is the north star, `docs/ARCHITECTURE.md`/`docs/ROADMAP.md` sequence
 the work in detail. This file is shorter on purpose: what's built-and-reachable, what's
@@ -10,10 +16,34 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
 
 ## 🟢 Built & verified & reachable (real implementation, wired into the CLI, tested)
 
-- **`pytagmanager crawl`** — async Rust crawler (BFS, sitemap.xml, robots.txt) →
+- **`pytagmanager crawl`** — async crawl (priority frontier, sitemap.xml,
+  robots.txt, politeness, retry/backoff, per-host circuit breaker, SSRF guard) →
   semantic DOM graph → rule-based tracking recommendations → export to 7 platforms
   (GTM/GA4/Segment/Snowplow/Tealium/RudderStack/Adobe Tags) → optional
-  `--save-snapshot`.
+  `--save-snapshot`. **2026-10-04: fetch/frontier/robots/politeness/circuit-breaking
+  are now Mudfish's (`mudfish-core`/`mudfish-frontier`/`mudfish-fetch`, consumed as
+  git dependencies), not a second bespoke implementation** -- the old
+  `src/crawler/{fetcher,frontier,robots}.rs` (~750 lines) were deleted; this crate's
+  own `src/crawler/orchestrator.rs` now only does sitemap seeding (Mudfish has none)
+  and building `SemanticGraph` from each fetched body (Mudfish's own engine discards
+  the body after extracting links/metadata, which isn't enough for a DOM graph).
+  Each `Page` now also carries a structured `crawl_status`
+  ("success"/"throttled"/"blocked"/"challenged"/"failed", from Mudfish's
+  `mudfish_fetch::classify_status`+`detect_challenge` heuristics) and, when rendered
+  (see `--browser` below), captured `network_requests`/`cookies`. New
+  `pytagmanager crawl --browser {off,auto,always}` (default `off`, zero behavior
+  change): a lighter-weight per-page render built on Mudfish's new
+  `mudfish-browser` (real headless-Chrome/CDP) crate than the existing
+  `--render`/Playwright path below -- `auto` only renders pages whose static HTML
+  looks like a near-empty client-rendered shell
+  (`mudfish_parser::static_html_looks_js_dependent`, a disclosed-imperfect
+  heuristic). **Known gap carried over from Mudfish's own `ROADMAP_HONEST.md`:
+  the browser-render path does not go through Mudfish's SSRF guard** -- only use
+  `--browser auto`/`always` against trusted targets until that's fixed upstream.
+  14 new/rewritten Rust integration tests in `tests/crawl_integration.rs` cover this
+  migration (including a live `browser_mode=auto` test against a real launched
+  Chrome instance proving JS-injected content and a `fetch()` call are both
+  captured).
 - **`pytagmanager crawl --render`** — Phase 1 (Runtime & Visual Grounding, the
   differently-numbered phase, distinct from the 0.5/1.x track), now fully shipped
   (all 6 items). New `runtime/` package: `renderer.py` re-fetches each discovered

@@ -16,7 +16,7 @@ that framing and are being read through it going forward.
 
 | Capability | Status | Where |
 |---|---|---|
-| Website crawling (link/sitemap/robots.txt discovery, BFS, dedup) | **Implemented** | `src/crawler/` (Rust) |
+| Website crawling (link/sitemap/robots.txt discovery, priority-queue frontier, dedup, per-host circuit breaker) | **Implemented** (fetch/frontier/robots/politeness/circuit-breaking delegated to Mudfish's `mudfish-core`/`mudfish-frontier`/`mudfish-fetch`, consumed as git dependencies; sitemap seeding + DOM-graph building are this crate's own, see `ROADMAP_HONEST.md`) | `src/crawler/orchestrator.rs` (Rust) |
 | Semantic DOM graph (static HTML structure, selectors, ARIA) | **Implemented** | `src/dom/` (Rust) |
 | Selector resilience (data-testid / data-* / aria-label / id priority) | **Implemented** | `src/dom/selectors.rs` |
 | Rule-based tracking recommendations (keyword-driven, deterministic) | **Implemented** | `python/pytagmanager/recommend/heuristics.py` |
@@ -38,7 +38,7 @@ that framing and are being read through it going forward.
 | Historical tracking-health scores + regression detection + webhook alerting across runs | **Implemented** (recurring invocation itself is left to the caller's cron/CI — see note below) | `python/pytagmanager/sitewide/{history,notify}.py`, `diagnose --site-wide --history ... --alert-webhook ...` |
 | Runtime State Capture: cookies (incl. HttpOnly)/localStorage/sessionStorage/full dataLayer snapshot per page + before/after diffing per interaction | **Implemented** (raw cookie/storage values are opt-in via `--capture-storage-values`; keys/types/lengths are always captured, and sensitive-looking keys are redacted even with the opt-in on) | `python/pytagmanager/observability/state.py`, `session.py`'s `capture_state()`/`state_snapshots`/`state_diffs`, wired into `diagnose`'s terminal/JSON reports |
 | Website Data Dictionary (cross-page variable inventory: cookies/storage/dataLayer, value types, presence frequency) | **Implemented** (presence/frequency only — no presence-vs-availability labeling, schema-drift diffing, or cookie/storage purpose classification yet, see `docs/ROADMAP.md` Phase 1.7) | `python/pytagmanager/dictionary/{build,report}.py`, `pytagmanager dictionary <url>` |
-| Crawler per-host rate limiting (429/503 retry+backoff) and custom request headers for authenticated crawls | **Implemented** | `src/crawler/fetcher.rs`'s `Fetcher::build`, `crawl --rate-limit --header` |
+| Crawler per-host rate limiting (retry+backoff, circuit breaker on repeated 429/403/5xx) and custom request headers for authenticated crawls | **Implemented** (via Mudfish's `mudfish_fetch::{HttpFetcher,DomainHealthTracker}`) | `crawl --rate-limit --header`; lightweight per-page browser rendering via `crawl --browser {off,auto,always}` (see `ROADMAP_HONEST.md`) |
 | Broadened interactive-element discovery (ARIA-role-based, not just `<button>`/`<a>`; menu/accordion/tab/dropdown/pagination/filter/video/wishlist/cart-modification keyword categories) | **Implemented** | `python/pytagmanager/recommend/heuristics.py` |
 | Cross-implementation business-action consistency (does "Add to Cart" fire the same event shape everywhere it appears on the site, across templates) | **Implemented** | `python/pytagmanager/sitewide/interaction_consistency.py`, wired into `diagnose --site-wide` |
 | Per-page screenshot capture (desktop/mobile, above-fold/full-page) | **Implemented** (`docs/ROADMAP.md` Phase 1) | `python/pytagmanager/runtime/screenshots.py`, `crawl --render --screenshots-dir DIR` |
