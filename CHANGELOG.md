@@ -10,7 +10,33 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
-## [Unreleased]
+## [0.3.1] - 2026-10-12
+
+### Fixed
+
+- **The Phase 1.8 interactive-element objectives had no canonical event
+  mapping, so seven of the fourteen objectives the heuristics engine can
+  emit silently fell through to the generic fallback in every exporter.**
+  `recommend/heuristics.py` can produce `Cart Modification`, `Wishlist
+  Intent`, `Content Discovery`, `Pagination`, `Video Engagement`,
+  `Navigation`, and `Modal Interaction`, but `export/_taxonomy.py`'s
+  `CANONICAL_EVENT_MAP` only covered the original seven, so those
+  recommendations exported as the platform-neutral `custom_event` (and,
+  in GA4/Segment/RudderStack, as their generic default event name). Added
+  real, platform-neutral canonical keys (`remove_from_cart`,
+  `add_to_wishlist`, `content_discovery`, `pagination`,
+  `video_engagement`, `navigation`, `modal_interaction`) plus matching
+  spec entries in `ga4.py` (using GA4's documented `remove_from_cart` /
+  `add_to_wishlist` / `video_start` recommended events where they exist),
+  `segment.py`, and `rudderstack.py` (e.g. Segment's Ecommerce v2 spec
+  name `Product Removed`). `intent/ollama_classifier.py`'s `_TAXONOMY`,
+  despite a comment claiming it "matches recommend/heuristics.py's
+  taxonomy," was also missing these seven — so the LLM classification
+  path could never emit them either; it now matches. New tests in
+  `tests/python/test_exporters.py` assert every heuristic objective has a
+  non-fallback canonical event, every canonical event has a spec entry in
+  all three name-mapping exporters, and the Ollama taxonomy equals the
+  heuristic taxonomy exactly.
 
 ## [0.3.0] - 2026-10-04
 

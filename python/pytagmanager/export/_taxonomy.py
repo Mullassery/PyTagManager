@@ -14,6 +14,9 @@ from pytagmanager.recommend.models import TrackingRecommendation
 
 # business_objective (see recommend/heuristics.py's _CTA_KEYWORDS and the
 # dedicated "form_submission" case) -> canonical, platform-neutral event key.
+# Every objective the heuristics engine can emit MUST be present here (the
+# exporters' own spec maps assert this in tests) so the old silent fallback
+# to `DEFAULT_CANONICAL_EVENT` never kicks in for the real taxonomy.
 CANONICAL_EVENT_MAP = {
     "Purchase Intent": "add_to_cart",
     "Trial Signup": "start_trial",
@@ -22,6 +25,13 @@ CANONICAL_EVENT_MAP = {
     "Authentication": "login",
     "Content Engagement": "content_engagement",
     "Search": "search",
+    "Cart Modification": "remove_from_cart",
+    "Wishlist Intent": "add_to_wishlist",
+    "Content Discovery": "content_discovery",
+    "Pagination": "pagination",
+    "Video Engagement": "video_engagement",
+    "Navigation": "navigation",
+    "Modal Interaction": "modal_interaction",
 }
 
 DEFAULT_CANONICAL_EVENT = "custom_event"

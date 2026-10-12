@@ -260,3 +260,96 @@ def test_all_exporters_registered_and_handle_empty_input():
     for name, spec in EXPORTERS.items():
         result = spec.build([])
         assert isinstance(result, dict), f"{name} builder must return a dict"
+
+
+# -- Taxonomy coverage (must stay in lockstep) -----------------------------
+
+
+def _all_heuristic_objectives():
+    from pytagmanager.recommend.heuristics import _CTA_KEYWORDS
+
+    return {objective for (_, objective, _) in _CTA_KEYWORDS}
+
+
+def _minimal_rec(business_objective):
+    return TrackingRecommendation(
+        event_name="event",
+        trigger_type="click",
+        selector="#x",
+        selector_fallbacks=["#x"],
+        event_category="engagement",
+        business_objective=business_objective,
+        confidence=0.5,
+        rationale="test",
+        page_url="https://example.com",
+    )
+
+
+def test_canonical_map_covers_every_heuristic_objective():
+    from pytagmanager.export._taxonomy import DEFAULT_CANONICAL_EVENT, canonical_event
+
+    objectives = _all_heuristic_objectives()
+    assert len(objectives) == 14, f"heuristic taxonomy grew: {sorted(objectives)}"
+
+    for objective in sorted(objectives):
+        rec = _minimal_rec(objective)
+        canonical = canonical_event(rec)
+        assert canonical != DEFAULT_CANONICAL_EVENT, (
+            f"'{objective}' has no canonical event (falls back to custom_event)"
+        )
+
+
+def test_every_canonical_event_has_an_exporter_spec_entry():
+    """No exporter is allowed to silently fall back to its default name for
+    any canonical event the taxonomy can actually produce."""
+    from pytagmanager.export._taxonomy import CANONICAL_EVENT_MAP
+    from pytagmanager.export.ga4 import _GA4_EVENT_SPECS
+    from pytagmanager.export.rudderstack import _RUDDERSTACK_EVENT_SPECS
+    from pytagmanager.export.segment import _SEGMENT_EVENT_SPECS
+
+    for canonical in CANONICAL_EVENT_MAP.values():
+        assert canonical in _GA4_EVENT_SPECS, f"ga4.py missing spec for '{canonical}'"
+        assert canonical in _SEGMENT_EVENT_SPECS, f"segment.py missing spec for '{canonical}'"
+        assert canonical in _RUDDERSTACK_EVENT_SPECS, f"rudderstack.py missing spec for '{canonical}'"
+
+    # Phase 1.8 objectives resolve to real, distinct (non-generic) names.
+    assert _GA4_EVENT_SPECS["remove_from_cart"][0] == "remove_from_cart"
+    assert _GA4_EVENT_SPECS["add_to_wishlist"][0] == "add_to_wishlist"
+    assert _GA4_EVENT_SPECS["video_engagement"][0] == "video_start"
+    assert _SEGMENT_EVENT_SPECS["remove_from_cart"][0] == "Product Removed"
+    assert _SEGMENT_EVENT_SPECS["add_to_wishlist"][0] == "Product Added to Wishlist"
+
+
+def test_ollama_taxonomy_matches_heuristic_taxonomy():
+    from pytagmanager.intent.ollama_classifier import _TAXONOMY
+
+    objectives = _all_heuristic_objectives()
+    llm_objectives = set(_TAXONOMY) - {"None"}
+    assert llm_objectives == objectives, (
+        f"ollama _TAXONOMY drifted from heuristics: "
+        f"missing={sorted(objectives - llm_objectives)}, "
+        f"extra={sorted(llm_objectives - objectives)}"
+    )
+
+
+def test_new_taxonomy_events_export_real_names():
+    """End-to-end: Phase 1.8 objectives flow through canonical -> each
+    platform's real event name, not a generic fallback."""
+    from pytagmanager.export.ga4 import build_ga4_config
+
+    recs = [
+        _minimal_rec("Cart Modification"),
+        _minimal_rec("Wishlist Intent"),
+        _minimal_rec("Pagination"),
+        _minimal_rec("Video Engagement"),
+        _minimal_rec("Navigation"),
+        _minimal_rec("Modal Interaction"),
+        _minimal_rec("Content Discovery"),
+    ]
+    ga4_names = {e["name"] for e in build_ga4_config(recs)["events"]}
+    assert ga4_names == {
+        "remove_from_cart",
+        "add_to_wishlist",
+        "select_content",
+        "video_start",
+    }

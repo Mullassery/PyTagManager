@@ -37,6 +37,22 @@ _SEGMENT_EVENT_SPECS = {
     "login": ("Signed In", {"method": {"type": "string"}}, []),
     "content_engagement": ("Content Viewed", {"content_type": {"type": "string"}}, []),
     "search": ("Products Searched", {"query": {"type": "string"}}, []),
+    "remove_from_cart": (
+        # Segment's Ecommerce v2 spec name (sibling of "Product Added")
+        "Product Removed",
+        {"product_id": {"type": "string"}, "cart_id": {"type": "string"}},
+        ["product_id"],
+    ),
+    "add_to_wishlist": (
+        "Product Added to Wishlist",
+        {"product_id": {"type": "string"}},
+        ["product_id"],
+    ),
+    "content_discovery": ("Content Discovery Used", {"content_type": {"type": "string"}}, []),
+    "pagination": ("Pagination Used", {"page_number": {"type": "integer"}}, []),
+    "video_engagement": ("Video Started", {"video_title": {"type": "string"}}, []),
+    "navigation": ("Navigation Used", {"menu_item": {"type": "string"}}, []),
+    "modal_interaction": ("Modal Opened", {"modal_name": {"type": "string"}}, []),
 }
 _DEFAULT_SEGMENT_EVENT = ("Custom Event Triggered", {}, [])
 

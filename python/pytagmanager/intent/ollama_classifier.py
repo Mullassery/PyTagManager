@@ -41,6 +41,11 @@ DEFAULT_OLLAMA_MODEL = "qwen2.5:0.5b"
 # matches recommend/heuristics.py's taxonomy, plus "None" for elements with
 # no discernible tracking-worthy business intent, so classifications from
 # either engine (heuristic or LLM) are always comparable / interchangeable.
+# Must stay in lockstep with heuristics.py's _CTA_KEYWORDS objectives --
+# until the Phase 1.8 objectives were added here, the LLM path could never
+# emit "Cart Modification", "Wishlist Intent", "Content Discovery",
+# "Pagination", "Video Engagement", "Navigation", or "Modal Interaction"
+# even though the keyword engine routinely does.
 _TAXONOMY = [
     "Purchase Intent",
     "Trial Signup",
@@ -49,6 +54,13 @@ _TAXONOMY = [
     "Authentication",
     "Content Engagement",
     "Search",
+    "Cart Modification",
+    "Wishlist Intent",
+    "Content Discovery",
+    "Pagination",
+    "Video Engagement",
+    "Navigation",
+    "Modal Interaction",
     "None",
 ]
 

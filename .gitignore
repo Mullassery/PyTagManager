@@ -9,3 +9,7 @@ __pycache__/
 dist/
 *.so
 *.pyd
+
+# macOS
+.DS_Store
+**/.DS_Store

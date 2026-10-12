@@ -33,6 +33,19 @@ _GA4_EVENT_SPECS = {
     "login": ("login", {"method": "site"}),
     "content_engagement": ("select_content", {"content_type": "", "item_id": ""}),
     "search": ("search", {"search_term": ""}),
+    # Phase 1.8 taxonomy (docs/VISION.md §14): the newer interactive-element
+    # objectives. GA4 has a documented recommended event for cart/wishlist/
+    # video; the content-discovery/pagination/navigation/modal objectives
+    # have no GA4 recommended event of their own so they reuse GA4's
+    # `select_content` (its generic recommended "user selected content"
+    # event) with a content_type that distinguishes them.
+    "remove_from_cart": ("remove_from_cart", {"currency": "USD", "value": 0.0, "items": []}),
+    "add_to_wishlist": ("add_to_wishlist", {"currency": "USD", "value": 0.0, "items": []}),
+    "content_discovery": ("select_content", {"content_type": "results", "item_id": ""}),
+    "pagination": ("select_content", {"content_type": "pagination", "item_id": ""}),
+    "video_engagement": ("video_start", {"video_title": "", "video_current_time": 0.0}),
+    "navigation": ("select_content", {"content_type": "navigation", "item_id": ""}),
+    "modal_interaction": ("select_content", {"content_type": "modal", "item_id": ""}),
 }
 _DEFAULT_GA4_EVENT_NAME = "select_content"
 
