@@ -13,3 +13,5 @@ dist/
 # macOS
 .DS_Store
 **/.DS_Store
+
+graphify-out/
