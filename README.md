@@ -583,6 +583,17 @@ PyO3 extension-module crates need for plain `cargo build`/`cargo test` to
 work outside of maturin (maturin sets these automatically; raw `cargo`
 doesn't).
 
+## Related projects
+
+Part of the Mullassery open-source family — PyTagManager sits at the *tagging/implementation* end of the customer-data stack:
+
+- [ClusterAudienceKit](https://github.com/Mullassery/ClusterAudienceKit) — customer segmentation and audience intelligence
+- [PyReverseETL](https://github.com/Mullassery/PyReverseETL) — quality-validated reverse ETL / data activation
+- [MessageBirds](https://github.com/Mullassery/MessageBirds) — event-driven customer data and engagement platform
+- [StatGuardian](https://github.com/Mullassery/StatGuardian) — runtime data-quality validation
+- [PyDeepMesh](https://github.com/Mullassery/PyDeepMesh) — dependency-graph and vulnerability intelligence
+- [Browse all projects →](https://github.com/Mullassery?tab=repositories)
+
 ## Contributing, security, and license
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev workflow and this
