@@ -5,7 +5,7 @@ use std::collections::HashMap;
 ///
 /// Selector fields are precomputed at parse time so Python-side consumers
 /// (heuristics, exporters) never need to re-walk raw HTML.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug)]
 pub struct SemanticNode {
     #[pyo3(get)]
@@ -45,7 +45,7 @@ impl SemanticNode {
 }
 
 /// The full semantic graph for one crawled/parsed page.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone, Debug, Default)]
 pub struct SemanticGraph {
     #[pyo3(get)]

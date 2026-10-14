@@ -59,7 +59,7 @@ impl BrowserMode {
 /// when a page was rendered through a real browser (`mudfish_fetch`'s
 /// plain HTTP path has no way to observe XHR/fetch calls a page's own JS
 /// makes) -- see `BrowserMode`.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct NetworkRequest {
     #[pyo3(get)]
@@ -86,7 +86,7 @@ impl From<mudfish_browser::NetworkRequestRecord> for NetworkRequest {
     }
 }
 
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Cookie {
     #[pyo3(get)]
@@ -110,7 +110,7 @@ impl From<mudfish_browser::CookieRecord> for Cookie {
 /// One crawled page: HTTP result, its precomputed semantic DOM graph, a
 /// structured crawl status, and (only when rendered through a real
 /// browser) captured network activity and cookies.
-#[pyclass]
+#[pyclass(from_py_object)]
 #[derive(Clone)]
 pub struct Page {
     #[pyo3(get)]

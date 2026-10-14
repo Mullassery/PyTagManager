@@ -1,0 +1,16 @@
+# cargo-audit configuration.
+#
+# Ignored advisories (each with the reason it cannot be fixed by upgrading).
+[advisories]
+ignore = [
+    # `async-std` (RUSTSEC-2025-0052) is a transitive, unmodifiable dependency:
+    #   pytagmanager -> mudfish-browser (external git dep, Mullassery/MudFish
+    #   @ rev 71176fa) -> chromiumoxide 0.7 -> async-std.
+    # chromiumoxide 0.7 enables its `async-std-runtime` feature by *default*,
+    # and Cargo features are additive, so downstream cannot disable it. It is
+    # removed in chromiumoxide 0.9 (tokio-only), but the parent
+    # `mudfish-browser` pins `chromiumoxide = "0.7"` and lives in the external
+    # MudFish repository, which is out of scope to edit. No downstream fix is
+    # available; tracked upstream until MudFish adopts chromiumoxide >= 0.9.
+    "RUSTSEC-2025-0052",
+]

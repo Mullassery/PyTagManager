@@ -41,7 +41,7 @@ fn crawl(
     headers: Vec<(String, String)>,
     browser_mode: &str,
 ) -> PyResult<Vec<Page>> {
-    let result: Result<Vec<Page>, error::AppError> = py.allow_threads(|| {
+    let result: Result<Vec<Page>, error::AppError> = py.detach(|| {
         let rt = tokio::runtime::Runtime::new().map_err(|e| {
             error::AppError::Internal(format!("failed to start tokio runtime: {e}"))
         })?;
