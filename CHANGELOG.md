@@ -10,6 +10,11 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [0.3.2] - 2026-10-17
+
+### Fixed
+- Audit remediation: security hardening, correctness fixes, and lint/CI gates.
+
 ## [0.3.1] - 2026-10-12
 
 ### Fixed

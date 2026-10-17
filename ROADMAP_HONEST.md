@@ -264,6 +264,21 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
     finding is accepted as a risk, add a scoped `cargo audit --ignore
     RUSTSEC-...`/`pip-audit` allowlist entry with a comment explaining why —
     not leave the job red indefinitely.
+- ~~**`dependency-audit` CI job RED on both sub-jobs.**~~ **Resolved 2026-10-16.**
+  The `pyo3` 0.22→0.29 breaking migration the entry above left out of scope was
+  carried out in a later pass, and the last remaining `rustls` advisory was cleared
+  by bumping `rustls` 0.23.45 → 0.23.46 (`cargo update -p rustls`); `cargo audit`
+  now exits 0 against the committed `Cargo.lock`.
+  The Python sub-job's root cause was **EOL Python 3.9**: every fixed version of
+  the flagged packages (`requests` 2.33.0, `urllib3` 2.8.0, `filelock` 3.20.3,
+  `msgpack` 1.2.1) declares `requires_python >= 3.10`, so on 3.9 pip can only
+  resolve the vulnerable older releases — the job was unfixable without dropping
+  3.9. Fixed by raising `requires-python` to `>=3.10` and moving both CI jobs to
+  Python 3.12 (with `pip`/`setuptools` upgraded in the audit job). Verified for
+  real: the job's exact install steps in a clean Python 3.12 venv now report
+  **"No known vulnerabilities found"** from `pip-audit --strict`. Note the old
+  `click` 8.1.8 finding (PYSEC-2026-2132) is **no longer reported at all** — that
+  advisory is disputed by Pallets and has been withdrawn from the advisory DB.
 
 ## Technical debt
 
@@ -331,14 +346,13 @@ to spend time on them.
   platforms -- the same category of judgment call the original exporters required,
   not a mechanical one-line fix, so left as a documented, verified gap rather than
   force-fit.
-- **Dependency versions verified against known CVEs 2026-09-22 — real findings,
-  not clean** (see the `dependency-audit` CI status above for the full breakdown):
-  3 Rust advisories (`pyo3` x2, `rustls`) + 15 Python advisories (mostly
-  transitive — `click`, `requests`, `filelock`, `msgpack`, plus `pip`/`setuptools`
-  in the audit environment itself). "No known vulnerabilities" is no longer the
-  honest claim — it's "known vulnerabilities exist upstream, none remediated yet."
-  The `pyo3` fix is a breaking 0.22→0.29 major-version migration, correctly out
-  of scope for a quick-fix pass.
+- ~~**Dependency versions verified against known CVEs 2026-09-22 — real findings,
+  not clean**~~ **Resolved 2026-10-16** (see the `dependency-audit` CI status above):
+  all 3 Rust advisories are cleared (`pyo3` migrated to 0.29, `rustls` bumped to
+  0.23.46) and the Python advisories were downstream of EOL Python 3.9. With
+  `requires-python` raised to `>=3.10` and CI moved to 3.12, both `cargo audit`
+  and `pip-audit --strict` now pass clean. The `click` advisory previously listed
+  here (PYSEC-2026-2132) has been withdrawn and is no longer reported.
 - **No Python lint/format tooling wired into CI or `pyproject.toml`** — a
   `.ruff_cache/` directory exists locally (someone has run `ruff` manually, e.g. via
   an editor integration) but there is no `[tool.ruff]` config in `pyproject.toml` and

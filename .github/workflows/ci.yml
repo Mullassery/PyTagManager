@@ -29,7 +29,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
 
       - name: Create virtualenv
         run: |
@@ -38,7 +38,7 @@ jobs:
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
 
       - name: Install Python build/test tooling
-        run: python -m pip install --upgrade pip maturin pytest
+        run: python -m pip install --upgrade pip setuptools maturin pytest
 
       - name: Build and install the extension module (maturin develop)
         run: maturin develop
@@ -76,11 +76,11 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.12"
 
       - name: Install pip-audit and this project's declared dependencies
         run: |
-          python -m pip install --upgrade pip pip-audit
+          python -m pip install --upgrade pip setuptools pip-audit
           python -m pip install 'click>=8.0' 'playwright>=1.40' 'pyyaml>=6.0' \
             'google-api-python-client>=2.100' 'google-auth>=2.23' \
             'google-auth-oauthlib>=1.1'
