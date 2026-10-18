@@ -15,6 +15,8 @@ dependencies = ["click>=8.0"]
 pytagmanager = "pytagmanager.cli:main"
 
 [project.optional-dependencies]
+# Embedded architecture/knowledge-graph engine behind tools/codeatlas.
+architecture = ["codeatlas-rs>=0.3.0"]
 dev = ["pytest>=7.0"]
 diagnostics = [
     "playwright>=1.40",

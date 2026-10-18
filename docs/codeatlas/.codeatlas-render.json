@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "outputs": {
+    "md": [
+      "overview.md",
+      "pytagmanager.2.1.md",
+      "python.2.md",
+      "python.4.1.md",
+      "src.3.md",
+      "tests.4.md",
+      "tools.5.md"
+    ],
+    "html": [
+      "overview.html",
+      "pytagmanager.2.1.html",
+      "python.2.html",
+      "python.4.1.html",
+      "src.3.html",
+      "tests.4.html",
+      "tools.5.html"
+    ]
+  }
+}
