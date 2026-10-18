@@ -433,6 +433,52 @@ def data_dictionary(
         click.echo(report)
 
 
+@main.command(name="gtm-plan")
+@click.option(
+    "--generated",
+    "generated_path",
+    required=True,
+    type=click.Path(exists=True),
+    help="Generated container JSON (e.g. `pytagmanager crawl ... --export gtm -o out.json`).",
+)
+@click.option("--container", "container_id", required=True, help="GTM public container ID (GTM-XXXXXXX).")
+@click.option(
+    "--credentials",
+    "credentials_path",
+    required=True,
+    type=click.Path(exists=True),
+    help="Service-account JSON key for the GTM Management API (read-only is enough).",
+)
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+def gtm_plan(generated_path: str, container_id: str, credentials_path: str, output_format: str) -> None:
+    """Dry-run: compare a generated GTM container with the live container.
+
+    Reports resources that would be added, already exist, or conflict by
+    name/type. This command never writes to GTM.
+    """
+    import json as _json
+
+    from pytagmanager.analytics_api.gtm_client import GtmApiClient
+    from pytagmanager.analytics_api.gtm_plan import plan_import, render_plan
+
+    with open(generated_path, encoding="utf-8") as handle:
+        generated = _json.load(handle)
+
+    client = GtmApiClient.from_service_account(credentials_path)
+    container = client.find_container_by_public_id(container_id)
+    if container is None:
+        raise click.ClickException(f"GTM container {container_id!r} was not visible to the credentials")
+    live = client.get_live_container_document(container["path"])
+    plan = plan_import(generated, live)
+
+    if output_format == "json":
+        click.echo(_json.dumps(plan.to_dict(), indent=2))
+    else:
+        click.echo(render_plan(plan))
+    if plan.has_conflicts:
+        raise click.exceptions.Exit(1)
+
+
 @main.command()
 @click.argument("url")
 @click.option("--max-pages", default=20, show_default=True, type=int)

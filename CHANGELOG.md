@@ -10,6 +10,14 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [0.5.0] - 2026-10-19
+
+### Added
+- `pytagmanager gtm-plan --generated out.json --container GTM-XXXX --credentials sa.json`
+  compares a generated container export with the live GTM container and reports
+  added/existing/conflicting tags, triggers, and variables. Read-only; never
+  writes to GTM. Exits 1 when conflicts exist. Unit tests cover the planner.
+
 ## [0.4.1] - 2026-10-19
 
 ### Added
