@@ -1,6 +1,6 @@
 # PyTagManager — Honest Status
 
-**Current Version:** v0.4.0 (published to PyPI 2026-10-12; supersedes v0.3.0,
+**Current Version:** v0.4.1 (published to PyPI 2026-10-12; supersedes v0.3.0,
 which was published 2026-10-04 with a `v0.3.0` git tag; macOS arm64 wheel only
 -- no Linux/Windows wheels, same disclosed gap as past releases)
 **Last Updated:** 2026-10-04 (crawl engine migrated onto Mudfish's
@@ -187,6 +187,9 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   change. `--gtm-container` + `--gtm-credentials` fetches the live published
   container via the Management API. No credentials are required for the local
   export path.
+- **Scheduled regression CI**: `diagnose --site-wide --history health.json
+  --fail-on-regression` exits `1` when the site or a template score drops by
+  the configured threshold. See `docs/CI.md` for a GitHub Actions example.
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
   Phase 2) — planned, not implemented. Only the local-Ollama and deterministic paths
   exist today.

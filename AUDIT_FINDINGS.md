@@ -62,6 +62,9 @@ Implemented the Phase 1.7 GTM remainder in this pass:
 - New `tests/test_gtm_usage.py` (5 tests) covers indexing, suffix matching,
   dictionary JSON/text, drift blast radius, and file loading.
 
-Verification: `PYTHONPATH=python python3 -m pytest tests/test_gtm_usage.py`
-→ 5 passed. The pre-existing dictionary CLI tests require Playwright/Chromium,
-which is absent in this environment.
+Also added `diagnose --site-wide --history ... --fail-on-regression` (exit 1
+on a score drop) with a GitHub Actions example in `docs/CI.md`.
+
+Verification: `PYTHONPATH=python python3 -m pytest tests/test_gtm_usage.py
+tests/python/test_dictionary_schema_drift.py` → 13 passed. The pre-existing
+dictionary CLI tests require Playwright/Chromium, which is absent here.

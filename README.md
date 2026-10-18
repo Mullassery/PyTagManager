@@ -3,7 +3,7 @@
 [![Graphify](https://img.shields.io/badge/Graphify-knowledge%20graph-blue)](https://github.com/Graphify-Labs/graphify)
 
 [![CI](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.4.0-blue)](https://github.com/Mullassery/PyTagManager/releases)
+[![Version](https://img.shields.io/badge/version-0.4.1-blue)](https://github.com/Mullassery/PyTagManager/releases)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![PyPI](https://img.shields.io/badge/PyPI-pytagmanager-blue)](https://pypi.org/project/pytagmanager/)
 
@@ -160,6 +160,7 @@ pytagmanager dictionary https://example.com --purpose-classifier heuristic   # o
 # Diff against a previous run for per-field dataLayer schema drift:
 pytagmanager dictionary https://example.com --compare-to dictionary.json
 pytagmanager dictionary https://example.com --gtm-config gtm-container.json
+pytagmanager diagnose https://example.com --site-wide --history health.json --fail-on-regression
 ```
 
 Drives a real browser session (same as `diagnose`) to build a variable-level

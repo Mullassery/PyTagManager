@@ -10,6 +10,13 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [0.4.1] - 2026-10-19
+
+### Added
+- `diagnose --site-wide --history ... --fail-on-regression`: exits `1` when
+  the previous run's site/template health score dropped by the configured
+  threshold, so scheduled CI jobs can fail without parsing the report.
+
 ## [0.4.0] - 2026-10-19
 
 ### Added

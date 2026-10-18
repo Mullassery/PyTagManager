@@ -494,6 +494,12 @@ def data_dictionary(
     help="Minimum point drop in overall or template health score (vs. the previous --history run) to trigger a regression alert.",
 )
 @click.option(
+    "--fail-on-regression",
+    "fail_on_regression",
+    is_flag=True,
+    help="Exit non-zero when --history detects a regression (for scheduled CI jobs).",
+)
+@click.option(
     "--capture-storage-values",
     "capture_storage_values",
     is_flag=True,
@@ -576,6 +582,7 @@ def diagnose(
     history_path: str | None,
     alert_webhook: str | None,
     alert_threshold: int,
+    fail_on_regression: bool,
     capture_storage_values: bool,
     include_trace: bool,
     track_scroll_depth: bool,
@@ -595,6 +602,8 @@ def diagnose(
         raise click.UsageError("--history requires --site-wide (health scores are a site-wide concept).")
     if alert_webhook and not history_path:
         raise click.UsageError("--alert-webhook requires --history (there must be a previous run to compare against).")
+    if fail_on_regression and not history_path:
+        raise click.UsageError("--fail-on-regression requires --history.")
     if tag_graph_html:
         tag_graph = True
     from pytagmanager.analytics_api.ga4_client import Ga4ApiClient
@@ -722,6 +731,7 @@ def diagnose(
             html_path.write_text(build_graph_html(graph), encoding="utf-8")
 
     all_test_candidates = generate_diagnosis_candidates(diagnosed) if test_candidates else []
+    regression = None
 
     if site_wide:
         from pytagmanager.sitewide.aggregation import analyze_template_consistency, compute_site_health
