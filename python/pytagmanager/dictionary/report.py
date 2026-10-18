@@ -8,6 +8,7 @@ from typing import Dict, Optional, Tuple
 
 from pytagmanager.dictionary.build import DataDictionary, DictionaryVariable
 from pytagmanager.dictionary.labels import PresenceLabel, label_presence
+from pytagmanager.dictionary.gtm_usage import GtmUsageIndex
 from pytagmanager.dictionary.purpose import PurposeResult
 
 JSON_SCHEMA_VERSION = 2
@@ -34,6 +35,7 @@ def render_dictionary_report(
     dictionary: DataDictionary,
     purpose_by_key: Optional[Dict[Tuple[str, str], PurposeResult]] = None,
     include_presence: bool = False,
+    gtm_usage: Optional[GtmUsageIndex] = None,
 ) -> str:
     lines = ["PyTagManager Website Data Dictionary", "=" * 37, ""]
     lines.append(f"Pages analyzed: {dictionary.pages_total}")
@@ -58,6 +60,10 @@ def render_dictionary_report(
                 presence = label_presence(variable)
                 line += f" [{presence.accessibility}]"
             lines.append(line)
+            if gtm_usage is not None and source == "datalayer_field":
+                usage = gtm_usage.render_for_path(variable.path)
+                if usage:
+                    lines.append(f"      GTM consumers: {usage}")
             if purpose_by_key is not None and source in _PURPOSE_ELIGIBLE_SOURCES:
                 result = purpose_by_key.get(_variable_key(variable))
                 if result is not None:
@@ -76,6 +82,7 @@ def build_dictionary_json(
     dictionary: DataDictionary,
     purpose_by_key: Optional[Dict[Tuple[str, str], PurposeResult]] = None,
     include_presence: bool = False,
+    gtm_usage: Optional[GtmUsageIndex] = None,
 ) -> dict:
     variables_json = []
     for variable in dictionary.variables:
@@ -99,6 +106,13 @@ def build_dictionary_json(
                 "accessibility": presence.accessibility,
                 "rationale": presence.rationale,
             }
+        if gtm_usage is not None and variable.source == "datalayer_field":
+            consumers = gtm_usage.consumers_for_path(variable.path)
+            if consumers:
+                entry["gtm_usage"] = [
+                    {"kind": c.kind, "name": c.name, "detail": c.detail}
+                    for c in consumers
+                ]
         if purpose_by_key is not None and variable.source in _PURPOSE_ELIGIBLE_SOURCES:
             result = purpose_by_key.get(_variable_key(variable))
             if result is not None:

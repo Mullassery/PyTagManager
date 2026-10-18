@@ -92,6 +92,18 @@ class GtmApiClient:
                     return container
         return None
 
+    def get_live_container_document(self, container_path: str) -> Dict[str, Any]:
+        """Return the raw live container version document.
+
+        Unlike :meth:`get_live_container_config`, this keeps the original GTM
+        shape (``variable``/``tag``/``trigger`` arrays with nested
+        ``parameter`` values), which is what the Data Dictionary's GTM usage
+        index needs.
+        """
+        return self._service.accounts().containers().versions().live(
+            parent=container_path
+        ).execute()
+
     def get_live_container_config(self, container_path: str) -> Dict[str, List]:
         """Fetch the currently *live* (published) container version -- the
         config actually running on the site right now, not an unpublished

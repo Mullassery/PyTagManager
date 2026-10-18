@@ -29,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 from pytagmanager.dictionary.build import DataDictionary, DictionaryVariable
+from pytagmanager.dictionary.gtm_usage import GtmUsageIndex
 
 # Minimum leaf-name similarity (difflib.SequenceMatcher ratio) to surface a
 # possible rename. Below this, two unrelated fields disappearing/appearing
@@ -168,7 +169,9 @@ def diff_dictionaries(old: DataDictionary, new: DataDictionary) -> DictionaryDri
     )
 
 
-def render_drift_report(drift: DictionaryDrift) -> str:
+def render_drift_report(
+    drift: DictionaryDrift, gtm_usage: "GtmUsageIndex | None" = None
+) -> str:
     lines = ["PyTagManager Data Dictionary Schema Drift", "=" * 42, ""]
 
     if drift.possible_renames:
@@ -201,11 +204,19 @@ def render_drift_report(drift: DictionaryDrift) -> str:
     if not drift.has_changes:
         lines.append("No schema drift detected.")
 
+    if gtm_usage is not None:
+        blast_radius = gtm_usage.render_drift_blast_radius(drift)
+        if blast_radius:
+            lines.append("")
+            lines.append(blast_radius)
+
     return "\n".join(lines)
 
 
-def build_drift_json(drift: DictionaryDrift) -> dict:
-    return {
+def build_drift_json(
+    drift: DictionaryDrift, gtm_usage: "GtmUsageIndex | None" = None
+) -> dict:
+    result = {
         "added_variables": [{"source": v.source, "path": v.path} for v in drift.added_variables],
         "removed_variables": [{"source": v.source, "path": v.path} for v in drift.removed_variables],
         "type_distribution_shifts": [
@@ -228,3 +239,8 @@ def build_drift_json(drift: DictionaryDrift) -> dict:
             for r in drift.possible_renames
         ],
     }
+    if gtm_usage is not None:
+        blast_radius = gtm_usage.drift_blast_radius(drift)
+        if blast_radius:
+            result["gtm_blast_radius"] = blast_radius
+    return result

@@ -1,6 +1,6 @@
 # PyTagManager — Honest Status
 
-**Current Version:** v0.3.1 (published to PyPI 2026-10-12; supersedes v0.3.0,
+**Current Version:** v0.4.0 (published to PyPI 2026-10-12; supersedes v0.3.0,
 which was published 2026-10-04 with a `v0.3.0` git tag; macOS arm64 wheel only
 -- no Linux/Windows wheels, same disclosed gap as past releases)
 **Last Updated:** 2026-10-04 (crawl engine migrated onto Mudfish's
@@ -179,12 +179,14 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
 
 Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 
-- **Phase 1.7 remainder**: "potential GTM usage" enrichment on the Data Dictionary
-  and a GTM blast-radius narrative on schema-drift findings (e.g. "existing GTM
-  variables/tags may no longer receive price") — both need live GTM config
-  cross-referenced against the dictionary/drift, which needs real container
-  credentials this environment doesn't have. Everything else in Phase 1.7 (presence
-  labeling, schema drift, purpose classification) is shipped as of this pass.
+- ~~**Phase 1.7 remainder**: "potential GTM usage" enrichment on the Data
+  Dictionary and a GTM blast-radius narrative on schema-drift findings.~~
+  Shipped: `dictionary --gtm-config <export.json>` cross-references each
+  dataLayer field with the GTM tags/triggers/variables that read it, and
+  `--compare-to` reports which GTM consumers may be affected by a schema
+  change. `--gtm-container` + `--gtm-credentials` fetches the live published
+  container via the Management API. No credentials are required for the local
+  export path.
 - **Cloud-LLM intent classification** (`ClaudeIntentClassifier` in `docs/ROADMAP.md`
   Phase 2) — planned, not implemented. Only the local-Ollama and deterministic paths
   exist today.

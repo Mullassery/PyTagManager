@@ -10,6 +10,15 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [0.4.0] - 2026-10-19
+
+### Added
+- Data Dictionary GTM cross-referencing (`--gtm-config` / `--gtm-container`
+  with `--gtm-credentials`): maps each observed dataLayer field to the GTM
+  tags, triggers, and variables that consume it (via Data Layer Variables),
+  and adds a GTM blast-radius section to `--compare-to` drift reports.
+  Matching is exact/dot-suffix only; no speculative field-to-tag claims.
+
 ## [0.3.5] - 2026-10-18
 
 ### Added

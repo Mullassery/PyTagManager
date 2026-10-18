@@ -285,6 +285,27 @@ def diff(old_snapshot_path: str, new_snapshot_path: str) -> None:
     help="With --compare-to, also generate regression-category Test Candidates (docs/VISION.md §15) for "
     "any dataLayer field that flipped from present to absent, each paired with a draft Playwright script.",
 )
+@click.option(
+    "--gtm-config",
+    "gtm_config_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Path to a GTM container export (JSON). Cross-references dataLayer fields with the GTM tags, "
+    "triggers, and variables that consume them; with --compare-to, reports GTM blast radius too.",
+)
+@click.option(
+    "--gtm-container",
+    "gtm_container_id",
+    default=None,
+    help="GTM public container ID (GTM-XXXXXXX) to fetch live config from. Requires --gtm-credentials.",
+)
+@click.option(
+    "--gtm-credentials",
+    "gtm_credentials_path",
+    type=click.Path(exists=True),
+    default=None,
+    help="Service-account JSON key for the GTM Management API (read-only scope).",
+)
 def data_dictionary(
     url: str,
     max_pages: int,
@@ -297,6 +318,9 @@ def data_dictionary(
     purpose_engine: str,
     compare_to_path: str | None,
     test_candidates: bool,
+    gtm_config_path: str | None,
+    gtm_container_id: str | None,
+    gtm_credentials_path: str | None,
 ) -> None:
     """Crawl URL and build a Website Data Dictionary (docs/VISION.md §3):
     every cookie/localStorage/sessionStorage key and dataLayer field
@@ -304,6 +328,7 @@ def data_dictionary(
     `pip install pytagmanager[diagnostics]`.
     """
     from pytagmanager.dictionary.build import build_data_dictionary, data_dictionary_from_json
+    from pytagmanager.dictionary.gtm_usage import build_gtm_usage_index, load_gtm_container
     from pytagmanager.dictionary.purpose import HeuristicPurposeClassifier, OllamaPurposeClassifier
     from pytagmanager.dictionary.report import build_dictionary_json, render_dictionary_report
     from pytagmanager.dictionary.schema_drift import build_drift_json, diff_dictionaries, render_drift_report
@@ -311,6 +336,24 @@ def data_dictionary(
     from pytagmanager.observability.session import ObservationSession
     from pytagmanager.testintel.regression import generate_regression_candidates
     from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
+
+    gtm_usage = None
+    if gtm_config_path:
+        gtm_usage = build_gtm_usage_index(load_gtm_container(gtm_config_path))
+    elif gtm_container_id:
+        if not gtm_credentials_path:
+            raise click.UsageError("--gtm-container requires --gtm-credentials")
+        from pytagmanager.analytics_api.gtm_client import GtmApiClient
+
+        client = GtmApiClient.from_service_account(gtm_credentials_path)
+        container = client.find_container_by_public_id(gtm_container_id)
+        if container is None:
+            raise click.ClickException(
+                f"GTM container {gtm_container_id!r} was not visible to the supplied credentials"
+            )
+        gtm_usage = build_gtm_usage_index(
+            client.get_live_container_document(container["path"])
+        )
 
     click.echo(f"Crawling {url} (max_pages={max_pages})...", err=True)
     pages = crawl_site(url, max_pages=max_pages)
@@ -339,12 +382,12 @@ def data_dictionary(
             generate_regression_candidates(drift, compare_to_path, url) if test_candidates else []
         )
         if output_format == "json":
-            report_dict = build_drift_json(drift)
+            report_dict = build_drift_json(drift, gtm_usage=gtm_usage)
             if regression_candidates:
                 report_dict["test_candidates"] = build_test_candidates_json(regression_candidates)
             report = json.dumps(report_dict, indent=2)
         else:
-            report = render_drift_report(drift)
+            report = render_drift_report(drift, gtm_usage=gtm_usage)
             if regression_candidates:
                 report += "\n\n" + "\n".join(render_test_candidates(regression_candidates))
         if output_path:
@@ -366,11 +409,21 @@ def data_dictionary(
 
     if output_format == "json":
         report = json.dumps(
-            build_dictionary_json(result, purpose_by_key=purpose_by_key, include_presence=include_presence),
+            build_dictionary_json(
+                result,
+                purpose_by_key=purpose_by_key,
+                include_presence=include_presence,
+                gtm_usage=gtm_usage,
+            ),
             indent=2,
         )
     else:
-        report = render_dictionary_report(result, purpose_by_key=purpose_by_key, include_presence=include_presence)
+        report = render_dictionary_report(
+            result,
+            purpose_by_key=purpose_by_key,
+            include_presence=include_presence,
+            gtm_usage=gtm_usage,
+        )
 
     if output_path:
         with open(output_path, "w") as f:
