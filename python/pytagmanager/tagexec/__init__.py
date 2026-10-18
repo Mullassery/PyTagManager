@@ -12,6 +12,7 @@ from pytagmanager.tagexec.graph import (
     GraphNode,
     TagExecutionGraph,
     build_graph_json,
+    build_graph_html,
     build_tag_execution_graph,
 )
 from pytagmanager.tagexec.report import (
@@ -68,4 +69,5 @@ __all__ = [
     "EVIDENCE_LEVELS",
     "build_tag_execution_graph",
     "build_graph_json",
+    "build_graph_html",
 ]

@@ -10,6 +10,11 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [0.3.5] - 2026-10-18
+
+### Added
+- Interactive standalone HTML/SVG rendering of the Tag Execution Graph (`build_graph_html`), plus a `--tag-graph-html PATH` option on `diagnose` that writes it. The file embeds the graph JSON (safely escaped) and needs no server or external assets: one column per node kind, edges dashed by evidence strength, hover tooltips, and click-to-highlight of a node's neighbourhood (RECHECK-052).
+
 ## [0.3.4] - 2026-10-18
 
 ### Added

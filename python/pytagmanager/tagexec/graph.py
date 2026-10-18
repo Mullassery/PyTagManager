@@ -30,6 +30,8 @@ land.
 
 from __future__ import annotations
 
+import html
+import json
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
@@ -272,3 +274,141 @@ def build_graph_json(graph: TagExecutionGraph) -> dict:
             for e in graph.edges
         ],
     }
+
+
+_NODE_KIND_COLORS = {
+    NODE_GTM_CONTAINER: "#1f77b4",
+    NODE_VENDOR_SCRIPT: "#ff7f0e",
+    NODE_INTERACTION: "#2ca02c",
+    NODE_MUTATION: "#9467bd",
+    NODE_DATALAYER_EVENT: "#17becf",
+    NODE_GTM_EVENT: "#8c564b",
+    NODE_NETWORK_REQUEST: "#7f7f7f",
+}
+_EVIDENCE_DASH = {
+    EVIDENCE_OBSERVED: "",
+    EVIDENCE_INFERRED: "6 4",
+    EVIDENCE_SUSPECTED: "2 4",
+    EVIDENCE_UNKNOWN: "1 6",
+    EVIDENCE_NOT_OBSERVED: "1 3",
+}
+
+
+def build_graph_html(graph: TagExecutionGraph) -> str:
+    """Render the Tag Execution Graph as a standalone, interactive HTML/SVG page.
+
+    The JSON form (`build_graph_json`) is walkable but not meant to be read as
+    flat text; this produces a single self-contained ``.html`` file with an
+    inline SVG (one column per node kind, edges dashed by evidence strength),
+    hover tooltips, and click-to-highlight of a node's neighbourhood. No
+    external assets or network calls -- open the file directly.
+    """
+    nodes = list(graph.nodes)
+    width = max(360, 180 + 220 * max(1, len({n.kind for n in nodes})))
+    height = max(240, 120 + 70 * max(1, max((sum(1 for n in nodes if n.kind == k) for k in {n.kind for n in nodes}), default=1)))
+
+    kinds = sorted({n.kind for n in nodes})
+    positions: Dict[str, Tuple[float, float]] = {}
+    for col, kind in enumerate(kinds):
+        for row, node in enumerate(n for n in nodes if n.kind == kind):
+            positions[node.node_id] = (140 + col * 220, 80 + row * 70)
+
+    parts: List[str] = []
+    for edge in graph.edges:
+        if edge.source_id not in positions or edge.target_id not in positions:
+            continue
+        x1, y1 = positions[edge.source_id]
+        x2, y2 = positions[edge.target_id]
+        dash = _EVIDENCE_DASH.get(edge.evidence, "2 4")
+        dash_attr = f' stroke-dasharray="{dash}"' if dash else ""
+        parts.append(
+            f'<line class="edge" data-source="{html.escape(edge.source_id)}" '
+            f'data-target="{html.escape(edge.target_id)}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}"'
+            f'{dash_attr}><title>{html.escape(edge.evidence)}: {html.escape(edge.label)}</title></line>'
+        )
+    for node in nodes:
+        if node.node_id not in positions:
+            continue
+        x, y = positions[node.node_id]
+        color = _NODE_KIND_COLORS.get(node.kind, "#555555")
+        parts.append(
+            f'<g class="node" data-id="{html.escape(node.node_id)}">'
+            f'<circle cx="{x}" cy="{y}" r="10" fill="{color}"><title>'
+            f'{html.escape(node.kind)}: {html.escape(node.label)}\n{html.escape(node.page_url)}</title></circle>'
+            f'<text x="{x + 16}" y="{y + 4}">{html.escape(node.label)}</text></g>'
+        )
+
+    legend = "".join(
+        f'<span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" '
+        f'stroke="#333" stroke-width="1.5"'
+        + (f' stroke-dasharray="{_EVIDENCE_DASH[e]}"' if _EVIDENCE_DASH.get(e) else "")
+        + f'/></svg>{html.escape(e)}</span>'
+        for e in EVIDENCE_LEVELS
+    )
+
+    data_json = (
+        json.dumps(build_graph_json(graph))
+        .replace("<", "\\u003c")
+        .replace(">", "\\u003e")
+        .replace("&", "\\u0026")
+    )
+
+    return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Tag Execution Graph</title>
+<style>
+  body {{ font-family: -apple-system, Segoe UI, Roboto, sans-serif; margin: 1.5rem; }}
+  svg {{ border: 1px solid #ddd; }}
+  .edge {{ stroke: #999; stroke-width: 1.2; }}
+  .edge.hot {{ stroke: #d62728; stroke-width: 2.2; }}
+  .node text {{ font-size: 11px; fill: #222; }}
+  .node.dim {{ opacity: 0.25; }}
+  .legend-item {{ margin-right: 1rem; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }}
+</style>
+</head>
+<body>
+<h1>Tag Execution Graph</h1>
+<p>{len(nodes)} node(s), {len(graph.edges)} edge(s). Click a node to highlight its edges; click the background to reset.</p>
+<p class="legend">{legend}</p>
+<svg id="graph" width="{width}" height="{height}" viewBox="0 0 {width} {height}">
+{chr(10).join(parts)}
+</svg>
+<script id="graph-data" type="application/json">{data_json}</script>
+<script>
+(function () {{
+  var svg = document.getElementById('graph');
+  var selected = null;
+  function highlight(id) {{
+    var nodes = svg.querySelectorAll('.node');
+    var edges = svg.querySelectorAll('.edge');
+    if (!id) {{
+      nodes.forEach(function (n) {{ n.classList.remove('dim'); }});
+      edges.forEach(function (e) {{ e.classList.remove('hot'); }});
+      return;
+    }}
+    var keep = new Set([id]);
+    edges.forEach(function (e) {{
+      var s = e.getAttribute('data-source'), t = e.getAttribute('data-target');
+      if (s === id || t === id) {{ e.classList.add('hot'); keep.add(s); keep.add(t); }}
+      else {{ e.classList.remove('hot'); }}
+    }});
+    nodes.forEach(function (n) {{
+      n.classList.toggle('dim', !keep.has(n.getAttribute('data-id')));
+    }});
+  }}
+  svg.querySelectorAll('.node').forEach(function (n) {{
+    n.addEventListener('click', function (ev) {{
+      ev.stopPropagation();
+      selected = selected === n.getAttribute('data-id') ? null : n.getAttribute('data-id');
+      highlight(selected);
+    }});
+  }});
+  svg.addEventListener('click', function () {{ selected = null; highlight(null); }});
+}})();
+</script>
+</body>
+</html>
+"""
+

@@ -487,6 +487,14 @@ def data_dictionary(
     "read as flat text.",
 )
 @click.option(
+    "--tag-graph-html",
+    "tag_graph_html",
+    default=None,
+    type=click.Path(dir_okay=False),
+    help="Also write the Tag Execution Graph as a standalone interactive HTML/SVG file to this path "
+    "(implies --tag-graph). Open it directly in a browser -- no server, no external assets.",
+)
+@click.option(
     "--test-candidates",
     "test_candidates",
     is_flag=True,
@@ -521,6 +529,7 @@ def diagnose(
     detect_duplicate_tags: bool,
     detect_server_side_tagging: bool,
     tag_graph: bool,
+    tag_graph_html: str | None,
     test_candidates: bool,
 ) -> None:
     """Drive a real browser through URL (or a crawl of it), observe the full
@@ -533,6 +542,8 @@ def diagnose(
         raise click.UsageError("--history requires --site-wide (health scores are a site-wide concept).")
     if alert_webhook and not history_path:
         raise click.UsageError("--alert-webhook requires --history (there must be a previous run to compare against).")
+    if tag_graph_html:
+        tag_graph = True
     from pytagmanager.analytics_api.ga4_client import Ga4ApiClient
     from pytagmanager.analytics_api.gtm_client import GtmApiClient
     from pytagmanager.correlation.journey import correlate_events
@@ -547,7 +558,7 @@ def diagnose(
     from pytagmanager.reporting.json_report import build_json_report
     from pytagmanager.reporting.terminal import diagnose_journeys, render_terminal_report
     from pytagmanager.tagexec.duplicates import analyze_duplicates
-    from pytagmanager.tagexec.graph import build_graph_json, build_tag_execution_graph
+    from pytagmanager.tagexec.graph import build_graph_html, build_graph_json, build_tag_execution_graph
     from pytagmanager.tagexec.report import (
         build_duplicate_findings_json,
         build_server_side_indicators_json,
@@ -649,6 +660,13 @@ def diagnose(
     if tag_graph:
         graph = build_tag_execution_graph(all_scans, traces, all_duplicate_findings, all_server_side_indicators)
         tag_execution_graph_json = build_graph_json(graph)
+        if tag_graph_html:
+            import pathlib
+
+            html_path = pathlib.Path(tag_graph_html)
+            if html_path.parent and str(html_path.parent):
+                html_path.parent.mkdir(parents=True, exist_ok=True)
+            html_path.write_text(build_graph_html(graph), encoding="utf-8")
 
     all_test_candidates = generate_diagnosis_candidates(diagnosed) if test_candidates else []
 
