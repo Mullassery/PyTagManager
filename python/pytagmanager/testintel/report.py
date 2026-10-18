@@ -7,7 +7,10 @@ from __future__ import annotations
 from typing import List, Sequence
 
 from pytagmanager.testintel.candidates import TestCandidate
-from pytagmanager.testintel.playwright_export import export_playwright_script
+from pytagmanager.testintel.playwright_export import (
+    export_playwright_script,
+    export_playwright_ts_script,
+)
 
 JSON_SCHEMA_VERSION = 1
 
@@ -46,5 +49,6 @@ def build_test_candidates_json(candidates: Sequence[TestCandidate], include_play
         }
         if include_playwright_draft:
             entry["playwright_draft"] = export_playwright_script(candidate)
+            entry["playwright_ts_draft"] = export_playwright_ts_script(candidate)
         result.append(entry)
     return result

@@ -63,3 +63,76 @@ def test_{_slugify(candidate.name)}(page: Page) -> None:
     # TODO: implement the steps above against a real page URL from Evidence.
     raise NotImplementedError("draft Test Candidate -- fill in before running")
 '''
+
+
+def _escape_ts_comment(text: str) -> str:
+    return text.replace("*/", "* /")
+
+
+def _escape_ts_string(text: str) -> str:
+    return text.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def export_playwright_ts_script(candidate: TestCandidate) -> str:
+    """Emit the draft as a *runnable* TypeScript Playwright spec.
+
+    The Python draft (``export_playwright_script``) intentionally ends in
+    ``raise NotImplementedError`` so it can never pass unreviewed. That makes it
+    Python-only and not runnable as-is. This TypeScript variant is both: it is a
+    valid spec that a Playwright runner will load and execute, but it calls
+    ``test.fixme(...)`` unconditionally, so an unreviewed draft is reported as
+    pending rather than passed -- it cannot masquerade as a green test.
+    """
+    evidence_lines = [
+        f" *   - {url}" for url in candidate.evidence_pages[:_MAX_EVIDENCE_PAGES_LISTED]
+    ]
+    remaining = candidate.evidence_count - len(evidence_lines)
+    if remaining > 0:
+        evidence_lines.append(f" *   ... and {remaining} more")
+    if not evidence_lines:
+        evidence_lines.append(" *   (no page-level evidence recorded)")
+    evidence_block = "\n".join(evidence_lines)
+
+    step_comments = "\n".join(
+        f"  // Step {i}: {step}" for i, step in enumerate(candidate.suggested_verification, start=1)
+    )
+    if not step_comments:
+        step_comments = "  // No suggested verification steps were generated for this category."
+
+    default_url = candidate.evidence_pages[0] if candidate.evidence_pages else "<fill-in-from-evidence>"
+
+    header = "\n".join(
+        " * " + _escape_ts_comment(line)
+        for line in (
+            f"Test Candidate: {candidate.name}",
+            f"Category: {candidate.category} | Severity: {candidate.severity}",
+            "",
+            f"Observed: {candidate.observed}",
+            f"Observed problem: {candidate.observed_problem}",
+            "",
+            f"Evidence ({candidate.evidence_count} page(s)):",
+        )
+    )
+
+    return f'''/*
+{header}
+{evidence_block}
+ *
+ * This is a DRAFT generated from automated discovery, not a verified test.
+ * Review before running: confirm the page URL(s), selectors and assertions,
+ * then remove the test.fixme(...) call below.
+ */
+import {{ test, expect }} from '@playwright/test';
+
+const TARGET_URL = process.env.TARGET_URL ?? '{_escape_ts_string(default_url)}';
+
+test('{_escape_ts_string(candidate.name)}', async ({{ page }}) => {{
+  test.fixme(true, 'Draft Test Candidate -- fill in steps/selectors/assertions, then remove this.');
+
+{step_comments}
+  await page.goto(TARGET_URL);
+  // TODO: implement the steps above against TARGET_URL and add assertions.
+  expect(page).toBeTruthy();
+}});
+'''
+

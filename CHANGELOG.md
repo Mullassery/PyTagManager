@@ -10,6 +10,11 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [0.3.4] - 2026-10-18
+
+### Added
+- Runnable TypeScript Playwright export (`export_playwright_ts_script`), alongside the Python draft, and a `playwright_ts_draft` field in the JSON report. The Python draft stays deliberately non-runnable (`raise NotImplementedError`); the TypeScript spec is a valid spec a Playwright runner will execute, but calls `test.fixme(...)` unconditionally so an unreviewed draft is reported as pending, never passed (RECHECK-051).
+
 ## [0.3.3] - 2026-10-18
 
 ### Changed
