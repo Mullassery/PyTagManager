@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>CodeAtlas</title>
+<script src="https://unpkg.com/cytoscape@3.23.0/dist/cytoscape.min.js"></script>
+<script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+<script src="https://unpkg.com/cytoscape-dagre@2.4.0/cytoscape-dagre.js"></script>
+<style>
+  body { margin: 0; font-family: -apple-system, sans-serif; }
+  #cy { width: 100vw; height: 100vh; }
+  header { padding: 12px 16px; border-bottom: 1px solid #eee; }
+</style>
+</head>
+<body>
+<header>
+  <strong>CodeAtlas</strong>
+  <p>Owns 8 symbols across 2 file(s).</p>
+</header>
+<div id="cy"></div>
+<script>
+const data = {"nodes": [{"data": {"id": "analytics_api", "label": "analytics_api", "description": "Owns 19 symbols across 4 file(s)."}}, {"data": {"id": "correlation", "label": "correlation", "description": "Owns 9 symbols across 2 file(s)."}}, {"data": {"id": "diagnostics", "label": "diagnostics", "description": "Owns 41 symbols across 4 file(s)."}}, {"data": {"id": "dictionary", "label": "dictionary", "description": "Owns 44 symbols across 6 file(s)."}}, {"data": {"id": "discovery", "label": "discovery", "description": "Owns 4 symbols across 2 file(s)."}}, {"data": {"id": "export", "label": "export", "description": "Owns 21 symbols across 10 file(s)."}}, {"data": {"id": "intent", "label": "intent", "description": "Owns 14 symbols across 3 file(s)."}}, {"data": {"id": "observability", "label": "observability", "description": "Owns 60 symbols across 6 file(s)."}}, {"data": {"id": "perf", "label": "perf", "description": "Owns 68 symbols across 10 file(s)."}}, {"data": {"id": "recommend", "label": "recommend", "description": "Owns 7 symbols across 3 file(s)."}}, {"data": {"id": "reporting", "label": "reporting", "description": "Owns 7 symbols across 4 file(s)."}}, {"data": {"id": "runtime", "label": "runtime", "description": "Owns 16 symbols across 5 file(s)."}}, {"data": {"id": "sitewide", "label": "sitewide", "description": "Owns 71 symbols across 10 file(s)."}}, {"data": {"id": "tagexec", "label": "tagexec", "description": "Owns 63 symbols across 6 file(s)."}}, {"data": {"id": "testintel", "label": "testintel", "description": "Owns 10 symbols across 5 file(s)."}}, {"data": {"id": "version_control", "label": "version_control", "description": "Owns 23 symbols across 3 file(s)."}}], "edges": [{"data": {"id": "edge_0", "source": "pytagmanager", "target": "analytics_api", "label": "calls"}}, {"data": {"id": "edge_1", "source": "pytagmanager", "target": "recommend", "label": "calls"}}, {"data": {"id": "edge_2", "source": "pytagmanager", "target": "reporting", "label": "calls"}}, {"data": {"id": "edge_3", "source": "pytagmanager", "target": "sitewide", "label": "calls"}}, {"data": {"id": "edge_4", "source": "pytagmanager", "target": "tagexec", "label": "calls"}}, {"data": {"id": "edge_5", "source": "pytagmanager", "target": "testintel", "label": "calls"}}, {"data": {"id": "edge_6", "source": "pytagmanager", "target": "version_control", "label": "calls"}}, {"data": {"id": "edge_7", "source": "pytagmanager", "target": "correlation", "label": "calls"}}, {"data": {"id": "edge_8", "source": "pytagmanager", "target": "diagnostics", "label": "calls"}}, {"data": {"id": "edge_9", "source": "pytagmanager", "target": "dictionary", "label": "calls"}}, {"data": {"id": "edge_10", "source": "pytagmanager", "target": "discovery", "label": "calls"}}, {"data": {"id": "edge_11", "source": "pytagmanager", "target": "intent", "label": "calls"}}, {"data": {"id": "edge_12", "source": "pytagmanager", "target": "observability", "label": "calls"}}, {"data": {"id": "edge_13", "source": "pytagmanager", "target": "perf", "label": "calls"}}, {"data": {"id": "edge_14", "source": "analytics_api", "target": "tagexec", "label": "calls"}}, {"data": {"id": "edge_15", "source": "recommend", "target": "intent", "label": "calls"}}, {"data": {"id": "edge_16", "source": "reporting", "target": "correlation", "label": "calls"}}, {"data": {"id": "edge_17", "source": "reporting", "target": "diagnostics", "label": "calls"}}, {"data": {"id": "edge_18", "source": "runtime", "target": "tagexec", "label": "calls"}}, {"data": {"id": "edge_19", "source": "sitewide", "target": "correlation", "label": "calls"}}, {"data": {"id": "edge_20", "source": "diagnostics", "target": "correlation", "label": "calls"}}, {"data": {"id": "edge_21", "source": "discovery", "target": "recommend", "label": "calls"}}, {"data": {"id": "edge_22", "source": "discovery", "target": "runtime", "label": "calls"}}, {"data": {"id": "edge_23", "source": "intent", "target": "recommend", "label": "calls"}}, {"data": {"id": "edge_24", "source": "perf", "target": "tagexec", "label": "calls"}}, {"data": {"id": "edge_25", "source": "perf", "target": "testintel", "label": "calls"}}]};
+const cy = cytoscape({
+  container: document.getElementById('cy'),
+  elements: data,
+  style: [
+    { selector: 'node', style: {
+      'label': 'data(label)',
+      'shape': 'round-rectangle',
+      'background-color': '#eef2ff',
+      'border-color': '#6366f1',
+      'border-width': 1,
+      'width': 'label',
+      'padding': '10px',
+      'text-valign': 'center',
+      'text-halign': 'center',
+      'font-size': '12px',
+    }},
+    { selector: 'edge', style: {
+      'label': 'data(label)',
+      'curve-style': 'bezier',
+      'target-arrow-shape': 'triangle',
+      'font-size': '10px',
+      'text-rotation': 'autorotate',
+    }}
+  ],
+  layout: { name: 'dagre', rankDir: 'LR' }
+});
+cy.on('tap', 'node', evt => {
+  const node = evt.target;
+  if (node.data('linkUrl')) { window.location.href = node.data('linkUrl'); }
+});
+</script>
+</body>
+</html>
