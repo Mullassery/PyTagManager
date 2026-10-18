@@ -280,9 +280,9 @@ pub async fn crawl_with_config(
     let browser: Option<Arc<BrowserRenderer>> = if browser_mode == BrowserMode::Off {
         None
     } else {
-        Some(Arc::new(BrowserRenderer::launch().await.map_err(|e| {
-            AppError::Internal(format!("failed to launch browser renderer: {e}"))
-        })?))
+        Some(Arc::new(BrowserRenderer::launch(None).await.map_err(
+            |e| AppError::Internal(format!("failed to launch browser renderer: {e}")),
+        )?))
     };
 
     frontier.try_push(seed.clone(), 0, None);

@@ -1,6 +1,6 @@
 [package]
 name = "pytagmanager"
-version = "0.3.1"
+version = "0.3.3"
 edition = "2021"
 description = "Rust core (crawler + semantic DOM graph engine) for PyTagManager"
 license = "Apache-2.0"
@@ -22,11 +22,11 @@ scraper = "0.27"
 roxmltree = "0.20"
 url = "2"
 futures = "0.3"
-mudfish-core = { git = "https://github.com/Mullassery/MudFish", rev = "71176fa" }
-mudfish-frontier = { git = "https://github.com/Mullassery/MudFish", rev = "71176fa" }
-mudfish-fetch = { git = "https://github.com/Mullassery/MudFish", rev = "71176fa" }
-mudfish-parser = { git = "https://github.com/Mullassery/MudFish", rev = "71176fa" }
-mudfish-browser = { git = "https://github.com/Mullassery/MudFish", rev = "71176fa" }
+mudfish-core = { git = "https://github.com/Mullassery/MudFish", tag = "rust-v0.1.3" }
+mudfish-frontier = { git = "https://github.com/Mullassery/MudFish", tag = "rust-v0.1.3" }
+mudfish-fetch = { git = "https://github.com/Mullassery/MudFish", tag = "rust-v0.1.3" }
+mudfish-parser = { git = "https://github.com/Mullassery/MudFish", tag = "rust-v0.1.3" }
+mudfish-browser = { git = "https://github.com/Mullassery/MudFish", tag = "rust-v0.1.3" }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "io-util"] }

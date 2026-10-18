@@ -10,6 +10,16 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [0.3.3] - 2026-10-18
+
+### Changed
+- Depend on MudFish's Rust crates via the release tag `rust-v0.1.3` instead of
+  the raw commit `71176fa`, so crawler-framework upgrades are deliberate and
+  revertible (part of the cross-repo MudFish pilot).
+- Migrated to MudFish's `BrowserRenderer::launch(chrome_path: Option<&Path>)`
+  signature (`launch(None)`, i.e. host Chrome) introduced in `rust-v0.1.3`.
+- Aligned `Cargo.toml` version with `pyproject.toml`/`__version__`.
+
 ## [0.3.2] - 2026-10-17
 
 ### Fixed
