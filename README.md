@@ -606,11 +606,6 @@ Part of the Mullassery open-source family — PyTagManager sits at the *tagging/
 
 Full shipped/blocked/rejected detail: [`QUEUE_STATUS.md`](QUEUE_STATUS.md).
 
-## Queue status
-
-Shipped, blocked/failed, and rejected work for this repository is documented in
-[`QUEUE_STATUS.md`](QUEUE_STATUS.md).
-
 ## Contributing, security, and license
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev workflow and this
