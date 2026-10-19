@@ -1,6 +1,6 @@
 # PyTagManager — Honest Status
 
-**Current Version:** v0.5.0 (published to PyPI 2026-10-12; supersedes v0.3.0,
+**Current Version:** v0.5.0 (published to PyPI 2026-10-19; supersedes v0.3.0,
 which was published 2026-10-04 with a `v0.3.0` git tag; macOS arm64 wheel only
 -- no Linux/Windows wheels, same disclosed gap as past releases)
 **Last Updated:** 2026-10-04 (crawl engine migrated onto Mudfish's

@@ -62,10 +62,9 @@ not a blanket "not yet").
 pip install pytagmanager
 ```
 
-> **PyPI is currently on v0.1.3** — `dictionary`, `diagnose`, and everything
-> else described below as of v0.2.0 aren't in that release yet. Use
-> [Development](#development) below to get the current version from source
-> until v0.2.0 is published — see [What's not working](#whats-not-working--open-issues).
+> **PyPI is current at v0.5.0.** The published wheel is macOS arm64 plus an
+> sdist; Linux/Windows installs build from source and need a Rust toolchain.
+> See [What's not working](#whats-not-working--open-issues).
 
 Installs the core CLI (`crawl`, `diff`) with no extra dependencies beyond
 `click`. Both `dictionary` and `diagnose` drive a real browser (Playwright)
@@ -616,16 +615,9 @@ which roadmap phases are shipped vs. still pending.
 
 ## What's not working / open issues
 
-- **`pip install pytagmanager` gets v0.2.1**, published 2026-09-22 (patch release:
-  two Rust panic sites converted to proper `Result` error propagation, so those
-  crashes now surface as catchable Python `RuntimeError`s instead of hard aborts).
-  Platform coverage is narrower than v0.1.3's release, though: this release only
-  shipped a macOS arm64 wheel + sdist (manual build; no Docker/zig available
-  locally for manylinux cross-compilation at publish time), vs. v0.1.3's macOS
-  x86_64 + arm64 + Linux x86_64 + aarch64 + sdist. If `pip install` doesn't find a
-  matching wheel for your platform, it'll build from the sdist, which needs a
-  working Rust toolchain — or use the [Development](#development) install path
-  (`maturin develop` from source).
+- **Platform coverage:** the PyPI wheel is macOS arm64 only; Linux/Windows use
+  the sdist and require Rust. A manylinux wheel build needs a proper CI
+  toolchain (the local cross-compile attempt lacked `zig`).
 - **CI was broken on every push since Tracking Observability & Diagnostics
   landed, until this pass**: `ci.yml` never installed the
   `pytagmanager[diagnostics]` extra or a Chromium binary, so pytest's
