@@ -595,6 +595,17 @@ Part of the Mullassery open-source family — PyTagManager sits at the *tagging/
 - [PyDeepMesh](https://github.com/Mullassery/PyDeepMesh) — dependency-graph and vulnerability intelligence
 - [Browse all projects →](https://github.com/Mullassery?tab=repositories)
 
+## Known issues and deferred work
+
+**Blocked / failed:**
+- GTM write/apply needs a resource mapper and live credentials; `gtm-plan` is the safe review path.
+- Full Playwright CI rerun is pending after the Click fix.
+
+**Rejected / deferred:**
+- Visual/screenshot grounding, XDM modeling, and mobile platforms — not required for web QA.
+
+Full shipped/blocked/rejected detail: [`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+
 ## Queue status
 
 Shipped, blocked/failed, and rejected work for this repository is documented in
