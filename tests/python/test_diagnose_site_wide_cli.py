@@ -43,7 +43,7 @@ def test_diagnose_site_wide_json(fixture_server, monkeypatch):
     pages = [_fake_page(fixture_server, "healthy_tracking.html")]
     monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: pages)
 
-    result = CliRunner(mix_stderr=False).invoke(main, ["diagnose", pages[0].url, "--site-wide", "--format", "json"])
+    result = CliRunner().invoke(main, ["diagnose", pages[0].url, "--site-wide", "--format", "json"])
 
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)

@@ -150,7 +150,7 @@ def test_diagnose_site_wide_detects_add_to_cart_naming_inconsistency(fixture_ser
     ]
     monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: pages)
 
-    result = CliRunner(mix_stderr=False).invoke(main, ["diagnose", pages[0].url, "--site-wide", "--format", "json"])
+    result = CliRunner().invoke(main, ["diagnose", pages[0].url, "--site-wide", "--format", "json"])
 
     assert result.exit_code == 0, result.output
     data = json.loads(result.output)
