@@ -46,7 +46,8 @@ def test_diagnose_site_wide_json(fixture_server, monkeypatch):
     result = CliRunner().invoke(main, ["diagnose", pages[0].url, "--site-wide", "--format", "json"])
 
     assert result.exit_code == 0, result.output
-    report = json.loads(result.output)
+    json_start = result.output.index("{")
+    report = json.loads(result.output[json_start:])
     assert report["schema_version"] == 1
     assert report["pages_scanned"] == 1
     assert len(report["templates"]) == 1

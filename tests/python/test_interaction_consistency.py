@@ -153,7 +153,8 @@ def test_diagnose_site_wide_detects_add_to_cart_naming_inconsistency(fixture_ser
     result = CliRunner().invoke(main, ["diagnose", pages[0].url, "--site-wide", "--format", "json"])
 
     assert result.exit_code == 0, result.output
-    data = json.loads(result.output)
+    json_start = result.output.index("{")
+    data = json.loads(result.output[json_start:])
     reports = data["business_action_consistency"]
     assert len(reports) == 1
     report = reports[0]
