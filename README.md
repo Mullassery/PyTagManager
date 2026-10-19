@@ -627,10 +627,9 @@ which roadmap phases are shipped vs. still pending.
   pytagmanager` users were never affected — the CLI's `dictionary`/`diagnose`
   commands import these lazily inside their own function bodies, not at
   module load.
-- **Website Data Dictionary (Phase 1.7) is shipped except for one enrichment**:
-  "potential GTM usage" / a GTM blast-radius narrative on schema-drift findings
-  needs live GTM container config to cross-reference against, which needs real
-  credentials this environment doesn't have.
+- **GTM write/apply is not implemented.** GTM usage and drift blast-radius are
+  shipped (`dictionary --gtm-config`, `gtm-plan`), but applying recommendations
+  to a live workspace still requires manual import.
 - **`ClaudeIntentClassifier`** referenced in `docs/ROADMAP.md`'s Phase 2 is
   planned, not implemented; the only real `IntentClassifier` implementations
   today are `OllamaIntentClassifier` and the deterministic heuristics.
