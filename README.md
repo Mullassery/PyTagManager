@@ -595,6 +595,11 @@ Part of the Mullassery open-source family — PyTagManager sits at the *tagging/
 - [PyDeepMesh](https://github.com/Mullassery/PyDeepMesh) — dependency-graph and vulnerability intelligence
 - [Browse all projects →](https://github.com/Mullassery?tab=repositories)
 
+## Queue status
+
+Shipped, blocked/failed, and rejected work for this repository is documented in
+[`QUEUE_STATUS.md`](QUEUE_STATUS.md).
+
 ## Contributing, security, and license
 
 See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the dev workflow and this
