@@ -1,0 +1,62 @@
+name: Tracking regression
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: Site URL to diagnose
+        required: false
+        type: string
+      max_pages:
+        description: Maximum pages to crawl
+        required: false
+        default: "50"
+        type: string
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install PyTagManager
+        run: |
+          python -m pip install --upgrade pip maturin
+          python -m pip install ".[diagnostics]"
+          playwright install --with-deps chromium
+      - name: Restore tracking history
+        uses: actions/cache@v4
+        with:
+          path: .pytagmanager/health.json
+          key: tracking-history-${{ github.ref_name }}
+          restore-keys: tracking-history-
+      - name: Diagnose
+        env:
+          TARGET_URL: ${{ inputs.url || vars.TRACKING_TARGET_URL }}
+          ALERT_WEBHOOK: ${{ secrets.TRACKING_ALERT_WEBHOOK }}
+          MAX_PAGES: ${{ inputs.max_pages || '50' }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TARGET_URL" ]; then
+            echo "Set the TRACKING_TARGET_URL repository variable or pass the url input." >&2
+            exit 1
+          fi
+          mkdir -p .pytagmanager
+          ARGS=(--site-wide --max-pages "$MAX_PAGES"
+                --history .pytagmanager/health.json
+                --alert-threshold 5 --fail-on-regression
+                -o .pytagmanager/report.json --format json)
+          if [ -n "$ALERT_WEBHOOK" ]; then
+            ARGS+=(--alert-webhook "$ALERT_WEBHOOK")
+          fi
+          pytagmanager diagnose "$TARGET_URL" "${ARGS[@]}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tracking-report
+          path: .pytagmanager/report.json

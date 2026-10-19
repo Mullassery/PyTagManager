@@ -1,7 +1,11 @@
 # Tracking-regression CI
 
-Run a site-wide diagnostic on a schedule and fail the job when tracking health
-drops versus the previous run.
+A checked-in workflow (`.github/workflows/tracking-regression.yml`) runs daily or
+on `workflow_dispatch`, stores health history in Actions cache, and exits
+non-zero on a regression. Set the `TRACKING_TARGET_URL` repository variable (or
+pass the `url` input) and optionally `TRACKING_ALERT_WEBHOOK`.
+
+The equivalent standalone workflow is:
 
 ```yaml
 name: tracking-regression
