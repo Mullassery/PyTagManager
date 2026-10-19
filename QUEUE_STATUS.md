@@ -3,6 +3,7 @@
 This file records what was shipped, what is blocked/failed, and what is rejected for this repository. It complements `AUDIT_FINDINGS.md`.
 
 ## Shipped
+- Lighthouse ingestion (`pytagmanager lighthouse`) with normalized scores/Core Web Vitals.
 - GTM usage index + drift blast radius; `gtm-plan` dry-run planner.
 - `--fail-on-regression`, scheduled GitHub workflow, Click CI fix, docs aligned to 0.5.0.
 

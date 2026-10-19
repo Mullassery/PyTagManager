@@ -665,3 +665,23 @@ docs/ARCHITECTURE.md          # implemented vs. deliberately deferred, plus the 
 docs/ROADMAP.md               # phase-by-phase sequencing of the work
 ROADMAP_HONEST.md             # short current-status companion to the above
 ```
+
+## Lighthouse audits
+
+Join real performance/accessibility evidence with tag diagnostics:
+
+```bash
+npm install -g lighthouse   # Apache-2.0 CLI; no Python package
+pytagmanager lighthouse https://example.com --json
+```
+
+```python
+from pytagmanager.audit.lighthouse import LighthouseRunner
+
+report = LighthouseRunner().run("https://example.com")
+print(report.categories, report.metrics)
+```
+
+The adapter normalizes category scores, LCP/TBT/CLS/INP/FCP/Speed Index, and
+failing opportunities. A missing Lighthouse/Chrome binary raises
+`LighthouseUnavailable`; scores are never fabricated.

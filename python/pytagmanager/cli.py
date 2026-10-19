@@ -1160,5 +1160,51 @@ def perf(
         click.echo(report)
 
 
+
+@main.command("lighthouse")
+@click.argument("url")
+@click.option("--output", "output_path", type=click.Path(), default=None)
+@click.option("--lighthouse-path", default="lighthouse", show_default=True)
+@click.option("--chrome-path", default=None)
+@click.option("--timeout", default=120, show_default=True, type=int)
+@click.option("--json", "as_json", is_flag=True, help="Emit the normalized report as JSON")
+def lighthouse_command(url, output_path, lighthouse_path, chrome_path, timeout, as_json):
+    """Run a Lighthouse audit and normalize scores/Core Web Vitals."""
+    from pytagmanager.audit.lighthouse import LighthouseRunner, LighthouseUnavailable
+
+    try:
+        report = LighthouseRunner(
+            lighthouse_path=lighthouse_path, chrome_path=chrome_path, timeout=timeout
+        ).run(url)
+    except LighthouseUnavailable as exc:
+        raise click.ClickException(str(exc)) from exc
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if as_json:
+        text = json.dumps(report.to_dict(), indent=2)
+    else:
+        lines = [f"Lighthouse: {url}"]
+        for name, score in sorted(report.categories.items()):
+            lines.append(f"  {name}: {score * 100:.0f}")
+        for name, value in sorted(report.metrics.items()):
+            lines.append(f"  {name}: {value:.1f}")
+        if report.audits:
+            lines.append("  opportunities/failures:")
+            for audit in report.audits[:10]:
+                lines.append(
+                    f"    - {audit['title']} ({audit['score']:.2f})"
+                    + (f" — {audit['displayValue']}" if audit.get("displayValue") else "")
+                )
+        text = "\n".join(lines)
+
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as handle:
+            handle.write(text + "\n")
+        click.echo(f"Wrote Lighthouse report to {output_path}")
+    else:
+        click.echo(text)
+
+
 if __name__ == "__main__":
     main()
