@@ -1,0 +1,45 @@
+[Unit]
+Description=PyTagManager event collection endpoint
+Documentation=https://github.com/Mullassery/PyTagManager
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pytagmanager
+Group=pytagmanager
+EnvironmentFile=/etc/pytagmanager/ingest.env
+ExecStart=/opt/pytagmanager/.venv/bin/pytagmanager serve-ingest \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --path ${PYTAGMANAGER_PATH} \
+  --container ${PYTAGMANAGER_CONTAINERS} \
+  --pytagshield-url ${PYTAGSHIELD_URL} \
+  --pytagshield-token-ref ${PYTAGSHIELD_TOKEN_REF} \
+  --rate-limit-per-minute ${PYTAGMANAGER_RATE_LIMIT} \
+  --max-body-bytes ${PYTAGMANAGER_MAX_BODY} \
+  --max-batch-events ${PYTAGMANAGER_MAX_BATCH} \
+  --dedupe-ttl-seconds ${PYTAGMANAGER_DEDUPE_TTL} \
+  --dedupe-claim-ttl-seconds ${PYTAGMANAGER_DEDUPE_CLAIM_TTL} \
+  --dedupe-db ${PYTAGMANAGER_DEDUPE_DB} \
+  --allow-origin ${PYTAGMANAGER_ORIGIN}
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+StateDirectory=pytagmanager
+StateDirectoryMode=0750
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

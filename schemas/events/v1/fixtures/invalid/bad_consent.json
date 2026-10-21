@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "event_id": "3f6e3f56-2f7b-4c7d-9f2a-1d1b7c9e4a10",
+  "event_name": "page_view",
+  "timestamp": "2026-10-20T12:00:00.000Z",
+  "source": {"platform": "web", "sdk_name": "pytagmanager-web", "sdk_version": "0.1.0"},
+  "container_id": "GTM-ABC1234",
+  "consent": {"purposes": {"analytics": "yes"}, "source": "sdk", "provenance": "explicit"},
+  "properties": {}
+}

@@ -5,17 +5,16 @@ going and in what order. It complements `docs/ARCHITECTURE.md`, which
 tracks implementation status phase-by-phase; this document is about
 sequencing and rationale, not a restatement of the original spec.
 
-**See `docs/VISION.md` for the full north-star framing** — the product is
-a Website Tagging Intelligence & Runtime State Discovery Platform, not a
-URL crawler. This document's phase table below (Phases 1.6–1.95) is the
-sequenced execution plan for that vision's five pillars — runtime state
-capture, browser interaction investigation, GTM client/server execution
-intelligence (the Tag Execution Graph), Playwright test intelligence, and
-script performance intelligence — integrated alongside the already-shipped
-work, not replacing it. Every new phase below extends an existing module
-(`observability/agent.js`, `diagnostics/rules.py`, `sitewide/`,
-`version_control/`) rather than forking a parallel system, per Product
-Principle 7 below.
+**See `docs/VISION.md` and `docs/GETTING_STARTED.md` for the authoritative
+positioning** — PyTagManager is a debugging and implementation-intelligence
+tool for Google Tag Manager, not a measurement/CDP platform and not a GTM
+replacement. The phase table below describes sequencing for website/runtime
+evidence and GTM container understanding. Mockup-era ideas about replacing tag
+managers or becoming a cross-platform measurement suite are superseded.
+
+Every new phase extends an existing module (`observability/agent.js`,
+`diagnostics/rules.py`, `sitewide/`, `version_control/`) rather than forking a
+parallel system, per Product Principle 7 below.
 
 ## Product Vision
 

@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "event_id": "d4e5f6a7-b8c9-4d0e-8f1a-2b3c4d5e6f70",
+  "event_name": "purchase",
+  "timestamp": "2026-10-20T12:02:03Z",
+  "source": {
+    "platform": "ios",
+    "sdk_name": "pytagmanager-ios",
+    "sdk_version": "0.1.0",
+    "app_version": "1.8.0"
+  },
+  "container_id": "acme-ios",
+  "subject": {"id": "user-42", "type": "user"},
+  "consent": {
+    "purposes": {"analytics": true, "advertising": true},
+    "source": "sdk",
+    "provenance": "explicit"
+  },
+  "properties": {
+    "currency": "EUR",
+    "value": 42.5,
+    "transaction_id": "order-1001"
+  }
+}

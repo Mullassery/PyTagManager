@@ -10,6 +10,15 @@ dist/
 *.so
 *.pyd
 
+# Android / Gradle
+sdk/android/.gradle/
+sdk/android/build/
+sdk/android/**/build/
+sdk/android/local.properties
+
+# Swift Package Manager
+sdk/ios/.build/
+
 # macOS
 .DS_Store
 **/.DS_Store

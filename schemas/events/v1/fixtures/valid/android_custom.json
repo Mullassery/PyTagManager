@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "event_id": "8c1a2b3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  "event_name": "add_to_cart",
+  "timestamp": "2026-10-20T12:01:02.123Z",
+  "source": {
+    "platform": "android",
+    "sdk_name": "pytagmanager-android",
+    "sdk_version": "0.1.0",
+    "app_version": "2.4.1"
+  },
+  "container_id": "acme-android",
+  "config_version": null,
+  "subject": {"id": "user-42", "type": "user"},
+  "consent": {
+    "purposes": {"analytics": true},
+    "source": "host",
+    "provenance": "explicit",
+    "updated_at": null
+  },
+  "properties": {
+    "currency": "USD",
+    "value": 19.99,
+    "items": [{"sku": "SKU-1", "quantity": 2}]
+  }
+}

@@ -1,16 +1,16 @@
 # PyTagManager Architecture & Roadmap
 
-PyTagManager's long-term vision is an AI-native analytics implementation
-platform, described in full in Appendix A (web-focused) and Appendix B
-(universal cross-platform) below. **v1 implements a small, real vertical
-slice of that vision** — everything else is roadmap, not vaporware claimed
-as done.
+PyTagManager is a **debugging and implementation-intelligence tool for Google
+Tag Manager**, not a measurement platform or a GTM replacement. It uses
+MudFish-powered website discovery plus GTM container inspection (JSON/YAML) and
+real-browser runtime evidence to explain why tags, triggers, variables and
+events are missing, duplicated or firing incorrectly.
 
-**See `docs/VISION.md`** for the current north-star framing: the product
-is a Website Tagging Intelligence & Runtime State Discovery Platform
-(dataLayer/cookies/storage/network/interactions as first-class data the
-tagging layer consumes), not a URL crawler — Appendices A/B below predate
-that framing and are being read through it going forward.
+**See `docs/VISION.md`** for the authoritative product framing. Appendices
+below contain earlier roadmap material and must be read through that framing:
+where they call PyTagManager an analytics implementation or measurement
+platform, that is superseded. The current implementation and verification
+status is recorded in `docs/architecture/multiplatform-extension.md`.
 
 ## What's implemented
 
@@ -21,7 +21,11 @@ that framing and are being read through it going forward.
 | Selector resilience (data-testid / data-* / aria-label / id priority) | **Implemented** | `src/dom/selectors.rs` |
 | Rule-based tracking recommendations (keyword-driven, deterministic) | **Implemented** | `python/pytagmanager/recommend/heuristics.py` |
 | CLI (`pytagmanager crawl ...`, `pytagmanager diff ...`) | **Implemented** | `python/pytagmanager/cli.py` |
+| GTM container JSON/YAML inspection (tags/triggers/variables, references, duplicate firing) | **Implemented** | `python/pytagmanager/gtm/`, CLI `gtm inspect/export/import` |
+| GTM-compatible export and best-effort draft import | **Implemented** (unrepresentable GTM constructs are warned, not silently reinterpreted) | `python/pytagmanager/gtm/container.py` |
 | Non-GTM exporters (GA4, Segment, Snowplow, Tealium, RudderStack, Adobe Tags) | **Implemented** | `python/pytagmanager/export/{gtm,ga4,segment,snowplow,tealium,rudderstack,adobe_tags}.py`, registered in `export/base.py`'s `EXPORTERS` |
+| Shared event contract, CDN publication and collection endpoint | **Implemented** (filesystem CDN and HTTP collection tested; real CDN/PyTagShield integration unverified) | `schemas/events/v1`, `python/pytagmanager/{events,distribution,ingest}` |
+| Web / iOS / Android SDK sources | **Implemented; verification differs** (Web tested; iOS library/checks tested; Android build, lint and JVM tests pass; iOS XCTest and Android device tests unverified) | `sdk/{web,ios,android}` |
 | Version control / change detection across crawls | **Implemented** | `python/pytagmanager/version_control/{snapshot,diff}.py`, wired into the CLI as `crawl --save-snapshot` / `pytagmanager diff` |
 | AI business intent classification (LLM-backed) | **Implemented** (local model via Ollama, not a hosted API — see note below) | `python/pytagmanager/intent/ollama_classifier.py` |
 | Tracking Observability & Diagnostics: real-browser interaction/DOM-mutation/dataLayer/SPA-navigation/consent capture | **Implemented** | `python/pytagmanager/observability/{agent.js,session.py,scenario.py}` |
@@ -44,8 +48,8 @@ that framing and are being read through it going forward.
 | Per-page screenshot capture (desktop/mobile, above-fold/full-page) | **Implemented** (`docs/ROADMAP.md` Phase 1) | `python/pytagmanager/runtime/screenshots.py`, `crawl --render --screenshots-dir DIR` |
 | Computer-vision element understanding (hero/pricing-table/carousel detection from pixels) | **Deliberately deferred** — see note below | — |
 | XDM-native event modeling (Adobe) | **Deliberately deferred** — see note below | — |
-| Enterprise audit engine (GTM/Adobe/Tealium/Segment/Snowplow import + gap analysis) | **Deliberately deferred** — see note below | — |
-| Any non-web platform (Android, iOS, kiosk, desktop, IoT, AR/VR, wearables, voice) | **Deliberately deferred** — see note below | — |
+| GTM/Adobe/Tealium/Segment/Snowplow import + gap analysis | **Partial** — GTM JSON/YAML inspection and best-effort draft import implemented; other platforms deferred | `python/pytagmanager/gtm/` |
+| Kiosk, desktop, IoT, AR/VR, wearables, voice | **Deliberately deferred** — see note below | — |
 
 Notably: the default `pytagmanager crawl` still builds its DOM graph from
 **static HTML only**; `crawl --render` (`docs/ROADMAP.md` Phase 1) opts
@@ -233,19 +237,15 @@ dropped, but each deferred for a distinct, specific reason:
   schema registries) is a deep, Adobe-proprietary modeling layer distinct
   from the tag/rule authoring surface `export/adobe_tags.py` targets;
   correctly enterprise-tier and out of scope here.
-- **Enterprise audit engine** (importing and gap-analyzing existing
-  GTM/Adobe/Tealium/Segment/Snowplow configurations against discovered
-  interactions) — this is explicitly named "enterprise" in this doc's own
-  Phase 9/Appendix A spec, and is architecturally a different feature
-  (import + compare + gap-report) from what this pass built (generate +
-  export forward). Building it would mean writing an importer/parser for
-  five different platforms' live configuration formats, not just their
-  documented export schemas.
-- **Non-web platforms** (Android, iOS, kiosk, desktop, IoT, AR/VR,
-  wearables, voice) — an entirely different product surface (native app
-  instrumentation, hardware peripherals, platform-specific SDKs) with no
-  shared code path with the Rust/Python web crawler core; correctly out of
-  scope for a web-focused tool.
+- **Full enterprise audit engine** (importing and gap-analyzing existing
+  Adobe/Tealium/Segment/Snowplow configurations against discovered
+  interactions) — GTM JSON/YAML inspection and best-effort draft import are
+  implemented in `pytagmanager/gtm/`. Equivalent live-configuration importers
+  for the other four platforms remain out of scope.
+- **Kiosk, desktop, IoT, AR/VR, wearables, voice** — no shared code path with
+  the Rust/Python web debugger core. Web/iOS/Android SDK sources for event-flow
+  testing are implemented separately and are not a claim of platform-wide
+  measurement support.
 
 ## Extension points for future work
 
@@ -281,6 +281,14 @@ dropped, but each deferred for a distinct, specific reason:
   engines, out of scope for the Rust/Python web core built here.
 
 ---
+
+## Historical appendices
+
+The appendices below preserve the original, broader product exploration. They
+are **not** the current product vision and must not be used to claim that
+PyTagManager is a measurement/CMP/CDP platform. The authoritative positioning is
+`docs/VISION.md`; current capability and verification status is the table above
+and `docs/architecture/multiplatform-extension.md`.
 
 ## Appendix A: original web-focused spec (10 phases)
 

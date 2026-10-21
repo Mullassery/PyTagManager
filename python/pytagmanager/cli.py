@@ -1,11 +1,30 @@
 from __future__ import annotations
 
+import functools
 import json
+import os
+from pathlib import Path
 
 import click
 
+from pytagmanager.control import (
+    ControlError,
+    ControlPlaneService,
+    FileStore,
+    resolve_secret_ref,
+    validate_with_pytagshield,
+)
 from pytagmanager.discovery.crawl import crawl_site, crawl_site_rendered
+from pytagmanager.distribution import FilesystemCDN
+from pytagmanager.distribution.publisher import write_static_server_config
 from pytagmanager.export.base import EXPORTERS
+from pytagmanager.gtm import (
+    analyze_container,
+    gtm_to_payload,
+    load_container,
+    payload_to_gtm,
+    write_container,
+)
 from pytagmanager.intent.ollama_classifier import DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL, OllamaIntentClassifier
 from pytagmanager.recommend.heuristics import recommend_for_graph
 from pytagmanager.version_control.diff import diff_snapshots, format_diff_report
@@ -1204,6 +1223,1286 @@ def lighthouse_command(url, output_path, lighthouse_path, chrome_path, timeout, 
         click.echo(f"Wrote Lighthouse report to {output_path}")
     else:
         click.echo(text)
+
+
+def _control_command(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except ControlError as exc:
+            raise click.ClickException(str(exc)) from exc
+
+    return wrapper
+
+
+def _control_service(home: str | None) -> ControlPlaneService:
+    return ControlPlaneService(FileStore(home) if home else FileStore())
+
+
+def _print_json(value) -> None:
+    click.echo(json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False))
+
+
+def _parse_external_refs(raw_refs: tuple[str, ...]) -> list[dict[str, str]]:
+    refs = []
+    for raw in raw_refs:
+        system, separator, ref_id = raw.partition(":")
+        if not separator or not system.strip() or not ref_id.strip():
+            raise click.UsageError(
+                f"--external-ref must be 'SYSTEM:ID', got: {raw!r}"
+            )
+        refs.append({"system": system.strip(), "id": ref_id.strip()})
+    return refs
+
+
+def _load_json_object(path: str, label: str) -> dict:
+    if path == "-":
+        raw = click.get_text_stream("stdin").read()
+    else:
+        raw = Path(path).read_text(encoding="utf-8")
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise click.ClickException(f"{label} is not valid JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise click.ClickException(f"{label} must be a JSON object")
+    return value
+
+
+def _load_payload(path: str | None) -> dict:
+    return {} if path is None else _load_json_object(path, "payload")
+
+
+def _parse_consent(raw_values: tuple[str, ...]) -> dict[str, bool]:
+    consent = {}
+    for raw in raw_values:
+        purpose, separator, value = raw.partition("=")
+        if not separator or not purpose.strip():
+            raise click.UsageError(f"--consent must be 'PURPOSE=true|false', got: {raw!r}")
+        lowered = value.strip().lower()
+        if lowered not in {"true", "false"}:
+            raise click.UsageError(f"--consent value must be true or false, got: {value!r}")
+        consent[purpose.strip()] = lowered == "true"
+    return consent
+
+
+def _flatten_snapshot_recommendations(document: dict, path: str) -> list[dict]:
+    pages = document.get("pages")
+    if not isinstance(pages, list):
+        raise click.ClickException(f"snapshot {path} has no pages list")
+    recommendations = []
+    for page in pages:
+        if not isinstance(page, dict):
+            raise click.ClickException(f"snapshot {path} contains a non-object page")
+        page_url = page.get("url", "")
+        raw_recommendations = page.get("recommendations", [])
+        if not isinstance(raw_recommendations, list):
+            raise click.ClickException(f"snapshot page {page_url!r} has invalid recommendations")
+        for raw in raw_recommendations:
+            if not isinstance(raw, dict):
+                raise click.ClickException(f"snapshot page {page_url!r} has a non-object recommendation")
+            item = dict(raw)
+            item.setdefault("page_url", page_url)
+            recommendations.append(item)
+    if not recommendations:
+        raise click.ClickException("snapshot contains no recommendations")
+    return recommendations
+
+
+@main.group()
+def container() -> None:
+    """Manage self-hosted tag containers."""
+
+
+@container.command("create")
+@click.option("--id", "container_id", required=True, help="User-supplied immutable container ID.")
+@click.option("--name", default=None, help="Display name (defaults to the container ID).")
+@click.option("--description", default="", show_default=True)
+@click.option("--site-url", "site_urls", multiple=True, help="Repeatable site URL.")
+@click.option(
+    "--external-ref",
+    "external_refs",
+    multiple=True,
+    metavar="SYSTEM:ID",
+    help="Repeatable external relation, e.g. gtm:GTM-ABC1234. Never implies ownership.",
+)
+@click.option("--org", "org_id", default=None, help="Organization UUID (default scope if omitted).")
+@click.option("--workspace", "workspace_id", default=None, help="Workspace UUID.")
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def container_create(
+    container_id,
+    name,
+    description,
+    site_urls,
+    external_refs,
+    org_id,
+    workspace_id,
+    home,
+    as_json,
+):
+    """Create a container with a user-specified ID."""
+    created = _control_service(str(home) if home else None).create_container(
+        container_id,
+        name=name,
+        org_id=org_id,
+        workspace_id=workspace_id,
+        description=description,
+        site_urls=site_urls,
+        external_refs=_parse_external_refs(external_refs),
+    )
+    if as_json:
+        _print_json(created.to_dict())
+    else:
+        click.echo(f"Created container {created.container_id} ({created.name}).")
+
+
+@container.command("list")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def container_list(org_id, home, as_json):
+    """List containers in an organization."""
+    containers = _control_service(str(home) if home else None).list_containers(
+        org_id=org_id
+    )
+    if as_json:
+        _print_json([item.to_dict() for item in containers])
+        return
+    if not containers:
+        click.echo("No containers.")
+        return
+    for item in containers:
+        click.echo(f"{item.container_id}\t{item.name}\t{item.workspace_id}\t{item.status}")
+
+
+@container.command("show")
+@click.option("--id", "container_id", required=True)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def container_show(container_id, org_id, home, as_json):
+    """Show one container."""
+    item = _control_service(str(home) if home else None).get_container(
+        container_id, org_id=org_id
+    )
+    if as_json:
+        _print_json(item.to_dict())
+        return
+    click.echo(f"Container: {item.container_id}")
+    click.echo(f"Name: {item.name}")
+    click.echo(f"Organization: {item.org_id}")
+    click.echo(f"Workspace: {item.workspace_id}")
+    click.echo(f"Status: {item.status}")
+    click.echo(f"Created: {item.created_at}")
+    if item.site_urls:
+        click.echo("Site URLs: " + ", ".join(item.site_urls))
+    if item.external_refs:
+        refs = ", ".join(f"{ref['system']}:{ref['id']}" for ref in item.external_refs)
+        click.echo(f"External refs: {refs}")
+
+
+@container.command("clone")
+@click.option("--id", "source_container_id", required=True, help="Source container ID.")
+@click.option("--as", "new_container_id", required=True, help="New immutable container ID.")
+@click.option("--name", default=None)
+@click.option("--org", "org_id", default=None)
+@click.option("--workspace", "workspace_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def container_clone(
+    source_container_id,
+    new_container_id,
+    name,
+    org_id,
+    workspace_id,
+    home,
+    as_json,
+):
+    """Clone a container under a new container ID."""
+    result = _control_service(str(home) if home else None).clone_container(
+        source_container_id,
+        new_container_id,
+        name=name,
+        org_id=org_id,
+        workspace_id=workspace_id,
+    )
+    if as_json:
+        _print_json(result.container.to_dict())
+    else:
+        click.echo(
+            f"Cloned {source_container_id} to {result.container.container_id} "
+            f"with {result.revision_count} revision(s)."
+        )
+
+
+@container.command("validate")
+@click.option("--id", "container_id", required=True)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def container_validate(container_id, org_id, home, as_json):
+    """Validate stored revision envelopes and checksums."""
+    report = _control_service(str(home) if home else None).validate_container(
+        container_id, org_id=org_id
+    )
+    if as_json:
+        _print_json(report.to_dict())
+        return
+    click.echo(f"Container {report.container_id} is valid.")
+    click.echo(f"Revisions: {report.revision_count}")
+    click.echo(f"Schema: {report.schema_version}")
+    if report.latest_config_version:
+        click.echo(f"Latest config version: {report.latest_config_version}")
+        click.echo(f"Latest checksum: {report.latest_checksum}")
+
+
+@container.command("audit")
+@click.option("--id", "container_id", required=True)
+@click.option("--limit", type=int, default=None, help="Return only the newest N events.")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def container_audit(container_id, limit, org_id, home, as_json):
+    """Show the append-only local audit trail for a container."""
+    events = _control_service(str(home) if home else None).list_audit_events(
+        container_id, limit=limit, org_id=org_id
+    )
+    if as_json:
+        _print_json([event.to_dict() for event in events])
+        return
+    if not events:
+        click.echo("No audit events.")
+        return
+    for event in events:
+        target = event.config_version or "-"
+        click.echo(
+            f"{event.created_at}\t{event.action}\t{event.result}\t"
+            f"{event.actor}\t{target}"
+        )
+        if event.details:
+            click.echo("  " + ", ".join(f"{key}={value}" for key, value in sorted(event.details.items())))
+
+
+@main.group()
+def environment() -> None:
+    """Manage deployment targets and explicit activation."""
+
+
+@environment.command("create")
+@click.argument("container_id")
+@click.option("--name", required=True)
+@click.option("--protected", is_flag=True, help="Require explicit approval before activation.")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def environment_create(container_id, name, protected, org_id, home, as_json):
+    """Create a named deployment target."""
+    created = _control_service(str(home) if home else None).create_environment(
+        container_id, name, protected=protected, org_id=org_id
+    )
+    if as_json:
+        _print_json(created.to_dict())
+    else:
+        click.echo(
+            f"Created environment {created.name} ({created.environment_id})"
+            + (" [protected]" if created.protected else "")
+        )
+
+
+@environment.command("list")
+@click.argument("container_id")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def environment_list(container_id, org_id, home, as_json):
+    """List deployment targets in a container."""
+    environments = _control_service(str(home) if home else None).list_environments(
+        container_id, org_id=org_id
+    )
+    if as_json:
+        _print_json([item.to_dict() for item in environments])
+        return
+    if not environments:
+        click.echo("No environments.")
+        return
+    for item in environments:
+        click.echo(
+            f"{item.name}\t{item.environment_id}\t"
+            f"{item.current_config_version or '-'}\t"
+            f"{'protected' if item.protected else 'open'}"
+        )
+
+
+@environment.command("activate")
+@click.argument("container_id")
+@click.argument("environment_ref")
+@click.option("--config-version", default=None, help="Defaults to the latest revision.")
+@click.option("--expected-current", default=None, help="Guard against stale activation.")
+@click.option("--allow-protected", is_flag=True, help="Approve activation of a protected target.")
+@click.option("--actor", default="local", show_default=True)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def environment_activate(
+    container_id,
+    environment_ref,
+    config_version,
+    expected_current,
+    allow_protected,
+    actor,
+    org_id,
+    home,
+    as_json,
+):
+    """Point an environment at a validated immutable revision."""
+    result = _control_service(str(home) if home else None).activate_environment(
+        container_id,
+        environment_ref,
+        config_version=config_version,
+        expected_current=expected_current,
+        allow_protected=allow_protected,
+        org_id=org_id,
+        activated_by=actor,
+    )
+    if as_json:
+        _print_json(result.to_dict())
+        return
+    if not result.changed:
+        click.echo(
+            f"Environment {result.environment.name} already active at "
+            f"{result.environment.current_config_version}."
+        )
+        return
+    click.echo(
+        f"Activated {result.environment.name} at "
+        f"{result.environment.current_config_version} "
+        f"(previous: {result.previous_config_version or '-'})."
+    )
+    click.echo("No external deployment was performed.")
+
+
+@environment.command("rollback")
+@click.argument("container_id")
+@click.argument("environment_ref")
+@click.option("--expected-current", default=None, help="Guard against stale rollback.")
+@click.option("--allow-protected", is_flag=True, help="Approve rollback of a protected target.")
+@click.option("--actor", default="local", show_default=True)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def environment_rollback(
+    container_id,
+    environment_ref,
+    expected_current,
+    allow_protected,
+    actor,
+    org_id,
+    home,
+    as_json,
+):
+    """Return an environment to its previous validated revision."""
+    result = _control_service(str(home) if home else None).rollback_environment(
+        container_id,
+        environment_ref,
+        expected_current=expected_current,
+        allow_protected=allow_protected,
+        org_id=org_id,
+        rolled_back_by=actor,
+    )
+    if as_json:
+        _print_json(result.to_dict())
+        return
+    click.echo(
+        f"Rolled back {result.environment.name} to "
+        f"{result.environment.current_config_version} "
+        f"(previous: {result.previous_config_version or '-'})."
+    )
+    click.echo("No external deployment was performed.")
+
+
+@main.group()
+def config() -> None:
+    """Manage immutable configuration revisions and exports."""
+
+
+@config.command("revision-create")
+@click.argument("container_id")
+@click.option("--payload", "payload_path", type=click.Path(), default=None)
+@click.option("--expected-parent", default=None)
+@click.option("--notes", default="")
+@click.option(
+    "--status",
+    type=click.Choice(["draft", "validated", "published", "archived"]),
+    default="draft",
+    show_default=True,
+)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def config_revision_create(
+    container_id,
+    payload_path,
+    expected_parent,
+    notes,
+    status,
+    org_id,
+    home,
+    as_json,
+):
+    """Create an immutable configuration revision."""
+    revision = _control_service(str(home) if home else None).create_revision(
+        container_id,
+        _load_payload(payload_path),
+        org_id=org_id,
+        expected_parent=expected_parent,
+        notes=notes,
+        status=status,
+    )
+    if as_json:
+        _print_json(revision.to_dict())
+    else:
+        click.echo(f"Created config revision {revision.config_version}.")
+        click.echo(f"Revision number: {revision.revision_number}")
+        click.echo(f"Checksum: {revision.checksum}")
+
+
+@config.command("revision-list")
+@click.argument("container_id")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def config_revision_list(container_id, org_id, home, as_json):
+    """List immutable configuration revisions."""
+    revisions = _control_service(str(home) if home else None).list_revisions(
+        container_id, org_id=org_id
+    )
+    if as_json:
+        _print_json([revision.to_dict() for revision in revisions])
+        return
+    if not revisions:
+        click.echo("No revisions.")
+        return
+    for revision in revisions:
+        click.echo(
+            f"{revision.revision_number}\t{revision.config_version}\t"
+            f"{revision.status}\t{revision.checksum}"
+        )
+
+
+@config.command("revision-show")
+@click.argument("container_id")
+@click.argument("config_version")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def config_revision_show(container_id, config_version, org_id, home, as_json):
+    """Show one configuration revision."""
+    revision = _control_service(str(home) if home else None).get_revision(
+        container_id, config_version, org_id=org_id
+    )
+    if as_json:
+        _print_json(revision.to_dict())
+        return
+    click.echo(f"Config version: {revision.config_version}")
+    click.echo(f"Container: {revision.container_id}")
+    click.echo(f"Revision: {revision.revision_number}")
+    click.echo(f"Status: {revision.status}")
+    click.echo(f"Checksum: {revision.checksum}")
+    click.echo(f"Parent: {revision.parent_config_version or '-'}")
+    click.echo(f"Objects: {revision.payload.object_count()}")
+
+
+@config.command("diff")
+@click.argument("container_id")
+@click.option("--from", "from_version", default=None, help="Base revision (defaults to parent).")
+@click.option("--to", "to_version", default=None, help="Target revision (defaults to latest).")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def config_diff(container_id, from_version, to_version, org_id, home, as_json):
+    """Diff two immutable revisions by object identity."""
+    diff = _control_service(str(home) if home else None).diff_revisions(
+        container_id,
+        from_version=from_version,
+        to_version=to_version,
+        org_id=org_id,
+    )
+    if as_json:
+        _print_json(diff.to_dict())
+        return
+    click.echo(
+        f"Revision {diff.from_revision_number} -> {diff.to_revision_number} "
+        f"({diff.from_config_version} -> {diff.to_config_version})"
+    )
+    if diff.identical:
+        click.echo("No object changes.")
+        return
+    click.echo(
+        "Summary: "
+        + ", ".join(f"{key}={value}" for key, value in diff.summary.items())
+    )
+    markers = {"added": "+", "removed": "-", "changed": "~"}
+    for change in diff.changes:
+        suffix = f" ({', '.join(change.fields)})" if change.fields else ""
+        click.echo(f"{markers[change.change]} {change.object_type} {change.object_id}{suffix}")
+
+
+@config.command("export")
+@click.argument("container_id")
+@click.option("--org", "org_id", default=None)
+@click.option("-o", "--output", "output_path", type=click.Path(), default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@_control_command
+def config_export(container_id, org_id, output_path, home):
+    """Export a container and its immutable revisions as JSON."""
+    document = _control_service(str(home) if home else None).export_container(
+        container_id, org_id=org_id
+    )
+    text = json.dumps(document, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    if output_path:
+        Path(output_path).write_text(text, encoding="utf-8")
+        click.echo(f"Wrote container export to {output_path}")
+    else:
+        click.echo(text, nl=False)
+
+
+@config.command("import")
+@click.argument("export_path", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--as", "as_container_id", default=None, help="Import under a new container ID.")
+@click.option("--name", default=None)
+@click.option("--org", "org_id", default=None)
+@click.option("--workspace", "workspace_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def config_import(
+    export_path,
+    as_container_id,
+    name,
+    org_id,
+    workspace_id,
+    home,
+    as_json,
+):
+    """Import a previously exported container."""
+    try:
+        document = json.loads(export_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise click.ClickException(f"export is not valid JSON: {exc}") from exc
+    result = _control_service(str(home) if home else None).import_container(
+        document,
+        as_container_id=as_container_id,
+        name=name,
+        org_id=org_id,
+        workspace_id=workspace_id,
+    )
+    if as_json:
+        _print_json(
+            {
+                "container": result.container.to_dict(),
+                "created": result.created,
+                "revision_count": result.revision_count,
+                "renamed_from": result.renamed_from,
+            }
+        )
+    else:
+        action = "Imported" if result.created else "Already present:"
+        click.echo(
+            f"{action} container {result.container.container_id} "
+            f"with {result.revision_count} revision(s)."
+        )
+
+
+@config.command("validate")
+@click.argument("container_id")
+@click.option("--config-version", default=None)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@click.pass_context
+@_control_command
+def config_validate(ctx, container_id, config_version, org_id, home, as_json):
+    """Validate references, adapters, conditions, and draft warnings."""
+    report = _control_service(str(home) if home else None).validate_config(
+        container_id, config_version=config_version, org_id=org_id
+    )
+    if as_json:
+        _print_json(report.to_dict())
+    else:
+        click.echo("Configuration is valid." if report.valid else "Configuration is invalid.")
+        for issue in report.errors:
+            click.echo(f"ERROR {issue.code}: {issue.message}")
+        for issue in report.warnings:
+            click.echo(f"WARNING {issue.code}: {issue.message}")
+        click.echo(
+            "Objects: "
+            + ", ".join(f"{key}={value}" for key, value in report.counts.items())
+        )
+    ctx.exit(0 if report.valid else 1)
+
+
+@config.command("preview")
+@click.argument("container_id")
+@click.option("--event", "event_path", required=True, type=click.Path(exists=True, dir_okay=False))
+@click.option("--config-version", default=None)
+@click.option("--consent", "consent_values", multiple=True, metavar="PURPOSE=BOOL")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def config_preview(
+    container_id,
+    event_path,
+    config_version,
+    consent_values,
+    org_id,
+    home,
+    as_json,
+):
+    """Simulate one event through a revision. No traffic is sent."""
+    event = _load_json_object(event_path, "event")
+    trace = _control_service(str(home) if home else None).preview(
+        container_id,
+        event,
+        config_version=config_version,
+        org_id=org_id,
+        consent=_parse_consent(consent_values),
+    )
+    if as_json:
+        _print_json(trace)
+        return
+    click.echo("SIMULATION: no tag was executed and no traffic was sent.")
+    click.echo(f"Event: {trace['event']['type']} / {trace['event']['name']}")
+    click.echo(f"Variables resolved: {len(trace['variables'])}")
+    click.echo(
+        "Triggers matched: "
+        + ", ".join(item["name"] for item in trace["triggers"] if item["matched"])
+    )
+    for tag in trace["tags"]:
+        if tag["selected"]:
+            click.echo(f"SELECTED {tag['name']} ({tag['type']})")
+        else:
+            click.echo(f"BLOCKED  {tag['name']}: {tag['blocked_reason']}")
+    for error in trace["errors"]:
+        click.echo(f"ERROR {error['tag_id']}: {error['error']}")
+
+
+@config.command("draft-from-recommendations")
+@click.argument("container_id")
+@click.option(
+    "--snapshot",
+    "snapshot_path",
+    required=True,
+    type=click.Path(exists=True, dir_okay=False),
+)
+@click.option("--adapter", "adapter_key", default="ga4_event", show_default=True)
+@click.option("--destination-id", "destination_ids", multiple=True)
+@click.option("--consent-purpose", default=None)
+@click.option("--expected-parent", default=None)
+@click.option("--notes", default="")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def config_draft_from_recommendations(
+    container_id,
+    snapshot_path,
+    adapter_key,
+    destination_ids,
+    consent_purpose,
+    expected_parent,
+    notes,
+    org_id,
+    home,
+    as_json,
+):
+    """Create an explicit draft revision from crawl recommendations."""
+    document = _load_json_object(snapshot_path, "snapshot")
+    recommendations = _flatten_snapshot_recommendations(document, snapshot_path)
+    result = _control_service(str(home) if home else None).create_draft_from_recommendations(
+        container_id,
+        recommendations,
+        adapter_key=adapter_key,
+        destination_ids=destination_ids,
+        consent_purpose=consent_purpose,
+        expected_parent=expected_parent,
+        notes=notes,
+        org_id=org_id,
+    )
+    if as_json:
+        _print_json(result.to_dict())
+        return
+    click.echo(f"Created draft revision {result.revision.config_version}.")
+    click.echo(f"Tags: {result.tag_count}; triggers: {result.trigger_count}")
+    for warning in result.warnings:
+        click.echo(f"WARNING: {warning}")
+
+
+
+
+def _write_private_text(path: Path, text: str) -> None:
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        os.fchmod(descriptor, 0o600)
+    except Exception:
+        os.close(descriptor)
+        raise
+    with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+        handle.write(text)
+
+
+@config.command("pytagshield-export")
+@click.argument("container_id")
+@click.option("--config-version", default=None)
+@click.option(
+    "--pseudonymize-salt",
+    envvar="PYTAGSHIELD_PSEUDONYMIZE_SALT",
+    required=True,
+    help="Required by PyTagShield when pseudonymize_ids is enabled (default). "
+    "Use the PYTAGSHIELD_PSEUDONYMIZE_SALT environment variable to avoid shell history.",
+)
+@click.option(
+    "--default-policy",
+    type=click.Choice(["deny", "allow"]),
+    default="deny",
+    show_default=True,
+)
+@click.option(
+    "--validate/--no-validate",
+    "validate",
+    default=True,
+    show_default=True,
+    help="Validate the generated document with PyTagShield when the package is installed.",
+)
+@click.option("-o", "--output", "output_path", type=click.Path(), default=None)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.pass_context
+@_control_command
+def config_pytagshield_export(
+    ctx,
+    container_id,
+    config_version,
+    pseudonymize_salt,
+    default_policy,
+    validate,
+    output_path,
+    org_id,
+    home,
+):
+    """Project a revision into a PyTagShield-compatible YAML/JSON document.
+
+    Only event-name routing is projected. Unsupported triggers, destinations,
+    and tag parameters are reported instead of being silently dropped.
+    """
+    home_path = str(home) if home else None
+
+    def resolver(reference: str) -> str:
+        return resolve_secret_ref(reference, home=home_path)
+
+    result = _control_service(home_path).export_pytagshield(
+        container_id,
+        pseudonymize_salt=pseudonymize_salt,
+        config_version=config_version,
+        default_policy=default_policy,
+        secret_resolver=resolver,
+        org_id=org_id,
+    )
+    for issue in result.warnings:
+        click.echo(f"WARNING {issue.code}: {issue.message}", err=True)
+    for issue in result.errors:
+        click.echo(f"ERROR {issue.code}: {issue.message}", err=True)
+    if not result.exportable:
+        ctx.exit(1)
+
+    text = result.to_yaml_compatible_json()
+    if validate:
+        valid, messages = validate_with_pytagshield(result.config)
+        if valid is False:
+            click.echo("ERROR pytagshield_validation_failed: " + "; ".join(messages), err=True)
+            ctx.exit(1)
+        if valid is True:
+            click.echo("PyTagShield validated the generated configuration.", err=True)
+        else:
+            click.echo(
+                "PyTagShield is not installed here; skipped native validation.",
+                err=True,
+            )
+
+    if output_path:
+        _write_private_text(Path(output_path), text)
+        click.echo(
+            f"Wrote PyTagShield configuration to {output_path} "
+            "(mode 0600; contains resolved credentials).",
+            err=True,
+        )
+    else:
+        click.echo(text, nl=False)
+        click.echo(
+            "Configuration may contain resolved credentials; write it to a protected file.",
+            err=True,
+        )
+
+
+def _cdn_root(home: str | None, root: str | None) -> Path:
+    if root:
+        return Path(root).expanduser()
+    base = Path(home).expanduser() if home else FileStore().root
+    return base / "cdn"
+
+
+def _cdn_publish(
+    service,
+    root: Path,
+    container_id,
+    environment_ref,
+    *,
+    org_id,
+    base_url,
+    sdk_version,
+    sdk_asset,
+    default_consent,
+    allow_protected,
+):
+    publisher = FilesystemCDN(
+        root,
+        base_url=base_url,
+        sdk_version=sdk_version,
+        sdk_asset=sdk_asset,
+    )
+    return publisher.publish_environment(
+        service,
+        container_id,
+        environment_ref,
+        org_id=org_id,
+        default_consent=default_consent,
+        allow_protected=allow_protected,
+    )
+
+
+@main.group()
+def cdn() -> None:
+    """Publish immutable container configuration and SDK assets for a CDN."""
+
+
+@cdn.command("publish")
+@click.argument("container_id")
+@click.argument("environment_ref")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None, help="CDN output directory (default: HOME/cdn).")
+@click.option("--base-url", default=None, help="Public base URL used in generated links.")
+@click.option("--sdk-version", default="0.1.0", show_default=True)
+@click.option("--sdk-asset", type=click.Path(dir_okay=False, path_type=Path), default=None)
+@click.option("--default-consent", "default_consent", multiple=True, metavar="PURPOSE=true|false")
+@click.option("--allow-protected", is_flag=True, help="Explicitly approve publishing a protected environment.")
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def cdn_publish(
+    container_id,
+    environment_ref,
+    org_id,
+    home,
+    root_path,
+    base_url,
+    sdk_version,
+    sdk_asset,
+    default_consent,
+    allow_protected,
+    as_json,
+):
+    """Publish the environment's active revision as immutable CDN artifacts."""
+    home_path = str(home) if home else None
+    result = _cdn_publish(
+        _control_service(home_path),
+        _cdn_root(home_path, str(root_path) if root_path else None),
+        container_id,
+        environment_ref,
+        org_id=org_id,
+        base_url=base_url,
+        sdk_version=sdk_version,
+        sdk_asset=sdk_asset,
+        default_consent=_parse_consent(default_consent) or None,
+        allow_protected=allow_protected,
+    )
+    if as_json:
+        _print_json(result.to_dict())
+        return
+    click.echo(f"Published {result.container_id} / {result.environment} at {result.config_version}.")
+    click.echo(f"Config: {result.config_url}")
+    click.echo(f"Latest pointer: {result.latest_url}")
+    click.echo(f"Manifest: {result.manifest_path}")
+    click.echo(f"Integrity: sha256:{result.integrity_digest}")
+    click.echo("No external CDN or vendor account was modified.")
+
+
+@cdn.command("verify")
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def cdn_verify(home, root_path, as_json):
+    """Verify published file hashes, config integrity, and latest pointers."""
+    publisher = FilesystemCDN(
+        _cdn_root(str(home) if home else None, str(root_path) if root_path else None)
+    )
+    issues = publisher.verify()
+    if as_json:
+        _print_json({"valid": not issues, "issues": issues})
+    elif issues:
+        for problem in issues:
+            click.echo(f"{problem['path']}: {problem['message']}", err=True)
+    else:
+        click.echo("CDN publication tree is valid.")
+    if issues:
+        raise click.ClickException(f"{len(issues)} CDN verification failure(s)")
+
+
+@cdn.command("status")
+@click.argument("container_id")
+@click.argument("environment_ref")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def cdn_status(container_id, environment_ref, org_id, home, root_path, as_json):
+    """Show the locally published state of one environment."""
+    home_path = str(home) if home else None
+    service = _control_service(home_path)
+    container = service.get_container(container_id, org_id=org_id)
+    publisher = FilesystemCDN(_cdn_root(home_path, str(root_path) if root_path else None))
+    manifest = publisher.read_manifest(
+        container_id, environment_ref, org_id=container.org_id
+    )
+    if as_json:
+        _print_json(manifest)
+        return
+    environment = manifest.get("environment", {})
+    click.echo(f"Container: {manifest.get('container_id')}")
+    click.echo(f"Environment: {environment.get('name')} ({environment.get('slug')})")
+    click.echo(f"Current config: {manifest.get('current_config_version')}")
+    click.echo(f"Published at: {manifest.get('published_at')}")
+    for revision in manifest.get("revisions", []):
+        click.echo(
+            f"{revision.get('revision_number')}\t{revision.get('config_version')}\t"
+            f"{revision.get('file_sha256')}"
+        )
+
+
+@cdn.command("rollback")
+@click.argument("container_id")
+@click.argument("environment_ref")
+@click.option("--expected-current", default=None)
+@click.option("--allow-protected", is_flag=True)
+@click.option("--actor", default="local", show_default=True)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--base-url", default=None)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def cdn_rollback(
+    container_id,
+    environment_ref,
+    expected_current,
+    allow_protected,
+    actor,
+    org_id,
+    home,
+    root_path,
+    base_url,
+    as_json,
+):
+    """Roll an environment back and publish the prior revision.
+
+    The control-plane rollback and CDN publication are separate writes; if
+    publication fails, re-run ``cdn publish`` after resolving the error.
+    """
+    home_path = str(home) if home else None
+    service = _control_service(home_path)
+    activation = service.rollback_environment(
+        container_id,
+        environment_ref,
+        expected_current=expected_current,
+        allow_protected=allow_protected,
+        org_id=org_id,
+        rolled_back_by=actor,
+    )
+    result = _cdn_publish(
+        service,
+        _cdn_root(home_path, str(root_path) if root_path else None),
+        container_id,
+        environment_ref,
+        org_id=org_id,
+        base_url=base_url,
+        sdk_version="0.1.0",
+        sdk_asset=None,
+        default_consent=None,
+        allow_protected=allow_protected,
+    )
+    if as_json:
+        _print_json({"activation": activation.to_dict(), "publication": result.to_dict()})
+        return
+    click.echo(
+        f"Rolled back {result.environment} to {result.config_version} and republished "
+        f"{result.latest_url}."
+    )
+    click.echo("No external CDN or vendor account was modified.")
+
+
+@cdn.command("write-cache-policy")
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+def cdn_write_cache_policy(home, root_path):
+    """Write a self-hosting cache-policy note into the CDN tree."""
+    path = write_static_server_config(
+        _cdn_root(str(home) if home else None, str(root_path) if root_path else None)
+    )
+    click.echo(f"Wrote {path}")
+
+@main.command("serve-ingest")
+@click.option("--host", default="127.0.0.1", show_default=True)
+@click.option("--port", type=click.IntRange(0, 65535), default=8080, show_default=True)
+@click.option("--container", "containers", multiple=True, help="Allowed public container ID (repeatable).")
+@click.option("--pytagshield-url", default=None, help="Forward accepted events to this PyTagShield base URL.")
+@click.option("--pytagshield-token-ref", default=None, help="Secret reference for PyTagShield bearer auth (env:NAME or file:PATH).")
+@click.option("--allow-private-pytagshield", is_flag=True, help="Allow a private/loopback PyTagShield URL; use only for intentional self-hosting.")
+@click.option("--pytagshield-timeout", type=float, default=5.0, show_default=True)
+@click.option("--rate-limit-per-minute", type=click.IntRange(1, 1_000_000), default=120, show_default=True)
+@click.option("--max-body-bytes", type=click.IntRange(1, 10_000_000), default=65_536, show_default=True)
+@click.option("--max-batch-events", type=click.IntRange(1, 100), default=100, show_default=True)
+@click.option("--dedupe-ttl-seconds", type=click.IntRange(1, 31_536_000), default=86_400, show_default=True)
+@click.option("--dedupe-claim-ttl-seconds", type=click.IntRange(1, 3_600), default=60, show_default=True, help="How long an in-flight claim blocks retries before it can be reclaimed.")
+@click.option("--dedupe-db", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Persist event-id claims in this SQLite file for restart/cross-process dedupe.")
+@click.option("--api-token-ref", default=None, help="Optional server-to-server API token secret reference; not for browser SDKs.")
+@click.option("--allow-origin", "origins", multiple=True, help="Allowed CORS origin (repeatable; default *).")
+@click.option("--path", "collection_path", default="/api/v1/events", show_default=True, help="Public collection path, e.g. /collect for same-origin routing.")
+@click.option("--tls-cert", type=click.Path(dir_okay=False, path_type=Path), default=None)
+@click.option("--tls-key", type=click.Path(dir_okay=False, path_type=Path), default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@_control_command
+def serve_ingest(
+    host,
+    port,
+    containers,
+    pytagshield_url,
+    pytagshield_token_ref,
+    allow_private_pytagshield,
+    pytagshield_timeout,
+    rate_limit_per_minute,
+    max_body_bytes,
+    max_batch_events,
+    dedupe_ttl_seconds,
+    dedupe_claim_ttl_seconds,
+    dedupe_db,
+    api_token_ref,
+    origins,
+    collection_path,
+    tls_cert,
+    tls_key,
+    home,
+):
+    """Run a self-hosted event collection endpoint.
+
+    Accepted events are validated and deduplicated here. Destination policy
+    remains in PyTagShield; without --pytagshield-url this endpoint only
+    acknowledges validated events and does not forward them.
+    """
+    from pytagmanager.ingest import (
+        IngestConfig,
+        IngestService,
+        PyTagShieldClient,
+        make_ssl_context,
+        serve,
+    )
+
+    if (tls_cert is None) != (tls_key is None):
+        raise click.ClickException("--tls-cert and --tls-key must be supplied together")
+    if host not in {"127.0.0.1", "::1", "localhost"} and tls_cert is None:
+        click.echo(
+            "WARNING: listening beyond loopback without TLS; terminate HTTPS at a "
+            "reverse proxy and never expose this endpoint over plaintext.",
+            err=True,
+        )
+    home_path = str(home) if home else None
+    forwarder = None
+    if pytagshield_url:
+        forwarder = PyTagShieldClient(
+            pytagshield_url,
+            token_ref=pytagshield_token_ref,
+            home=home_path,
+            timeout_seconds=pytagshield_timeout,
+            allow_private_networks=allow_private_pytagshield,
+        )
+    try:
+        config = IngestConfig(
+            allowed_containers=frozenset(containers) if containers else None,
+            max_body_bytes=max_body_bytes,
+            max_batch_events=max_batch_events,
+            dedupe_ttl_seconds=dedupe_ttl_seconds,
+            dedupe_claim_ttl_seconds=dedupe_claim_ttl_seconds,
+            dedupe_store_path=str(dedupe_db) if dedupe_db else None,
+            rate_limit_per_minute=rate_limit_per_minute,
+            api_token_ref=api_token_ref,
+            cors_origins=tuple(origins) if origins else ("*",),
+            path=collection_path,
+            home=home_path,
+        )
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    try:
+        service = IngestService(config, forwarder=forwarder)
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+    ssl_context = make_ssl_context(str(tls_cert), str(tls_key)) if tls_cert else None
+    scheme = "https" if ssl_context else "http"
+    click.echo(f"Collection endpoint listening at {scheme}://{host}:{port}{collection_path}")
+    click.echo(f"Dedupe backend: {service.dedupe.backend}")
+    click.echo(
+        "Forwarding to PyTagShield." if forwarder else
+        "No forwarder configured; validated events are acknowledged but not delivered."
+    )
+    click.echo("Press Ctrl-C to stop.", err=True)
+    try:
+        serve(service, host=host, port=port, ssl_context=ssl_context)
+    except KeyboardInterrupt:
+        click.echo("Stopped.")
+
+@main.group()
+def gtm() -> None:
+    """Inspect and convert Google Tag Manager container exports."""
+
+
+@gtm.command("inspect")
+@click.argument("container_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text")
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path), default=None)
+def gtm_inspect(container_file, output_format, output):
+    """Explain likely GTM configuration faults from an exported container."""
+    document = load_container(container_file)
+    findings = analyze_container(document)
+    payload = {
+        "container_file": str(container_file),
+        "finding_count": len(findings),
+        "findings": [finding.to_dict() for finding in findings],
+    }
+    if output_format == "json":
+        text = json.dumps(payload, indent=2, sort_keys=True, ensure_ascii=False)
+        if output:
+            output.write_text(text + "\n", encoding="utf-8")
+        else:
+            click.echo(text)
+        return
+    if output:
+        output.write_text(_render_gtm_findings(findings) + "\n", encoding="utf-8")
+        return
+    click.echo(_render_gtm_findings(findings))
+
+
+def _render_gtm_findings(findings) -> str:
+    if not findings:
+        return "No deterministic GTM configuration findings."
+    lines = [f"{len(findings)} GTM configuration finding(s):"]
+    for finding in findings:
+        lines.append(
+            f"[{finding.severity.upper()}/{finding.confidence}] {finding.code}: "
+            f"{finding.message}"
+        )
+        for evidence in finding.evidence:
+            lines.append(f"  evidence: {evidence}")
+        lines.append(f"  remediation: {finding.remediation}")
+    return "\n".join(lines)
+
+
+@gtm.command("export")
+@click.argument("container_id")
+@click.option("--config-version", default=None)
+@click.option("-o", "--output", type=click.Path(dir_okay=False, path_type=Path), required=True)
+@click.option("--format", "output_format", type=click.Choice(["json", "yaml"]), default=None)
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@_control_command
+def gtm_export(container_id, config_version, output, output_format, org_id, home):
+    """Export a managed revision as a GTM-compatible container snapshot."""
+    service = _control_service(str(home) if home else None)
+    if config_version:
+        revision = service.get_revision(container_id, config_version, org_id=org_id)
+    else:
+        revisions = service.list_revisions(container_id, org_id=org_id)
+        if not revisions:
+            raise click.ClickException("container has no revisions to export")
+        revision = revisions[-1]
+    document = payload_to_gtm(revision.payload)
+    write_container(document, output, format=output_format)
+    click.echo(f"Wrote GTM container snapshot from revision {revision.config_version} to {output}.")
+
+
+@gtm.command("import")
+@click.argument("container_file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+@click.argument("container_id")
+@click.option("--org", "org_id", default=None)
+@click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option("--notes", default="Imported from GTM export", show_default=True)
+@click.option("--json", "as_json", is_flag=True)
+@_control_command
+def gtm_import(container_file, container_id, org_id, home, notes, as_json):
+    """Create a draft revision from a GTM JSON/YAML container export.
+
+    The import is best-effort and never activates the revision. Unsupported
+    trigger conditions and variables are reported instead of being silently
+    reinterpreted.
+    """
+    service = _control_service(str(home) if home else None)
+    document = load_container(container_file)
+    payload, warnings = gtm_to_payload(document)
+    revision = service.create_revision(
+        container_id,
+        payload,
+        org_id=org_id,
+        notes=notes,
+    )
+    result = {
+        "container_id": container_id,
+        "config_version": revision.config_version,
+        "revision_number": revision.revision_number,
+        "object_counts": {
+            "tags": len(payload.tags),
+            "triggers": len(payload.triggers),
+            "variables": len(payload.variables),
+        },
+        "warnings": warnings,
+        "activated": False,
+    }
+    if as_json:
+        _print_json(result)
+        return
+    click.echo(
+        f"Imported draft revision {revision.config_version} with "
+        f"{len(payload.tags)} tag(s), {len(payload.triggers)} trigger(s), "
+        f"{len(payload.variables)} variable(s). Not activated."
+    )
+    for warning in warnings:
+        click.echo(f"WARNING {warning}", err=True)
 
 
 if __name__ == "__main__":

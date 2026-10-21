@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "event_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+  "event_name": "server_sync",
+  "timestamp": "2026-10-20T12:03:04.500Z",
+  "source": {
+    "platform": "server",
+    "sdk_name": "pytagmanager-python",
+    "sdk_version": "1.0.0"
+  },
+  "container_id": "GTM-ABC1234",
+  "properties": {}
+}

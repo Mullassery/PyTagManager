@@ -1,0 +1,18 @@
+{
+  "name": "@pytagmanager/web-sdk",
+  "version": "0.1.0",
+  "description": "PyTagManager Web SDK for declarative event collection and consent-aware delivery",
+  "license": "Apache-2.0",
+  "main": "dist/pytagmanager.js",
+  "types": "types/index.d.ts",
+  "browser": "dist/pytagmanager.js",
+  "files": ["dist", "src", "types", "README.md", "build.mjs"],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/sdk.test.js",
+    "prepublishOnly": "node build.mjs && node --test test/sdk.test.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

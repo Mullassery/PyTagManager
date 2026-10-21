@@ -9,52 +9,82 @@
 
 ## Problem
 
-Implementing and verifying analytics tracking on a website is mostly manual: hand-
-inspecting the DOM to find what should be tracked, writing CSS selectors by hand,
-clicking through GTM Preview mode one interaction at a time to confirm a tag actually
-fired, and re-doing all of it whenever the site changes.
+Google Tag Manager makes it easy to create tags, triggers and variables — and
+hard to explain why the resulting implementation does not match what the
+website or the measurement plan expects. Engineers still hand-inspect pages,
+step through GTM Preview one interaction at a time, guess which variable is
+empty, and discover duplicate or unreachable tags only after an event fails to
+arrive.
 
-## Solution
+## What PyTagManager does
 
-An AI-native analytics implementation platform: crawl a website, build a
-semantic DOM graph, generate tracking recommendations, export to seven
-analytics/tag-management platforms, build a variable-level Data Dictionary,
-track how a site's tracking surface changes over time, verify at runtime in
-a real browser that tracking actually fires the way it should, and
-(optionally) classify business intent with a local LLM.
+PyTagManager is a **debugging and implementation-intelligence tool for Google
+Tag Manager**. It combines evidence from the live website and the GTM
+configuration:
 
-**Current scope**: web crawling + semantic DOM graph (Rust) → rule-based
-tracking recommendations (Python) → export to GTM, GA4, Segment, Snowplow,
-Tealium, RudderStack, and Adobe Tags → Website Data Dictionary → crawl-to-crawl
-diffing → **Tracking Observability & Diagnostics** (real-browser interaction →
-dataLayer → GTM → GA4 correlation and rule-based root-cause diagnosis) →
-optional Ollama-backed AI classification. This is a deliberately scoped slice
-of a much larger long-term vision — see [`docs/VISION.md`](docs/VISION.md) for
-the north star and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full
-capability table and what's deliberately deferred (visual AI, XDM modeling, an
-enterprise audit engine, and non-web platforms — each with a specific reason,
-not a blanket "not yet").
+- **Website discovery with MudFish** — crawl/scrape an authorized domain,
+  inspect static HTML and loaded JavaScript, rendered DOM, dataLayer, network
+  requests, consent state, storage and interactions.
+- **GTM container understanding** — import GTM container JSON or YAML, inspect
+  tags, triggers, variables, `{{variable}}` references and firing conditions,
+  and explain why a tag cannot behave as configured.
+- **Runtime diagnosis** — reproduce a journey in a real browser and correlate
+  DOM events → dataLayer → GTM → analytics requests with console errors and
+  consent state.
+- **Targeted remediation** — explain the specific tag/trigger/variable or page
+  evidence at fault, produce a reviewable GTM import/diff where applicable, and
+  verify the result at runtime. Source patching/PR generation is not implemented
+  yet; proposed fixes always require explicit review.
+
+**PyTagManager is not a replacement for Google Tag Manager, and it is not a
+measurement/CDP/attribution platform.** GTM remains the tag manager. The Web,
+iOS and Android SDKs plus the collection endpoint are secondary debugging tools
+for testing first-party event flow and same-domain PyTagShield routing, not a
+measurement product.
+
+The existing crawler, exporters, Data Dictionary, diagnostics and control plane
+remain available. Start with [`docs/GETTING_STARTED.md`](docs/GETTING_STARTED.md);
+the product vision is in [`docs/VISION.md`](docs/VISION.md).
+
+## Common debugging workflows
+
+```bash
+# Inspect an exported GTM container (JSON or YAML) for likely faults.
+pytagmanager gtm inspect gtm-container.yaml
+pytagmanager gtm inspect gtm-container.yaml --format json -o findings.json
+
+# Drive a real browser and correlate runtime evidence with GTM/GA4.
+pytagmanager diagnose https://example.com --max-pages 20
+pytagmanager diagnose https://example.com/checkout --scenario purchase.yml --format json
+
+# Discover pages and page-code/tagging evidence across the domain.
+pytagmanager crawl https://example.com --render --sniff-analytics --max-pages 50
+
+# Export a managed revision as a reviewable GTM container snapshot.
+pytagmanager gtm export GTM-ABC1234 --output gtm-review.yaml
+
+# Import a GTM snapshot as a draft revision; nothing is activated.
+pytagmanager gtm import gtm-container.yaml GTM-ABC1234 --json
+```
 
 ## Use cases
 
-- **Generating a first-pass tracking plan for a new site** — `pytagmanager
-  crawl <url> --export gtm` finds trackable interactions without hand-writing
-  CSS selectors, and exports directly to your tag-management platform of choice.
-- **Building a data inventory before a migration or audit** — `pytagmanager
-  dictionary <url>` produces a variable-level inventory (every dataLayer
-  field/cookie/storage key, type, example values, which pages have it).
-- **Catching tracking regressions after a deploy** — `pytagmanager diff` between
-  two crawl snapshots, or `pytagmanager diagnose --site-wide --history` for a
-  running health-score trend with webhook alerts on regression.
-- **Verifying a specific journey actually tracks correctly**, not just that the
-  DOM looks right — `pytagmanager diagnose <url> --scenario journey.yml` drives
-  a real browser and diagnoses root causes (missing event, GTM tag not firing,
-  consent blocking, parameter loss) with a confidence label per finding.
-- **Not yet a good fit for:** non-web platforms (mobile, kiosk, IoT — see
-  `docs/ARCHITECTURE.md`); anything needing visual/screenshot-based element
-  grounding rather than DOM structure; cloud-LLM-backed intent classification
-  (only local Ollama and deterministic heuristics exist today — see
-  [What's not working](#whats-not-working--open-issues)).
+- **Explain a tag that will never fire** — `gtm inspect` finds tags with no
+  firing trigger, dangling trigger references, undefined variables and duplicate
+  event delivery before anyone opens GTM Preview.
+- **Explain a tag that fires incorrectly** — `diagnose` correlates the browser
+  interaction, dataLayer push, GTM trigger, tag and network request, with
+  confidence-labeled root causes.
+- **Catch duplicate direct + GTM instrumentation** — static and runtime
+  evidence show whether two implementations are producing duplicate events.
+- **Review a GTM container before import** — inspect a JSON/YAML snapshot,
+  apply the proposed correction, and keep the original for rollback.
+- **Catch tracking regressions** — `diff` crawl snapshots or `diagnose
+  --site-wide --history` for historical health changes.
+- **Not yet a good fit for:** kiosk/IoT, visual/screenshot-only element
+  grounding, or cloud-LLM-backed intent classification. Mobile SDK sources exist
+  but their verification status is explicitly limited; see
+  [Multi-platform SDKs and collection](#multi-platform-sdks-and-collection).
 
 ## Installation
 
@@ -89,6 +119,74 @@ pytagmanager crawl https://example.com --max-pages 20 --export gtm -o out.json
 `--export` accepts `gtm`, `ga4`, `segment`, `snowplow`, `tealium`,
 `rudderstack`, or `adobe_tags` (see `python/pytagmanager/export/base.py`'s
 `EXPORTERS` registry).
+
+Managed revisions can also be projected into a startup configuration for
+[PyTagShield](https://github.com/Mullassery/PyTagShield). The projection is
+conservative: only server-representable event-name routing is exported, and
+unsupported triggers, destinations, parameters, or credentials fail closed.
+
+```bash
+pytagmanager config pytagshield-export GTM-ABC1234 \
+  --pseudonymize-salt "$PYTAGSHIELD_PSEUDONYMIZE_SALT" \
+  --output pytagshield.yaml
+```
+
+The output is JSON (valid YAML for PyTagShield) and is written mode `0600`
+because resolved credentials are embedded. See
+[`docs/architecture/pytagshield-integration.md`](docs/architecture/pytagshield-integration.md).
+
+## Multi-platform SDKs and collection
+
+The web control plane can publish immutable public configuration and SDK assets
+to a self-hosted CDN tree, and run a standalone collection endpoint:
+
+```bash
+# Publish the active environment to a filesystem CDN tree.
+pytagmanager cdn publish GTM-ABC1234 Production --root ./cdn --json
+
+# Verify hashes, config integrity and latest pointers.
+pytagmanager cdn verify --root ./cdn
+
+# Run collection without forwarding (development / debugging).
+pytagmanager serve-ingest --container GTM-ABC1234 --port 8080
+
+# Persist event-id claims across restarts and same-host worker processes.
+pytagmanager serve-ingest --container GTM-ABC1234 \
+  --dedupe-db /var/lib/pytagmanager/dedupe.sqlite3
+
+# Forward accepted, validated events to a real PyTagShield instance.
+pytagmanager serve-ingest \
+  --container GTM-ABC1234 \
+  --path /collect \
+  --pytagshield-url https://shield.example.com \
+  --pytagshield-token-ref env:PYTAGSHIELD_INGEST_TOKEN
+```
+
+For a persistent systemd + reverse-proxy deployment, see
+[`deploy/collection/README.md`](deploy/collection/README.md). Browser and
+server-side events should share one public `/collect` origin; collector-level
+`event_id` dedupe does not apply to traffic sent directly to PyTagShield.
+
+The collection endpoint exposes `GET /healthz` (configuration and limits, no
+secrets) and `POST /api/v1/events`. `GET /healthz` plus the SDK diagnostics
+snapshot (`PyTagManager.snapshot()` in Swift/Kotlin, `debugSnapshot()` in the
+Web SDK) are intended for safe debugging: they report config version/source,
+queue depth, last sanitized diagnostics and forwarding status without echoing
+event properties or secrets.
+
+| SDK | State |
+| --- | --- |
+| Web | Implemented in `sdk/web/`; build and 11 Node tests pass |
+| iOS | Swift package in `sdk/ios/`; library builds, 19 executable checks pass, UIKit lifecycle observer added; XCTest needs Xcode/CI |
+| Android | Kotlin library in `sdk/android/`; `./gradlew :sdk:build` passes with lint and 28 JUnit tests (debug + release); no emulator/device tests |
+
+Public configuration never contains destination credentials or tag parameters.
+The collection endpoint validates and deduplicates events (in memory by default,
+or durably with `--dedupe-db`) but does **not** perform destination routing;
+PyTagShield (or another adapter) owns that policy.
+See [`docs/architecture/multiplatform-extension.md`](docs/architecture/multiplatform-extension.md)
+for contracts, cache layout, security boundaries, exact test commands and
+limitations.
 
 ## Architecture
 
@@ -592,6 +690,7 @@ Part of the Mullassery open-source family — PyTagManager sits at the *tagging/
 - [PyReverseETL](https://github.com/Mullassery/PyReverseETL) — quality-validated reverse ETL / data activation
 - [MessageBirds](https://github.com/Mullassery/MessageBirds) — event-driven customer data and engagement platform
 - [StatGuardian](https://github.com/Mullassery/StatGuardian) — runtime data-quality validation
+- [PyTagShield](https://github.com/Mullassery/PyTagShield) — consent-aware, privacy-minimizing server-side event pipeline; PyTagManager can project managed revisions into its startup config
 - [PyDeepMesh](https://github.com/Mullassery/PyDeepMesh) — dependency-graph and vulnerability intelligence
 - [Browse all projects →](https://github.com/Mullassery?tab=repositories)
 
@@ -616,10 +715,14 @@ history. Licensed under [Apache-2.0](LICENSE).
 
 ## What's working now (verified)
 
-40 Rust tests + 404 Python tests, covering the CLI end-to-end (`crawl`,
-`diff`, `dictionary`, `diagnose`), all 7 exporters, crawl-diffing, and —
-with real headless Chromium, not mocks — the full Tracking Observability
-correlation and diagnostic-rules pipeline. See
+23 Rust tests + 634 Python tests, covering the CLI end-to-end (`crawl`,
+`diff`, `dictionary`, `diagnose`, `gtm inspect/export/import`), all 7
+exporters, crawl-diffing, the shared event contract, public-config/CDN
+publication, the collection endpoint with in-memory or durable SQLite
+deduplication, plus — with real headless Chromium, not mocks — the full
+Tracking Observability correlation and diagnostic-rules pipeline. The Web SDK
+passes 11 Node tests; the iOS library builds with 19 executable checks (XCTest
+pending); Android builds with lint and 28 JUnit tests (no device tests). See
 [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) for the full built-and-reachable /
 built-but-not-reachable / not-built / CI-status breakdown, including exactly
 which roadmap phases are shipped vs. still pending.
@@ -638,18 +741,21 @@ which roadmap phases are shipped vs. still pending.
   pytagmanager` users were never affected — the CLI's `dictionary`/`diagnose`
   commands import these lazily inside their own function bodies, not at
   module load.
-- **GTM write/apply is not implemented.** GTM usage and drift blast-radius are
-  shipped (`dictionary --gtm-config`, `gtm-plan`), but applying recommendations
-  to a live workspace still requires manual import.
+- **Live GTM API writes are not implemented.** GTM usage and drift
+  blast-radius are shipped (`dictionary --gtm-config`, `gtm-plan`), and
+  `gtm import` creates a reviewable draft revision from JSON/YAML, but
+  publishing/activating a live GTM workspace still requires manual review and
+  import. PyTagManager never auto-activates.
 - **`ClaudeIntentClassifier`** referenced in `docs/ROADMAP.md`'s Phase 2 is
   planned, not implemented; the only real `IntentClassifier` implementations
   today are `OllamaIntentClassifier` and the deterministic heuristics.
 - No open GitHub issues and no `TODO`/`FIXME` markers in `src/` or
   `python/` as of this pass — the gaps that exist are the deliberately
   deferred phases tracked in `docs/ARCHITECTURE.md` and `docs/ROADMAP.md`
-  (visual/screenshot grounding, multi-platform data-layer export, XDM
-  modeling, the enterprise audit engine, and non-web platforms), not
-  undocumented rot.
+  (visual/screenshot grounding, XDM modeling, non-GTM platform importers, and
+  kiosk/desktop/IoT platforms), not undocumented rot. Web/iOS/Android SDKs and
+  the CDN/collection extension exist but have the explicit verification limits
+  listed above.
 
 ## Project layout
 

@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "event_id": "3f6e3f56-2f7b-4c7d-9f2a-1d1b7c9e4a10",
+  "event_name": "page_view",
+  "timestamp": "2026-10-20T12:00:00.000Z",
+  "source": {
+    "platform": "web",
+    "sdk_name": "pytagmanager-web",
+    "sdk_version": "0.1.0"
+  },
+  "container_id": "GTM-ABC1234",
+  "config_version": "4a8f9b5c-7d6e-4f30-8a21-0c9d8e7f6a5b",
+  "subject": {"id": "anon-7f3c9a", "type": "anonymous"},
+  "consent": {
+    "purposes": {"analytics": true, "advertising": false},
+    "source": "sdk",
+    "provenance": "explicit",
+    "updated_at": "2026-10-20T11:59:00.000Z"
+  },
+  "correlation": {"session_id": "session-9e2b"},
+  "properties": {
+    "page_path": "/pricing",
+    "page_title": "Pricing",
+    "referrer": "https://example.com/"
+  }
+}
