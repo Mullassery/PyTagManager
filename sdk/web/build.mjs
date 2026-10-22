@@ -6,8 +6,20 @@ import { fileURLToPath } from "node:url";
 const root = dirname(fileURLToPath(import.meta.url));
 const source = join(root, "src", "pytagmanager.js");
 const destination = join(root, "dist", "pytagmanager.js");
+const packageAsset = join(
+  root,
+  "..",
+  "..",
+  "python",
+  "pytagmanager",
+  "distribution",
+  "assets",
+  "pytagmanager.js",
+);
 mkdirSync(dirname(destination), { recursive: true });
 copyFileSync(source, destination);
+mkdirSync(dirname(packageAsset), { recursive: true });
+copyFileSync(source, packageAsset);
 const bytes = readFileSync(destination);
 const digest = createHash("sha256").update(bytes).digest("hex");
 writeFileSync(join(root, "dist", "pytagmanager.js.sha256"), `${digest}  pytagmanager.js\n`);

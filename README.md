@@ -715,14 +715,16 @@ history. Licensed under [Apache-2.0](LICENSE).
 
 ## What's working now (verified)
 
-23 Rust tests + 634 Python tests, covering the CLI end-to-end (`crawl`,
+23 Rust tests + 637 Python tests, covering the CLI end-to-end (`crawl`,
 `diff`, `dictionary`, `diagnose`, `gtm inspect/export/import`), all 7
 exporters, crawl-diffing, the shared event contract, public-config/CDN
 publication, the collection endpoint with in-memory or durable SQLite
 deduplication, plus — with real headless Chromium, not mocks — the full
 Tracking Observability correlation and diagnostic-rules pipeline. The Web SDK
 passes 11 Node tests; the iOS library builds with 19 executable checks (XCTest
-pending); Android builds with lint and 28 JUnit tests (no device tests). See
+pending); Android builds with lint and 28 JUnit tests (no device tests). A
+fresh wheel install was smoke-tested end to end, including CDN SDK publication.
+See
 [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) for the full built-and-reachable /
 built-but-not-reachable / not-built / CI-status breakdown, including exactly
 which roadmap phases are shipped vs. still pending.

@@ -21,6 +21,7 @@ from pytagmanager.distribution import (
     build_published_config,
     verify_published_config,
 )
+from pytagmanager.distribution import publisher as publisher_module
 
 
 def _payload() -> ConfigPayload:
@@ -84,6 +85,24 @@ def test_tampered_public_config_fails_integrity(active_container):
     config["events"][0]["name"] = "tampered"
     with pytest.raises(ValidationError, match="integrity"):
         verify_published_config(config)
+
+
+def test_bundled_web_sdk_matches_source():
+    repo = Path(__file__).resolve().parents[2]
+    bundled = repo / "python/pytagmanager/distribution/assets/pytagmanager.js"
+    source = repo / "sdk/web/src/pytagmanager.js"
+    assert bundled.read_bytes() == source.read_bytes()
+
+
+def test_default_publisher_uses_bundled_web_sdk():
+    publisher = FilesystemCDN(Path("unused"))
+    expected = (
+        Path(publisher_module.__file__).resolve().parent
+        / "assets"
+        / "pytagmanager.js"
+    )
+    assert publisher.sdk_asset == expected
+    assert expected.is_file()
 
 
 def test_publish_writes_immutable_assets_and_pointer(active_container):

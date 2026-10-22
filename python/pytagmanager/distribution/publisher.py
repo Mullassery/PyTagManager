@@ -169,9 +169,7 @@ class FilesystemCDN:
         self.root = Path(root)
         self.base_url = base_url.rstrip("/") if base_url else None
         self.sdk_version = sdk_version
-        default_asset = (
-            Path(__file__).resolve().parents[3] / "sdk" / "web" / "dist" / "pytagmanager.js"
-        )
+        default_asset = Path(__file__).with_name("assets") / "pytagmanager.js"
         self.sdk_asset = Path(sdk_asset) if sdk_asset is not None else default_asset
 
     def publish_environment(

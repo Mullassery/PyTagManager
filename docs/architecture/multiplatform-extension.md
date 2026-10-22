@@ -170,7 +170,7 @@ Commands run in this environment:
 
 ```text
 .venv-test/bin/python -m pytest -q
-634 passed, 6 skipped
+637 passed, 6 skipped
 
 .venv-test/bin/python -m pytest tests/python/test_distribution.py \
   tests/python/test_ingest.py tests/python/test_gtm.py -q
@@ -188,7 +188,17 @@ PASS 19 Swift checks
 cd sdk/android && ./gradlew :sdk:build
 BUILD SUCCESSFUL
 28 Android JUnit tests passed (debug and release), lint passed, debug/release AARs built
+
+maturin build --release
+fresh venv + pip install dist/*.whl
+pytagmanager --help
+installed FilesystemCDN.publish_environment -> sdk/web/0.1.0/pytagmanager.js
 ```
+
+The wheel install check found and fixed two packaging defects: base CLI imports
+no longer pull in optional `yaml`/Playwright dependencies, and the built wheel
+now bundles the Web SDK asset instead of relying on an untracked `sdk/web/dist`
+directory outside the package.
 
 Swift `XCTest` cannot run because only Apple Command Line Tools are installed
 (no Xcode); the executable Swift checks are the actual executed evidence.
@@ -200,17 +210,15 @@ were run.
 
 Completed in this pass: event contract, public config, filesystem CDN, Web SDK,
 collection service/HTTP, durable single-host dedupe, PyTagShield adapter, iOS
-Foundation SDK/lifecycle observer, and Android SDK build/lint/JUnit validation
-including auto-flush.
+Foundation SDK/lifecycle observer, Android SDK build/lint/JUnit validation
+including auto-flush, and a wheel build/install smoke test.
 
 Remaining:
 
-1. Packaging/install check (full Python, Rust, Web, iOS and Android regression
-   suites were rerun and passed).
-2. iOS XCTest run in an Xcode environment, including the UIKit lifecycle test.
-3. Android emulator or physical-device instrumentation tests.
-4. Live PyTagShield/CDN integration and multi-host idempotency.
-5. Multi-platform architecture docs, rule-catalog updates and release notes.
+1. iOS XCTest run in an Xcode environment, including the UIKit lifecycle test.
+2. Android emulator or physical-device instrumentation tests.
+3. Live PyTagShield/CDN integration and multi-host idempotency.
+4. Multi-platform architecture docs, rule-catalog updates and release notes.
 
 Acceptance for the extension:
 
