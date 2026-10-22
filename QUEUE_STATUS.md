@@ -1,9 +1,13 @@
-# Queue status — 2026-10-19
+# Queue status — 2026-10-22
 
 This file records what was shipped, what is blocked/failed, and what is rejected for this repository. It complements `AUDIT_FINDINGS.md`.
 
 ## Shipped
-- Lighthouse ingestion (`pytagmanager lighthouse`) with normalized scores/Core Web Vitals.
+- Lighthouse ingestion (`pytagmanager lighthouse`) with normalized scores/Core Web Vitals,
+  plus repeated-run `lighthouse-ci` medians/ranges/budgets/failed-run retention.
+- First CMP-audit vertical slice (`pytagmanager cmp audit`): signature adapters, Cookiebot
+  and Google Consent Mode state, pre/post-choice request ordering, reload persistence,
+  stable findings, v1 JSON schema, and explicit authorization before any consent click.
 - GTM usage index + drift blast radius; `gtm-plan` dry-run planner.
 - `--fail-on-regression`, scheduled GitHub workflow, Click CI fix, docs aligned to 0.5.0.
 
@@ -13,6 +17,9 @@ This file records what was shipped, what is blocked/failed, and what is rejected
 
 ## Rejected / deferred
 - Visual/screenshot grounding, XDM modeling, and mobile platforms — not required for web QA.
+- Remainder of the enterprise CMP/audit engine beyond the shipped vertical slice: custom
+  adapter plugins, more documented vendor state readers, multi-page/SPA consent journeys,
+  GPP/TCF string decoding, and consent-aware tag-configuration joining.
 
 ## Policy
 

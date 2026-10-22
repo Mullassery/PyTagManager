@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CMP fixture: unknown banner</title>
+</head>
+<body>
+  <div id="cookie-banner">
+    <p>We use cookies.</p>
+    <button id="accept-all">Accept</button>
+    <button id="reject-all">Reject</button>
+  </div>
+  <script>
+    document.getElementById('accept-all').addEventListener('click', function () {
+      document.cookie = "generic_consent=accepted; path=/";
+    });
+    document.getElementById('reject-all').addEventListener('click', function () {
+      document.cookie = "generic_consent=rejected; path=/";
+    });
+  </script>
+</body>
+</html>

@@ -715,15 +715,16 @@ history. Licensed under [Apache-2.0](LICENSE).
 
 ## What's working now (verified)
 
-23 Rust tests + 637 Python tests, covering the CLI end-to-end (`crawl`,
-`diff`, `dictionary`, `diagnose`, `gtm inspect/export/import`), all 7
-exporters, crawl-diffing, the shared event contract, public-config/CDN
-publication, the collection endpoint with in-memory or durable SQLite
-deduplication, plus — with real headless Chromium, not mocks — the full
-Tracking Observability correlation and diagnostic-rules pipeline. The Web SDK
-passes 11 Node tests; the iOS library builds with 19 executable checks (XCTest
-pending); Android builds with lint and 28 JUnit tests (no device tests). A
-fresh wheel install was smoke-tested end to end, including CDN SDK publication.
+23 Rust tests + 683 Python tests, covering the CLI end-to-end (`crawl`,
+`diff`, `dictionary`, `diagnose`, `gtm inspect/export/import`, repeated-run
+`lighthouse-ci`, `cmp audit`), all 7 exporters, crawl-diffing, the shared event contract,
+public-config/CDN publication, the collection endpoint with in-memory or
+durable SQLite deduplication, plus — with real headless Chromium, not mocks —
+the full Tracking Observability correlation and diagnostic-rules pipeline. The
+Web SDK passes 11 Node tests; the iOS library builds with 19 executable checks
+(XCTest pending); Android builds with lint and 28 JUnit tests (no device tests).
+A fresh wheel install was smoke-tested end to end, including CDN SDK
+publication.
 See
 [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) for the full built-and-reachable /
 built-but-not-reachable / not-built / CI-status breakdown, including exactly
@@ -793,3 +794,52 @@ print(report.categories, report.metrics)
 The adapter normalizes category scores, LCP/TBT/CLS/INP/FCP/Speed Index, and
 failing opportunities. A missing Lighthouse/Chrome binary raises
 `LighthouseUnavailable`; scores are never fabricated.
+
+### Repeated runs with honest CI assessment
+
+One Lighthouse run is an anecdote. `lighthouse-ci` executes independent runs,
+reports medians and observed ranges, retains failures instead of dropping them,
+and makes a pass/fail judgement only against explicit budgets:
+
+```bash
+pytagmanager lighthouse-ci https://example.com \
+  --runs 5 --min-runs 3 \
+  --budget lcp_ms=2500 \
+  --budget tbt_ms=200 \
+  --budget cls=0.1 \
+  --budget performance=0.9 \
+  --fail-on-budget \
+  --format json -o lighthouse-ci.json
+```
+
+Exit codes: `0` assessment completed and budgets (if any) passed, `1` a budget
+failed or its metric was unavailable, `2` too few runs completed or too many
+runs failed (unless `--allow-partial`). The JSON report includes every sample,
+per-metric distributions, budgets, confidence, assessment and limitations.
+It does not claim field (CrUX/RUM) performance, a universal speed verdict, or
+downstream tag delivery. Use `--help` for the supported budget keys.
+
+## CMP audit
+
+`cmp audit` collects consent-platform evidence from one page: detected CMP
+signatures, readable consent state, pre/post-choice analytics and advertising
+requests, and reload persistence. It is read-only by default and never submits
+a consent choice unless `--consent-action` is paired with
+`--authorize-consent-interaction`; only use that in an isolated test environment
+you control.
+
+```bash
+pytagmanager cmp audit https://staging.example.com --format json -o cmp.json
+
+pytagmanager cmp audit https://staging.example.com \
+  --consent-action reject \
+  --authorize-consent-interaction \
+  --reload-after-consent
+```
+
+The report has stable rule IDs, confidence, evidence, remediation, and explicit
+limitations. It does not produce a compliance score, does not decode most vendor
+cookies, and never treats a banner as proof of enforcement. Cookie values and
+request query strings are not serialized. See
+[`docs/CMP_AUDIT.md`](docs/CMP_AUDIT.md) and
+[`schemas/cmp/v1/audit-report.schema.json`](schemas/cmp/v1/audit-report.schema.json).

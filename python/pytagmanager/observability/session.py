@@ -88,6 +88,8 @@ class ObservationSession:
         capture_storage_values: bool = False,
         track_scroll_depth: bool = False,
         scroll_depth_milestones: Optional[Sequence[int]] = None,
+        capture_all_network: bool = False,
+        max_network_events: int = 500,
     ):
         self.headless = headless
         self.browser_name = browser_name
@@ -99,6 +101,14 @@ class ObservationSession:
         # storage *values* -- see the privacy note in observability/state.py.
         # Keys/type/length are always captured regardless of this flag.
         self.capture_storage_values = capture_storage_values
+        # CMP auditing needs to see consent-platform scripts and non-analytics
+        # requests (e.g. a CMP loader, or a pixel firing before consent), not
+        # only GA4/GTM collect endpoints. Off by default because capturing
+        # every request is noisier and more privacy-sensitive; callers that
+        # enable it get bounded, query-stripped URL evidence.
+        self.capture_all_network = capture_all_network
+        self.max_network_events = max(1, int(max_network_events))
+        self._network_event_count = 0
         self._events: List[TrackingEvent] = []
         self._state_snapshots: List[RuntimeStateSnapshot] = []
         self._state_diffs: List[StateDiff] = []
@@ -145,16 +155,38 @@ class ObservationSession:
         )
 
     def _on_network_request(self, request) -> None:
-        if _classify_network_url(request.url) is None:
+        pattern = _classify_network_url(request.url)
+        if pattern is None and not self.capture_all_network:
             return
-        params = redact_payload(_parse_query_params(request.url))
+        if self.capture_all_network:
+            if self._network_event_count >= self.max_network_events:
+                return
+            self._network_event_count += 1
+        if pattern is None:
+            # Generic CMP evidence must not persist query strings: they can
+            # contain identifiers, consent tokens, or personal data. Keep
+            # only origin + path; the analytics branch below already redacts
+            # recognized GA4/GTM query parameters by key.
+            params = {}
+            parsed = urlparse(request.url)
+            evidence_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
+        else:
+            params = redact_payload(_parse_query_params(request.url))
+            evidence_url = request.url
         self._events.append(
             TrackingEvent.create(
                 source="network",
                 event_type="network_request",
                 event_name=params.get("en", ""),
                 page_url=self._page.url if self._page else "",
-                payload={"url": request.url, "method": request.method, "params": params},
+                payload={
+                    "url": evidence_url,
+                    "method": request.method,
+                    "params": params,
+                    "network_pattern": pattern or "all",
+                    "resource_type": getattr(request, "resource_type", ""),
+                },
+                metadata={"capture_all_network": pattern is None},
             )
         )
 
@@ -240,6 +272,39 @@ class ObservationSession:
 
     def scroll_into_view(self, selector: str) -> None:
         self._page.locator(selector).first.scroll_into_view_if_needed()
+
+    def evaluate(self, expression: str, arg=None):
+        """Evaluate a bounded, caller-supplied expression in the page.
+
+        Used by evidence collectors that need a documented vendor global
+        (e.g. Cookiebot's consent object) rather than guessing from markup.
+        This is deliberately a thin wrapper, not a general browser-automation
+        API, and it never mutates the page on its own.
+        """
+        return self._page.evaluate(expression, arg)
+
+    def click(self, selector: str, timeout_ms: int = 5000) -> bool:
+        """Click one element, returning False instead of raising if it is
+        absent/unclickable. Consent-lifecycle auditing records that failure as
+        evidence rather than aborting the whole report.
+        """
+        try:
+            self._page.locator(selector).first.click(timeout=timeout_ms)
+            return True
+        except Exception:
+            return False
+
+    def reload(self, wait_until: str = "networkidle") -> None:
+        """Reload the current page while keeping the injected agent active."""
+        self._page.reload(wait_until=wait_until)
+
+    def browser_cookies(self) -> List[dict]:
+        """Playwright's full cookie metadata (including HttpOnly cookies).
+
+        Cookie *values* are present in Playwright's result; CMP reporting
+        must only serialize metadata (name/domain/path/flags), never values.
+        """
+        return self._page.context.cookies()
 
     def capture_html(self) -> str:
         """The live, rendered DOM's HTML right now (Playwright's

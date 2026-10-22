@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures" / "observability"
+_CMP_FIXTURES_DIR = Path(__file__).parent / "fixtures" / "cmp"
 
 
 class _QuietHandler(http.server.SimpleHTTPRequestHandler):
@@ -15,6 +16,22 @@ class _QuietHandler(http.server.SimpleHTTPRequestHandler):
         # CliRunner captures into result.output -- polluting tests that
         # assert on exact CLI output (e.g. parsing --format json).
         pass
+
+
+@pytest.fixture(scope="session")
+def cmp_fixture_server():
+    """Serves the CMP fixtures over a real local HTTP origin, including
+    same-origin /g/collect requests used to verify pre/post-consent ordering.
+    """
+    handler = functools.partial(_QuietHandler, directory=str(_CMP_FIXTURES_DIR))
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield f"http://127.0.0.1:{server.server_port}"
+    finally:
+        server.shutdown()
+        thread.join(timeout=5)
 
 
 @pytest.fixture(scope="session")

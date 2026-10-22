@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pytagmanager.dev/schemas/cmp/v1/audit-report.schema.json",
+  "title": "PyTagManager CMP audit report v1",
+  "description": "Evidence-backed CMP audit output. This schema intentionally contains no field for raw cookie values or request query strings.",
+  "type": "object",
+  "required": ["schema_version", "url", "generated_at", "mode", "detections", "consent", "lifecycle", "cookies", "requests", "findings", "limitations", "summary"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "url": {"type": "string", "description": "Sanitized page URL without query string or fragment."},
+    "generated_at": {"type": "number"},
+    "mode": {"type": "string", "enum": ["browser"]},
+    "detections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["adapter_id", "vendor", "adapter_contract_version", "confidence", "capabilities", "accept_selectors", "reject_selectors", "notes", "evidence"],
+        "properties": {
+          "adapter_id": {"type": "string"},
+          "vendor": {"type": "string"},
+          "adapter_contract_version": {"type": "string"},
+          "confidence": {"$ref": "#/$defs/confidence"},
+          "capabilities": {"type": "array", "items": {"type": "string"}},
+          "accept_selectors": {"type": "array", "items": {"type": "string"}},
+          "reject_selectors": {"type": "array", "items": {"type": "string"}},
+          "notes": {"type": "array", "items": {"type": "string"}},
+          "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "consent": {
+      "type": "object",
+      "required": ["initial", "after_action", "after_reload"],
+      "properties": {
+        "initial": {"$ref": "#/$defs/consentState"},
+        "after_action": {"oneOf": [{"$ref": "#/$defs/consentState"}, {"type": "null"}]},
+        "after_reload": {"oneOf": [{"$ref": "#/$defs/consentState"}, {"type": "null"}]}
+      },
+      "additionalProperties": false
+    },
+    "lifecycle": {
+      "type": "object",
+      "required": ["requested_action", "authorized", "performed", "selector", "failure_reason", "reloaded", "started_at", "completed_at"],
+      "properties": {
+        "requested_action": {"type": "string", "enum": ["none", "accept", "reject"]},
+        "authorized": {"type": "boolean"},
+        "performed": {"type": "boolean"},
+        "selector": {"type": "string"},
+        "failure_reason": {"type": "string"},
+        "reloaded": {"type": "boolean"},
+        "started_at": {"type": "number"},
+        "completed_at": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "cookies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "domain", "path", "secure", "http_only", "same_site", "expires", "cmp_related"],
+        "properties": {
+          "name": {"type": "string"},
+          "domain": {"type": "string"},
+          "path": {"type": "string"},
+          "secure": {"type": "boolean"},
+          "http_only": {"type": "boolean"},
+          "same_site": {"type": "string"},
+          "expires": {"type": "number"},
+          "cmp_related": {"type": "boolean"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "requests": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["url", "method", "category", "phase", "host", "timestamp", "network_pattern", "resource_type"],
+        "properties": {
+          "url": {"type": "string", "description": "Sanitized URL without query string or fragment."},
+          "method": {"type": "string"},
+          "category": {"type": "string", "enum": ["analytics", "advertising", "consent", "other"]},
+          "phase": {"type": "string", "enum": ["initial", "after_action", "after_reload"]},
+          "host": {"type": "string"},
+          "timestamp": {"type": "number"},
+          "network_pattern": {"type": "string"},
+          "resource_type": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["finding_id", "rule_id", "category", "severity", "confidence", "title", "message", "remediation", "component", "detection_method", "source", "timestamp", "evidence"],
+        "properties": {
+          "finding_id": {"type": "string"},
+          "rule_id": {"type": "string"},
+          "category": {"type": "string"},
+          "severity": {"$ref": "#/$defs/severity"},
+          "confidence": {"$ref": "#/$defs/confidence"},
+          "title": {"type": "string"},
+          "message": {"type": "string"},
+          "remediation": {"type": "string"},
+          "component": {"type": "string"},
+          "detection_method": {"type": "string"},
+          "source": {"type": "string"},
+          "timestamp": {"type": "number"},
+          "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+        },
+        "additionalProperties": false
+      }
+    },
+    "limitations": {"type": "array", "items": {"type": "string"}},
+    "summary": {
+      "type": "object",
+      "required": ["detected_cmp_count", "finding_count", "tracking_request_count"],
+      "properties": {
+        "detected_cmp_count": {"type": "integer", "minimum": 0},
+        "finding_count": {"type": "integer", "minimum": 0},
+        "tracking_request_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "informational"]},
+    "confidence": {"type": "string", "enum": ["confirmed", "high-confidence", "suspected", "unverified"]},
+    "evidence": {
+      "type": "object",
+      "required": ["kind", "summary", "source", "value", "page_url", "timestamp"],
+      "properties": {
+        "kind": {"type": "string"},
+        "summary": {"type": "string"},
+        "source": {"type": "string"},
+        "value": {"type": "string"},
+        "page_url": {"type": "string"},
+        "timestamp": {"type": "number"}
+      },
+      "additionalProperties": false
+    },
+    "consentState": {
+      "type": "object",
+      "required": ["sources", "categories", "google_mode", "confidence", "timestamp", "evidence"],
+      "properties": {
+        "sources": {"type": "array", "items": {"type": "string"}},
+        "categories": {
+          "type": "object",
+          "required": ["necessary", "preferences", "analytics", "advertising", "other"],
+          "properties": {
+            "necessary": {"oneOf": [{"type": "boolean"}, {"type": "null"}]},
+            "preferences": {"oneOf": [{"type": "boolean"}, {"type": "null"}]},
+            "analytics": {"oneOf": [{"type": "boolean"}, {"type": "null"}]},
+            "advertising": {"oneOf": [{"type": "boolean"}, {"type": "null"}]},
+            "other": {"oneOf": [{"type": "boolean"}, {"type": "null"}]}
+          },
+          "additionalProperties": false
+        },
+        "google_mode": {"type": "object", "additionalProperties": {"type": "string"}},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "timestamp": {"type": "number"},
+        "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -26,6 +26,15 @@ file is a release-oriented complement to it, not a duplicate.
   snapshots.
 - Collection deployment examples, Android/Web/iOS CI jobs and GTM-focused
   getting-started documentation.
+- `pytagmanager lighthouse-ci`: repeated Lighthouse runs aggregated by median
+  with observed ranges, failed-run retention, explicit budgets, confidence and
+  limitations. A single run is no longer presented as a performance verdict.
+- `pytagmanager cmp audit`: evidence-backed CMP detection (Cookiebot, OneTrust,
+  Usercentrics, Didomi, Quantcast, TrustArc, Osano, Google Funding Choices),
+  Cookiebot/Google Consent Mode state, pre/post-choice request ordering, reload
+  persistence checks, stable findings and a v1 JSON schema. Read-only by
+  default; consent interaction requires explicit authorization. Reports never
+  include raw cookie values or request query strings.
 
 ### Fixed
 - Base `pytagmanager` CLI imports no longer require the optional `yaml` or

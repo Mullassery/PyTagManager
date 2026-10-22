@@ -1,0 +1,223 @@
+{
+  "consent": {
+    "after_action": null,
+    "after_reload": null,
+    "initial": {
+      "categories": {
+        "advertising": false,
+        "analytics": false,
+        "necessary": true,
+        "other": null,
+        "preferences": false
+      },
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "kind": "consent_api",
+          "page_url": "",
+          "source": "javascript",
+          "summary": "Cookiebot consent object read",
+          "timestamp": 1792660685.688759,
+          "value": "window.Cookiebot.consent"
+        },
+        {
+          "kind": "consent_mode",
+          "page_url": "https://staging.example.com/cookiebot.html",
+          "source": "datalayer",
+          "summary": "gtag consent default observed",
+          "timestamp": 1792660685.116,
+          "value": "ad_storage=denied, analytics_storage=denied, personalization_storage=denied"
+        },
+        {
+          "kind": "cookie",
+          "page_url": "",
+          "source": "cookie",
+          "summary": "CMP-related cookie present: CookieConsent",
+          "timestamp": 1792660685.688759,
+          "value": "CookieConsent"
+        }
+      ],
+      "google_mode": {
+        "ad_storage": "denied",
+        "analytics_storage": "denied",
+        "personalization_storage": "denied"
+      },
+      "sources": [
+        "cookiebot_consent",
+        "google_consent_mode",
+        "cookie_presence"
+      ],
+      "timestamp": 1792660685.688759
+    }
+  },
+  "cookies": [
+    {
+      "cmp_related": true,
+      "domain": "staging.example.com",
+      "expires": -1.0,
+      "http_only": false,
+      "name": "CookieConsent",
+      "path": "/",
+      "same_site": "Lax",
+      "secure": false
+    }
+  ],
+  "detections": [
+    {
+      "accept_selectors": [
+        "#CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll",
+        "#CybotCookiebotDialogBodyButtonAccept"
+      ],
+      "adapter_contract_version": "1",
+      "adapter_id": "cookiebot",
+      "capabilities": [
+        "detection",
+        "consent_controls",
+        "consent_cookie",
+        "consent_api"
+      ],
+      "confidence": "confirmed",
+      "evidence": [
+        {
+          "kind": "global",
+          "page_url": "",
+          "source": "javascript",
+          "summary": "Cookiebot global present: window.Cookiebot",
+          "timestamp": 0.0,
+          "value": "Cookiebot"
+        },
+        {
+          "kind": "cookie",
+          "page_url": "",
+          "source": "cookie",
+          "summary": "Cookiebot consent cookie present: CookieConsent",
+          "timestamp": 0.0,
+          "value": "CookieConsent"
+        },
+        {
+          "kind": "markup",
+          "page_url": "",
+          "source": "html",
+          "summary": "Cookiebot marker present in inline script",
+          "timestamp": 0.0,
+          "value": "cookiebot"
+        }
+      ],
+      "notes": [
+        "Consent object read via the documented window.Cookiebot.consent API."
+      ],
+      "reject_selectors": [
+        "#CybotCookiebotDialogBodyButtonDecline"
+      ],
+      "vendor": "Cookiebot"
+    }
+  ],
+  "findings": [
+    {
+      "category": "consent",
+      "component": "consent:analytics",
+      "confidence": "high-confidence",
+      "detection_method": "request timestamp ordering against consent state captured at page load",
+      "evidence": [
+        {
+          "kind": "network",
+          "page_url": "",
+          "source": "network",
+          "summary": "Analytics request observed before consent: staging.example.com",
+          "timestamp": 1792660685.118465,
+          "value": "http://staging.example.com/g/collect"
+        },
+        {
+          "kind": "consent_api",
+          "page_url": "",
+          "source": "javascript",
+          "summary": "Cookiebot consent object read",
+          "timestamp": 1792660685.688759,
+          "value": "window.Cookiebot.consent"
+        },
+        {
+          "kind": "consent_mode",
+          "page_url": "https://staging.example.com/cookiebot.html",
+          "source": "datalayer",
+          "summary": "gtag consent default observed",
+          "timestamp": 1792660685.116,
+          "value": "ad_storage=denied, analytics_storage=denied, personalization_storage=denied"
+        },
+        {
+          "kind": "cookie",
+          "page_url": "",
+          "source": "cookie",
+          "summary": "CMP-related cookie present: CookieConsent",
+          "timestamp": 1792660685.688759,
+          "value": "CookieConsent"
+        },
+        {
+          "kind": "consent_state",
+          "page_url": "",
+          "source": "cookiebot_consent,google_consent_mode,cookie_presence",
+          "summary": "Readable consent state",
+          "timestamp": 1792660685.688759,
+          "value": "advertising=denied, analytics=denied, necessary=granted, preferences=denied"
+        }
+      ],
+      "finding_id": "cmp.tracking_before_consent.analytics:352187c52f",
+      "message": "1 analytics request(s) were observed before any consent interaction while the observed consent state said analytics was denied.",
+      "remediation": "Verify the consent state for this session, then ensure the tag is gated on the corresponding consent category before any collection request fires.",
+      "rule_id": "cmp.tracking_before_consent.analytics",
+      "severity": "high",
+      "source": "pytagmanager",
+      "timestamp": 0.0,
+      "title": "Analytics requests observed before consent"
+    }
+  ],
+  "generated_at": 1792660685.711859,
+  "lifecycle": {
+    "authorized": false,
+    "completed_at": 1792660685.690102,
+    "failure_reason": "",
+    "performed": false,
+    "reloaded": false,
+    "requested_action": "none",
+    "selector": "",
+    "started_at": 1792660684.88687
+  },
+  "limitations": [
+    "This is an evidence report, not a legal compliance determination or legal advice.",
+    "A visible consent banner is not proof that consent is enforced; no banner was treated as compliance.",
+    "Server-side consent enforcement, logged-in states, and cross-device consent were not tested.",
+    "Cookie values were not persisted; cookie presence alone does not prove which categories were granted.",
+    "Only documented vendor consent APIs are read directly; other vendor states are reported as cookie/markup evidence.",
+    "This run used a read-only observation session unless consent interaction was explicitly authorized.",
+    "No consent choice was exercised; post-choice and withdrawal behavior was not tested."
+  ],
+  "mode": "browser",
+  "requests": [
+    {
+      "category": "other",
+      "host": "staging.example.com",
+      "method": "GET",
+      "network_pattern": "all",
+      "phase": "initial",
+      "resource_type": "document",
+      "timestamp": 1792660685.113473,
+      "url": "https://staging.example.com/cookiebot.html"
+    },
+    {
+      "category": "analytics",
+      "host": "staging.example.com",
+      "method": "GET",
+      "network_pattern": "/g/collect(\\?|$)",
+      "phase": "initial",
+      "resource_type": "fetch",
+      "timestamp": 1792660685.118465,
+      "url": "https://staging.example.com/g/collect"
+    }
+  ],
+  "schema_version": 1,
+  "summary": {
+    "detected_cmp_count": 1,
+    "finding_count": 1,
+    "tracking_request_count": 1
+  },
+  "url": "https://staging.example.com/cookiebot.html"
+}

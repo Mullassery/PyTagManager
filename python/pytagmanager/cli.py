@@ -1225,6 +1225,124 @@ def lighthouse_command(url, output_path, lighthouse_path, chrome_path, timeout, 
         click.echo(text)
 
 
+@main.command(name="lighthouse-ci")
+@click.argument("url")
+@click.option(
+    "--runs",
+    default=3,
+    show_default=True,
+    type=click.IntRange(1, 20),
+    help="Number of independent Lighthouse runs to aggregate. One run is an anecdote; use at least 3.",
+)
+@click.option(
+    "--min-runs",
+    default=2,
+    show_default=True,
+    type=click.IntRange(1, 20),
+    help="Minimum successful runs required before any assessment is made.",
+)
+@click.option(
+    "--budget",
+    "budget_specs",
+    multiple=True,
+    metavar="METRIC=VALUE",
+    help="Performance budget evaluated against the median, e.g. lcp_ms=2500, tbt_ms=200, "
+    "cls=0.1, performance=0.9. Repeatable. Allowed keys: lcp_ms, tbt_ms, cls, inp_ms, "
+    "fcp_ms, speed_index_ms, performance, accessibility, best-practices, seo.",
+)
+@click.option(
+    "--fail-on-budget",
+    "fail_on_budget",
+    is_flag=True,
+    help="Exit 1 when any supplied budget is exceeded (or its metric is unavailable).",
+)
+@click.option(
+    "--allow-partial",
+    "allow_partial",
+    is_flag=True,
+    help="Do not exit 2 merely because some requested runs failed, as long as --min-runs completed. "
+    "Insufficient data still always returns a failure exit code.",
+)
+@click.option("--lighthouse-path", default="lighthouse", show_default=True)
+@click.option("--chrome-path", default=None)
+@click.option("--timeout", default=120, show_default=True, type=int, help="Per-run timeout in seconds.")
+@click.option(
+    "--max-output-mb",
+    "max_output_mb",
+    default=25,
+    show_default=True,
+    type=click.IntRange(1, 200),
+    help="Reject a single Lighthouse JSON report larger than this many MiB.",
+)
+@click.option("-o", "--output", "output_path", type=click.Path(), default=None)
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+def lighthouse_ci(
+    url: str,
+    runs: int,
+    min_runs: int,
+    budget_specs: tuple[str, ...],
+    fail_on_budget: bool,
+    allow_partial: bool,
+    lighthouse_path: str,
+    chrome_path: str | None,
+    timeout: int,
+    max_output_mb: int,
+    output_path: str | None,
+    output_format: str,
+) -> None:
+    """Run repeated Lighthouse audits and report an honest assessment.
+
+    Unlike `lighthouse`, this command never treats one run as a verdict: it
+    reports medians and observed ranges across independent runs, records failed
+    runs rather than dropping them, and only makes a pass/fail judgement when
+    explicit budgets are supplied.
+    """
+    from pytagmanager.audit.lighthouse import (
+        LighthouseRunner,
+        LighthouseUnavailable,
+        parse_budgets,
+        render_lighthouse_ci_report,
+    )
+
+    if min_runs > runs:
+        raise click.UsageError("--min-runs cannot exceed --runs")
+    try:
+        budgets = parse_budgets(budget_specs)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from exc
+
+    try:
+        report = LighthouseRunner(
+            lighthouse_path=lighthouse_path,
+            chrome_path=chrome_path,
+            timeout=timeout,
+            max_output_bytes=max_output_mb * 1024 * 1024,
+        ).run_repeated(url, runs=runs, min_runs=min_runs, budgets=budgets)
+    except LighthouseUnavailable as exc:
+        raise click.ClickException(str(exc)) from exc
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    text = (
+        json.dumps(report.to_dict(), indent=2)
+        if output_format == "json"
+        else render_lighthouse_ci_report(report)
+    )
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as handle:
+            handle.write(text + "\n")
+        click.echo(f"Wrote Lighthouse CI report to {output_path}")
+    else:
+        click.echo(text)
+
+    if report.insufficient_data:
+        raise click.exceptions.Exit(2)
+    if report.failed_runs and not allow_partial:
+        raise click.exceptions.Exit(2)
+    if fail_on_budget and report.budget_failed:
+        raise click.exceptions.Exit(1)
+
+
 def _control_command(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
@@ -2387,6 +2505,114 @@ def serve_ingest(
         serve(service, host=host, port=port, ssl_context=ssl_context)
     except KeyboardInterrupt:
         click.echo("Stopped.")
+
+@main.group()
+def cmp() -> None:
+    """Audit consent-management evidence without claiming legal compliance."""
+
+
+@cmp.command("audit")
+@click.argument("url")
+@click.option("--headless/--no-headless", default=True, show_default=True)
+@click.option(
+    "--browser",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+    show_default=True,
+)
+@click.option(
+    "--consent-action",
+    type=click.Choice(["none", "accept", "reject"]),
+    default="none",
+    show_default=True,
+    help="Optionally exercise one consent control. Requires --authorize-consent-interaction.",
+)
+@click.option(
+    "--accept-selector",
+    multiple=True,
+    help="Explicit selector for the accept control. Repeatable; overrides adapter defaults.",
+)
+@click.option(
+    "--reject-selector",
+    multiple=True,
+    help="Explicit selector for the reject control. Repeatable; overrides adapter defaults.",
+)
+@click.option(
+    "--authorize-consent-interaction",
+    is_flag=True,
+    help="Explicitly authorize clicking one consent control in a test environment you control. "
+    "Without this flag, PyTagManager never submits a consent choice.",
+)
+@click.option("--wait", "wait_seconds", default=1.0, show_default=True, type=float,
+              help="Seconds to wait after a consent interaction before reading state/network evidence.")
+@click.option("--selector-timeout-ms", default=5000, show_default=True, type=int)
+@click.option(
+    "--reload-after-consent",
+    is_flag=True,
+    help="Reload after the consent action to test whether the choice persisted.",
+)
+@click.option("--max-network-events", default=500, show_default=True, type=click.IntRange(1, 5000))
+@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option("-o", "--output", "output_path", type=click.Path(dir_okay=False, path_type=Path), default=None)
+def cmp_audit(
+    url,
+    headless,
+    browser,
+    consent_action,
+    accept_selector,
+    reject_selector,
+    authorize_consent_interaction,
+    wait_seconds,
+    selector_timeout_ms,
+    reload_after_consent,
+    max_network_events,
+    output_format,
+    output_path,
+):
+    """Collect CMP, consent, and pre/post-choice evidence from one page.
+
+    This is an evidence report, not a legal compliance determination. By
+    default it never clicks or submits a consent choice; that requires both
+    --consent-action and --authorize-consent-interaction.
+    """
+    from pytagmanager.cmp import (
+        CmpAuditAuthorizationError,
+        CmpAuditOptions,
+        CmpAuditRunner,
+        render_cmp_audit_report,
+    )
+
+    options = CmpAuditOptions(
+        headless=headless,
+        browser_name=browser,
+        accept_selectors=accept_selector,
+        reject_selectors=reject_selector,
+        wait_seconds=wait_seconds,
+        selector_timeout_ms=selector_timeout_ms,
+        reload_after_consent=reload_after_consent,
+        max_network_events=max_network_events,
+    )
+    try:
+        report = CmpAuditRunner(options).run(
+            url,
+            consent_action=consent_action,
+            authorize_consent_interaction=authorize_consent_interaction,
+        )
+    except CmpAuditAuthorizationError as exc:
+        raise click.UsageError(str(exc)) from exc
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    if output_format == "json":
+        text = json.dumps(report.to_dict(), indent=2, sort_keys=True, ensure_ascii=False)
+    else:
+        text = render_cmp_audit_report(report)
+    if output_path:
+        output_path.write_text(text + "\n", encoding="utf-8")
+        click.echo(f"Wrote CMP audit report to {output_path}")
+    else:
+        click.echo(text)
+
 
 @main.group()
 def gtm() -> None:

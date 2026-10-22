@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CMP fixture: Cookiebot</title>
+  <script>
+    window.Cookiebot = {
+      consent: {
+        necessary: true,
+        preferences: false,
+        statistics: false,
+        marketing: false
+      }
+    };
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+    document.cookie = "CookieConsent=stamp-fixture; path=/; SameSite=Lax";
+    gtag('consent', 'default', {
+      ad_storage: 'denied',
+      analytics_storage: 'denied',
+      personalization_storage: 'denied'
+    });
+    fetch('/g/collect?en=page_view&ep.source=fixture').catch(function () {});
+  </script>
+</head>
+<body>
+  <h1>Cookiebot test page</h1>
+  <div id="banner">
+    <button id="CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll">Accept all</button>
+    <button id="CybotCookiebotDialogBodyButtonDecline">Reject all</button>
+  </div>
+  <script>
+    function applyChoice(accepted) {
+      var decision = accepted ? 'granted' : 'denied';
+      window.Cookiebot.consent.preferences = accepted;
+      window.Cookiebot.consent.statistics = accepted;
+      window.Cookiebot.consent.marketing = accepted;
+      window.gtag('consent', 'update', {
+        ad_storage: decision,
+        analytics_storage: decision,
+        personalization_storage: decision
+      });
+      fetch('/g/collect?en=' + (accepted ? 'after_accept' : 'after_reject') + '&ep.source=fixture').catch(function () {});
+    }
+    document.getElementById('CybotCookiebotDialogBodyLevelButtonLevelOptinAllowAll').addEventListener('click', function () {
+      applyChoice(true);
+    });
+    document.getElementById('CybotCookiebotDialogBodyButtonDecline').addEventListener('click', function () {
+      applyChoice(false);
+    });
+  </script>
+</body>
+</html>

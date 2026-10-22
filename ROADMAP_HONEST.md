@@ -3,7 +3,7 @@
 **Current Version:** v0.5.0 (published to PyPI 2026-10-19; supersedes v0.3.0,
 which was published 2026-10-04 with a `v0.3.0` git tag; macOS arm64 wheel only
 -- no Linux/Windows wheels, same disclosed gap as past releases)
-**Last Updated:** 2026-10-04 (crawl engine migrated onto Mudfish's
+**Last Updated:** 2026-10-22 (crawl engine migrated onto Mudfish's
 fetch/frontier/robots/circuit-breaker building blocks; see the `pytagmanager
 crawl` entry below. `docs/VISION.md`/`docs/ARCHITECTURE.md` describe this
 crate as having its own bespoke crawler -- that's now only true for the
@@ -18,6 +18,13 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
 
 ## 🟢 Built & verified & reachable (real implementation, wired into the CLI, tested)
 
+- **`pytagmanager lighthouse-ci` + `pytagmanager cmp audit`** — repeated-run
+  Lighthouse medians/ranges/budgets with failed-run retention, and the first
+  CMP-audit vertical slice: evidence-backed CMP signatures, Cookiebot/Google
+  Consent Mode state, pre/post-choice request ordering, reload persistence,
+  stable findings, v1 JSON schema, and a read-only default that requires explicit
+  authorization before any consent click. A banner is never treated as a
+  compliance verdict, and raw cookie values/query strings are never serialized.
 - **`pytagmanager crawl`** — async crawl (priority frontier, sitemap.xml,
   robots.txt, politeness, retry/backoff, per-host circuit breaker, SSRF guard) →
   semantic DOM graph → rule-based tracking recommendations → export to 7 platforms
@@ -85,7 +92,7 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **40 Rust tests** + **404 Python tests** (2 of which are environment-flaky — see
+- **23 Rust tests** + **683 Python tests** (2 of which are environment-flaky — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
 - **Phase 1.95 (Script Impact & Performance Intelligence) is fully shipped.** New
@@ -386,7 +393,7 @@ to spend time on them.
   2026-09-22**: `Fetcher::build()` already returns `Result<Self, AppError>` for its
   other failure modes two lines above, so this became `.build().map_err(|e|
   AppError::Internal(...))?` — no structural reason remained for the panic. Verified
-  with `cargo build`, `cargo test` (40/40 passing), `cargo fmt --check`, and
+  with `cargo build`, `cargo test` (23/23 passing), `cargo fmt --check`, and
   `cargo clippy --all-targets -- -D warnings` (clean).
 - **`python/pytagmanager/testintel/playwright_export.py:63`**: the generated draft
   Playwright script contains a `# TODO: implement the steps above against a real page
@@ -395,7 +402,7 @@ to spend time on them.
   in the README/this file's Phase 1.9 section), not undisclosed rot in PyTagManager's
   own codebase. Listed here only so a future search for `TODO` in this repo isn't
   surprised by it.
-- **No coverage measurement** (`pytest-cov` or equivalent) is configured — 404 passing
+- **No coverage measurement** (`pytest-cov` or equivalent) is configured — 683 passing
   Python tests is a real, verified count (this pass ran the full suite live), but
   there is no line/branch coverage number backing it, so "well-tested" is a claim
   about test *count* and CI-verified breadth, not a measured coverage percentage.

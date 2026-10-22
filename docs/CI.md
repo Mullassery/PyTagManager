@@ -58,3 +58,83 @@ Notes:
 - `--fail-on-regression` requires `--history`.
 - The webhook is optional; without it the job still fails, which is usually
   enough for GitHub's notification settings.
+
+## CMP audit artifacts
+
+Read-only CMP evidence is safe to collect from a staging URL. Authorized consent
+interaction is a separate, explicit opt-in and should only target an isolated
+environment you control — never a shared production site.
+
+```yaml
+      - name: CMP evidence
+        run: |
+          pytagmanager cmp audit "$STAGING_URL" \
+            --format json -o cmp-audit.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cmp-audit
+          path: cmp-audit.json
+```
+
+The report contains stable findings and limitations, but no compliance score.
+Cookie values and request query strings are excluded. If you intentionally test
+a choice, add `--consent-action reject --authorize-consent-interaction` and run
+against a disposable test environment. See [`CMP_AUDIT.md`](CMP_AUDIT.md).
+
+## Lighthouse CI budgets
+
+`lighthouse-ci` runs Lighthouse several times and evaluates explicit budgets
+against the **median**, not a lucky single run. It never invents a performance
+verdict when budgets are absent or too few runs complete.
+
+```yaml
+name: lighthouse-budget
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 7 * * *"
+
+jobs:
+  lighthouse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm install -g lighthouse
+      - run: pip install "pytagmanager[diagnostics]"
+      - name: Repeated Lighthouse audit
+        env:
+          TARGET_URL: ${{ vars.LIGHTHOUSE_TARGET_URL }}
+        run: |
+          pytagmanager lighthouse-ci "$TARGET_URL" \
+            --runs 5 \
+            --min-runs 3 \
+            --budget lcp_ms=2500 \
+            --budget tbt_ms=200 \
+            --budget cls=0.1 \
+            --budget performance=0.9 \
+            --fail-on-budget \
+            --format json -o lighthouse-ci.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: lighthouse-ci-report
+          path: lighthouse-ci.json
+```
+
+Exit codes:
+
+- `0` — enough runs completed; any supplied budgets passed.
+- `1` — a supplied budget failed, or its metric was absent (absent is not a
+  pass).
+- `2` — fewer than `--min-runs` completed, or some runs failed and
+  `--allow-partial` was not supplied.
+
+Lighthouse is a lab measurement. The report records the version, every sample,
+observed range, confidence and limitations; it does not claim field data or
+guarantee that a fast page sends tags correctly.
