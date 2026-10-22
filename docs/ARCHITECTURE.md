@@ -121,14 +121,16 @@ fully on hand-authored scenario expectations (`observability/scenario.py`)
 or the crawl's own static recommendations — the live-config cross-check is
 additive evidence, not a hard requirement.
 
-The 10 spec-defined diagnostic rules plus an 11th
-(`rule_pii_leak`, content-pattern PII detection inspired by ObservePoint's
-PII Detection feature — distinct from `events.redact_payload`'s
-key-name-based redaction, which runs earlier and unconditionally on every
-collected payload) are all deterministic; no LLM is in this path,
-matching the spec's own "must work without an LLM" requirement. See
-`diagnostics/rules.py`'s `REGISTRY` list to add a new one — same registry
-pattern as `export/base.py`'s `EXPORTERS`.
+The diagnostic engine runs 14 per-journey rules in `REGISTRY`, plus a
+cross-journey duplicate-purchase check, all deterministic; no LLM is in this
+path, matching the spec's own "must work without an LLM" requirement. The
+rules include `rule_pii_leak` (content-pattern PII detection inspired by
+ObservePoint's PII Detection feature — distinct from
+`events.redact_payload`'s key-name-based redaction, which runs earlier and
+unconditionally on every collected payload), ecommerce parameter validation,
+timing delays and consent/JS-error blocking. See `diagnostics/rules.py`'s
+`REGISTRY` list to add a new one — same registry pattern as
+`export/base.py`'s `EXPORTERS`.
 
 **Auto-discovered expectations use a weaker claim than hand-authored
 ones, on purpose.** `observability/scenario.py`'s

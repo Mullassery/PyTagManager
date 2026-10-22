@@ -218,7 +218,6 @@ Remaining:
 1. iOS XCTest run in an Xcode environment, including the UIKit lifecycle test.
 2. Android emulator or physical-device instrumentation tests.
 3. Live PyTagShield/CDN integration and multi-host idempotency.
-4. Multi-platform architecture docs and rule-catalog updates.
 
 Acceptance for the extension:
 
