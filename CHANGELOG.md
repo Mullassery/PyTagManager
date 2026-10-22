@@ -10,6 +10,31 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [Unreleased]
+
+### Added
+- GTM container JSON/YAML inspection with findings, best-effort draft
+  import/export and the `gtm` CLI; imports never activate a container.
+- Self-hosted control plane for containers, revisions, environments,
+  publication/rollback, revision diffs, audit sequence and secret references,
+  plus conservative PyTagShield configuration export.
+- Shared event contract v1, secret-free published configuration with SHA-256
+  integrity, filesystem CDN publication, a collection endpoint with in-memory
+  or durable SQLite deduplication, and optional PyTagShield forwarding.
+- Web, iOS and Android SDKs with strict validation, consent-aware queues,
+  batching/retry, auto-flush, bounded local storage and sanitized debug
+  snapshots.
+- Collection deployment examples, Android/Web/iOS CI jobs and GTM-focused
+  getting-started documentation.
+
+### Fixed
+- Base `pytagmanager` CLI imports no longer require the optional `yaml` or
+  Playwright diagnostics dependencies.
+- Built wheels now bundle the Web SDK asset, so CDN publication works from a
+  fresh install instead of depending on an untracked `sdk/web/dist` directory.
+- Web SDK retry timer no longer leaves a stale retry deadline that could
+  suppress later retries.
+
 ## [0.5.0] - 2026-10-19
 
 ### Added
