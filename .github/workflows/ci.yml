@@ -100,6 +100,63 @@ jobs:
         working-directory: sdk/android
         run: ./gradlew :sdk:build --no-daemon
 
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip maturin
+          maturin build --release --out dist-check
+
+      - name: Install wheel into a clean environment
+        run: |
+          python -m venv /tmp/pytagmanager-install
+          /tmp/pytagmanager-install/bin/python -m pip install --upgrade pip
+          /tmp/pytagmanager-install/bin/python -m pip install dist-check/*.whl
+
+      - name: Smoke test installed CLI and CDN publication
+        run: |
+          /tmp/pytagmanager-install/bin/pytagmanager --help
+          cd "$RUNNER_TEMP"
+          /tmp/pytagmanager-install/bin/python - <<'PY'
+          import sys
+          import tempfile
+          from pathlib import Path
+
+          import pytagmanager.cli
+          assert "yaml" not in sys.modules
+          assert "playwright" not in sys.modules
+
+          from pytagmanager.control import ControlPlaneService, FileStore
+          from pytagmanager.distribution import FilesystemCDN
+
+          root = Path(tempfile.mkdtemp())
+          service = ControlPlaneService(FileStore(root / "state"))
+          service.create_container("GTM-WHEEL01")
+          revision = service.create_revision("GTM-WHEEL01")
+          service.create_environment("GTM-WHEEL01", "Production")
+          service.activate_environment(
+              "GTM-WHEEL01", "Production", config_version=revision.config_version
+          )
+          publisher = FilesystemCDN(root / "cdn")
+          assert publisher.sdk_asset.is_file()
+          result = publisher.publish_environment(service, "GTM-WHEEL01", "Production")
+          assert (root / "cdn" / result.sdk_path).is_file()
+          print("wheel installation smoke test passed")
+          PY
+
   dependency-audit:
     runs-on: ubuntu-latest
     steps:

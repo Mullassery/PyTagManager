@@ -198,7 +198,8 @@ installed FilesystemCDN.publish_environment -> sdk/web/0.1.0/pytagmanager.js
 The wheel install check found and fixed two packaging defects: base CLI imports
 no longer pull in optional `yaml`/Playwright dependencies, and the built wheel
 now bundles the Web SDK asset instead of relying on an untracked `sdk/web/dist`
-directory outside the package.
+directory outside the package. The `package` CI job repeats the wheel
+build/install/CDN smoke test on a clean Linux runner.
 
 Swift `XCTest` cannot run because only Apple Command Line Tools are installed
 (no Xcode); the executable Swift checks are the actual executed evidence.
