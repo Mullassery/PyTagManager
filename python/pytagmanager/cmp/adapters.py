@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from pytagmanager.cmp.models import (
     CATEGORIES,
@@ -380,23 +380,32 @@ ADAPTERS: Tuple[CmpAdapter, ...] = (
 )
 
 
-def detect_adapters(signals: DetectionSignals) -> Tuple[CmpDetection, ...]:
-    detections = [adapter.detect(signals) for adapter in ADAPTERS]
+def detect_adapters(
+    signals: DetectionSignals, adapters: Optional[Sequence[CmpAdapter]] = None
+) -> Tuple[CmpDetection, ...]:
+    registry = tuple(adapters) if adapters is not None else ADAPTERS
+    detections = [adapter.detect(signals) for adapter in registry]
     return tuple(item for item in detections if item is not None)
 
 
-def adapter_for(detection: CmpDetection) -> Optional[CmpAdapter]:
-    for adapter in ADAPTERS:
+def adapter_for(
+    detection: CmpDetection, adapters: Optional[Sequence[CmpAdapter]] = None
+) -> Optional[CmpAdapter]:
+    registry = tuple(adapters) if adapters is not None else ADAPTERS
+    for adapter in registry:
         if adapter.adapter_id == detection.adapter_id:
             return adapter
     return None
 
 
 def read_vendor_consent(
-    detections: Sequence[CmpDetection], session, timestamp: float = 0.0
+    detections: Sequence[CmpDetection],
+    session,
+    timestamp: float = 0.0,
+    adapters: Optional[Sequence[CmpAdapter]] = None,
 ) -> Optional[ConsentState]:
     for detection in detections:
-        adapter = adapter_for(detection)
+        adapter = adapter_for(detection, adapters=adapters)
         if adapter is None:
             continue
         state = adapter.read_consent(session, timestamp=timestamp)
@@ -406,13 +415,16 @@ def read_vendor_consent(
 
 
 def cookie_presence_state(
-    detections: Sequence[CmpDetection], cookie_names: Sequence[str], timestamp: float = 0.0
+    detections: Sequence[CmpDetection],
+    cookie_names: Sequence[str],
+    timestamp: float = 0.0,
+    adapters: Optional[Sequence[CmpAdapter]] = None,
 ) -> Optional[ConsentState]:
     if not detections:
         return None
     related = []
     for detection in detections:
-        adapter = adapter_for(detection)
+        adapter = adapter_for(detection, adapters=adapters)
         if adapter is None:
             continue
         for cookie in cookie_names:
@@ -482,6 +494,168 @@ def parse_google_consent_mode(
     )
 
 
+_TCF_CATEGORY_PURPOSES = {
+    "advertising": (2, 3, 4, 7),
+    "analytics": (8, 9, 10),
+    "preferences": (5, 6, 11),
+}
+
+
+def tcf_categories_from_purposes(
+    purpose_consents: Dict[str, bool], *, gdpr_applies: Optional[bool] = None
+) -> Dict[str, Optional[bool]]:
+    categories = {name: None for name in CATEGORIES}
+    categories["necessary"] = True
+    if gdpr_applies is False:
+        return categories
+    for category, purposes in _TCF_CATEGORY_PURPOSES.items():
+        values = [purpose_consents.get(str(purpose)) for purpose in purposes]
+        known = [value for value in values if isinstance(value, bool)]
+        if known and all(known) and len(known) == len(values):
+            categories[category] = True
+        elif known and not any(known):
+            categories[category] = False
+    return categories
+
+
+def read_tcf_consent(session, timestamp: float = 0.0) -> Optional[ConsentState]:
+    script = """
+    () => new Promise((resolve) => {
+      if (typeof window.__tcfapi !== "function") return resolve(null);
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(null), 1500);
+      try {
+        window.__tcfapi("getTCData", 2, (data, success) => {
+          clearTimeout(timer);
+          finish(success === false ? null : data);
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        finish(null);
+      }
+    })
+    """
+    try:
+        raw = session.evaluate(script)
+    except Exception:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    purpose = raw.get("purpose") if isinstance(raw.get("purpose"), dict) else {}
+    legitimate = raw.get("legitimateInterests") if isinstance(raw.get("legitimateInterests"), dict) else {}
+    special = raw.get("specialFeatures") if isinstance(raw.get("specialFeatures"), dict) else {}
+    consents = _bool_map(purpose.get("consents"))
+    legitimate_interests = _bool_map(legitimate.get("consents"))
+    special_features = _bool_map(special.get("optins"))
+    gdpr_applies = raw.get("gdprApplies")
+    if not isinstance(gdpr_applies, bool):
+        gdpr_applies = None
+    tcf = {
+        "api": "tcf_v2",
+        "gdpr_applies": gdpr_applies,
+        "event_status": str(raw.get("eventStatus", "")),
+        "cmp_status": str(raw.get("cmpStatus", "")),
+        "purpose_consents": consents,
+        "purpose_legitimate_interests": legitimate_interests,
+        "special_feature_optins": special_features,
+    }
+    if not consents and not legitimate_interests and not special_features and gdpr_applies is None:
+        return None
+    categories = tcf_categories_from_purposes(consents, gdpr_applies=gdpr_applies)
+    evidence = (
+        CmpEvidence(
+            kind="tcf_v2",
+            source="javascript",
+            summary="IAB TCF v2 consent data read from window.__tcfapi",
+            value=(
+                f"gdpr_applies={gdpr_applies}, purpose_consents={len(consents)}, "
+                f"legitimate_interests={len(legitimate_interests)}"
+            ),
+            timestamp=timestamp,
+        ),
+    )
+    return ConsentState(
+        sources=("tcf_v2",),
+        categories=categories,
+        tcf=tcf,
+        confidence="confirmed",
+        timestamp=timestamp,
+        evidence=evidence,
+    )
+
+
+def read_gpp_consent(session, timestamp: float = 0.0) -> Optional[ConsentState]:
+    script = """
+    () => new Promise((resolve) => {
+      if (typeof window.__gpp !== "function") return resolve(null);
+      let settled = false;
+      const finish = (value) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(null), 1500);
+      try {
+        window.__gpp("getGPPData", (data, success) => {
+          clearTimeout(timer);
+          finish(success === false ? null : data);
+        }, null);
+      } catch (error) {
+        clearTimeout(timer);
+        finish(null);
+      }
+    })
+    """
+    try:
+        raw = session.evaluate(script)
+    except Exception:
+        return None
+    if not isinstance(raw, dict):
+        return None
+    sections = raw.get("applicableSections")
+    if not isinstance(sections, list):
+        sections = []
+    parsed = raw.get("parsedSections")
+    parsed_sections = sorted(str(key) for key in parsed) if isinstance(parsed, dict) else []
+    gpp = {
+        "api": "gpp",
+        "gpp_version": str(raw.get("gppVersion", "")),
+        "cmp_status": str(raw.get("cmpStatus", "")),
+        "signal_status": str(raw.get("signalStatus", "")),
+        "applicable_sections": [str(item) for item in sections],
+        "parsed_section_ids": parsed_sections,
+    }
+    if not sections and not parsed_sections and not gpp["cmp_status"] and not gpp["signal_status"]:
+        return None
+    evidence = (
+        CmpEvidence(
+            kind="gpp",
+            source="javascript",
+            summary="IAB GPP data read from window.__gpp",
+            value=(
+                f"sections={','.join(gpp['applicable_sections']) or 'none'}, "
+                f"signal_status={gpp['signal_status'] or 'unknown'}"
+            ),
+            timestamp=timestamp,
+        ),
+    )
+    categories = {name: None for name in CATEGORIES}
+    categories["necessary"] = True
+    return ConsentState(
+        sources=("gpp",),
+        categories=categories,
+        gpp=gpp,
+        confidence="confirmed",
+        timestamp=timestamp,
+        evidence=evidence,
+    )
+
+
 def google_categories_from_mode(mode: Dict[str, str]) -> Dict[str, Optional[bool]]:
     categories = {name: None for name in CATEGORIES}
     categories["necessary"] = True
@@ -502,6 +676,8 @@ def merge_consent_states(
     sources: List[str] = []
     categories = {name: None for name in CATEGORIES}
     google_mode: Dict[str, str] = {}
+    tcf: Dict[str, Any] = {}
+    gpp: Dict[str, Any] = {}
     evidence: List[CmpEvidence] = []
     confidence = "unverified"
     for state in usable:
@@ -510,6 +686,8 @@ def merge_consent_states(
             if categories.get(name) is None and value is not None:
                 categories[name] = value
         google_mode.update(state.google_mode)
+        tcf.update(state.tcf)
+        gpp.update(state.gpp)
         evidence.extend(state.evidence)
         if _confidence_rank(state.confidence) > _confidence_rank(confidence):
             confidence = state.confidence
@@ -517,6 +695,8 @@ def merge_consent_states(
         sources=tuple(sources),
         categories=categories,
         google_mode=google_mode,
+        tcf=tcf,
+        gpp=gpp,
         confidence=confidence,
         timestamp=timestamp or max((state.timestamp for state in usable), default=0.0),
         evidence=tuple(evidence),
@@ -525,6 +705,16 @@ def merge_consent_states(
 
 def _as_bool(value) -> Optional[bool]:
     return value if isinstance(value, bool) else None
+
+
+def _bool_map(value) -> Dict[str, bool]:
+    if not isinstance(value, dict):
+        return {}
+    return {
+        str(key): item
+        for key, item in value.items()
+        if isinstance(item, bool)
+    }
 
 
 def _tri_state(values: Sequence[Optional[str]]) -> Optional[bool]:

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CMP fixture: custom adapter</title>
+  <script>
+    window.AcmeConsent = { granted: false };
+    document.cookie = "acme_consent=denied; path=/; SameSite=Lax";
+  </script>
+</head>
+<body>
+  <h1>Custom consent widget</h1>
+  <button id="acme-accept-all">Accept all</button>
+  <button id="acme-reject-all">Reject all</button>
+  <script>
+    document.getElementById('acme-accept-all').addEventListener('click', function () {
+      window.AcmeConsent.granted = true;
+    });
+    document.getElementById('acme-reject-all').addEventListener('click', function () {
+      window.AcmeConsent.granted = false;
+    });
+  </script>
+</body>
+</html>

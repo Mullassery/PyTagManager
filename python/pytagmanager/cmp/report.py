@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Iterable, List, Optional
+from typing import Optional
 
 from pytagmanager.cmp.models import CmpAuditReport, ConsentState
 
@@ -44,6 +44,23 @@ def render_cmp_audit_report(report: CmpAuditReport) -> str:
     lines.append("")
     lines.append("Consent state:")
     lines.append(f"  initial: {_format_consent(report.consent_initial)}")
+    if report.consent_initial.tcf:
+        tcf = report.consent_initial.tcf
+        granted = sorted(
+            purpose for purpose, value in tcf.get("purpose_consents", {}).items() if value
+        )
+        lines.append(
+            "  TCF v2: gdpr_applies="
+            f"{tcf.get('gdpr_applies')}, event_status={tcf.get('event_status') or 'unknown'}, "
+            f"granted_purposes={','.join(granted) or 'none'}"
+        )
+    if report.consent_initial.gpp:
+        gpp = report.consent_initial.gpp
+        lines.append(
+            "  GPP: sections="
+            f"{','.join(gpp.get('applicable_sections', [])) or 'none'}, "
+            f"signal_status={gpp.get('signal_status') or 'unknown'}"
+        )
     if report.lifecycle.requested_action != "none":
         lines.append(f"  requested action: {report.lifecycle.requested_action}")
         lines.append(f"  performed: {report.lifecycle.performed}")

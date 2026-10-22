@@ -5,9 +5,10 @@ This file records what was shipped, what is blocked/failed, and what is rejected
 ## Shipped
 - Lighthouse ingestion (`pytagmanager lighthouse`) with normalized scores/Core Web Vitals,
   plus repeated-run `lighthouse-ci` medians/ranges/budgets/failed-run retention.
-- First CMP-audit vertical slice (`pytagmanager cmp audit`): signature adapters, Cookiebot
-  and Google Consent Mode state, pre/post-choice request ordering, reload persistence,
-  stable findings, v1 JSON schema, and explicit authorization before any consent click.
+- CMP-audit vertical slice (`pytagmanager cmp audit`): signature adapters, Cookiebot,
+  Google Consent Mode, IAB TCF v2 and GPP metadata, data-only custom adapter files,
+  pre/post-choice request ordering, reload persistence, stable findings, v1 JSON schema,
+  and explicit authorization before any consent click.
 - GTM usage index + drift blast radius; `gtm-plan` dry-run planner.
 - `--fail-on-regression`, scheduled GitHub workflow, Click CI fix, docs aligned to 0.5.0.
 
@@ -17,9 +18,9 @@ This file records what was shipped, what is blocked/failed, and what is rejected
 
 ## Rejected / deferred
 - Visual/screenshot grounding, XDM modeling, and mobile platforms — not required for web QA.
-- Remainder of the enterprise CMP/audit engine beyond the shipped vertical slice: custom
-  adapter plugins, more documented vendor state readers, multi-page/SPA consent journeys,
-  GPP/TCF string decoding, and consent-aware tag-configuration joining.
+- Remainder of the enterprise CMP/audit engine beyond the shipped vertical slice: more
+  documented vendor state readers, multi-page/SPA consent journeys, raw TCF/GPP string
+  decoding, and consent-aware tag-configuration joining.
 
 ## Policy
 

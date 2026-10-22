@@ -143,7 +143,7 @@
     },
     "consentState": {
       "type": "object",
-      "required": ["sources", "categories", "google_mode", "confidence", "timestamp", "evidence"],
+      "required": ["sources", "categories", "google_mode", "tcf", "gpp", "confidence", "timestamp", "evidence"],
       "properties": {
         "sources": {"type": "array", "items": {"type": "string"}},
         "categories": {
@@ -159,6 +159,33 @@
           "additionalProperties": false
         },
         "google_mode": {"type": "object", "additionalProperties": {"type": "string"}},
+        "tcf": {
+          "type": "object",
+          "description": "Normalized IAB TCF v2 data. The TC string and vendor consents are deliberately omitted.",
+          "properties": {
+            "api": {"type": "string"},
+            "gdpr_applies": {"oneOf": [{"type": "boolean"}, {"type": "null"}]},
+            "event_status": {"type": "string"},
+            "cmp_status": {"type": "string"},
+            "purpose_consents": {"type": "object", "additionalProperties": {"type": "boolean"}},
+            "purpose_legitimate_interests": {"type": "object", "additionalProperties": {"type": "boolean"}},
+            "special_feature_optins": {"type": "object", "additionalProperties": {"type": "boolean"}}
+          },
+          "additionalProperties": false
+        },
+        "gpp": {
+          "type": "object",
+          "description": "Normalized IAB GPP metadata. The GPP string and parsed section payloads are deliberately omitted.",
+          "properties": {
+            "api": {"type": "string"},
+            "gpp_version": {"type": "string"},
+            "cmp_status": {"type": "string"},
+            "signal_status": {"type": "string"},
+            "applicable_sections": {"type": "array", "items": {"type": "string"}},
+            "parsed_section_ids": {"type": "array", "items": {"type": "string"}}
+          },
+          "additionalProperties": false
+        },
         "confidence": {"$ref": "#/$defs/confidence"},
         "timestamp": {"type": "number"},
         "evidence": {"type": "array", "items": {"$ref": "#/$defs/evidence"}}

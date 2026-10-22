@@ -15,18 +15,20 @@ from urllib.parse import urlsplit
 
 from pytagmanager.cmp.adapters import (
     ADAPTERS,
+    CmpAdapter,
     adapter_for,
     cookie_presence_state,
     detect_adapters,
     extract_signals,
     merge_consent_states,
     parse_google_consent_mode,
+    read_gpp_consent,
+    read_tcf_consent,
     read_vendor_consent,
 )
 from pytagmanager.cmp.models import (
     CmpAuditReport,
     CmpDetection,
-    CmpEvidence,
     ConsentLifecycle,
     ConsentState,
     CookieMetadata,
@@ -105,7 +107,8 @@ _CMP_LIMITATIONS = (
     "A visible consent banner is not proof that consent is enforced; no banner was treated as compliance.",
     "Server-side consent enforcement, logged-in states, and cross-device consent were not tested.",
     "Cookie values were not persisted; cookie presence alone does not prove which categories were granted.",
-    "Only documented vendor consent APIs are read directly; other vendor states are reported as cookie/markup evidence.",
+    "Only documented vendor, TCF v2, and GPP APIs are read directly; other vendor states are reported as cookie/markup evidence.",
+    "TCF/GPP data is self-reported by the page or its CMP; raw TC/GPP strings and parsed GPP payloads are not retained.",
     "This run used a read-only observation session unless consent interaction was explicitly authorized.",
 )
 
@@ -124,11 +127,13 @@ class CmpAuditOptions:
     selector_timeout_ms: int = 5000
     reload_after_consent: bool = False
     max_network_events: int = 500
+    extra_adapters: Tuple[CmpAdapter, ...] = ()
 
 
 class CmpAuditRunner:
     def __init__(self, options: Optional[CmpAuditOptions] = None):
         self.options = options or CmpAuditOptions()
+        self.adapters = _adapter_registry(self.options.extra_adapters)
 
     def run(
         self,
@@ -166,7 +171,7 @@ class CmpAuditRunner:
             session.load(url)
             initial_html = session.capture_html()
             initial_cookies = session.browser_cookies()
-            globals_present = _present_globals(session)
+            globals_present = _present_globals(session, self.adapters)
             network_urls = _network_urls(session.events)
             signals = extract_signals(
                 html=initial_html,
@@ -174,7 +179,7 @@ class CmpAuditRunner:
                 globals_present=globals_present,
                 network_urls=network_urls,
             )
-            detections = detect_adapters(signals)
+            detections = detect_adapters(signals, adapters=self.adapters)
             initial_timestamp = time.time()
             initial_state = _current_consent_state(
                 session,
@@ -182,6 +187,7 @@ class CmpAuditRunner:
                 [cookie.get("name", "") for cookie in initial_cookies],
                 session.events,
                 initial_timestamp,
+                self.adapters,
             )
 
             if consent_action != "none":
@@ -199,6 +205,7 @@ class CmpAuditRunner:
                         [cookie.get("name", "") for cookie in current_cookies],
                         session.events,
                         time.time(),
+                        self.adapters,
                     )
                     if self.options.reload_after_consent:
                         reload_timestamp = time.time()
@@ -213,6 +220,7 @@ class CmpAuditRunner:
                             [cookie.get("name", "") for cookie in session.browser_cookies()],
                             reloaded_events,
                             time.time(),
+                            self.adapters,
                         )
                         reloaded = True
                 if not lifecycle.performed:
@@ -241,15 +249,17 @@ class CmpAuditRunner:
             final_signals = extract_signals(
                 html=final_html,
                 cookie_names=[cookie.get("name", "") for cookie in final_cookies],
-                globals_present=_present_globals(session),
+                globals_present=_present_globals(session, self.adapters),
                 network_urls=_network_urls(session.events),
             )
-            final_detections = _merge_detections(detections, detect_adapters(final_signals))
+            final_detections = _merge_detections(
+                detections, detect_adapters(final_signals, adapters=self.adapters)
+            )
             requests = _request_observations(
                 session.events, action_timestamp, reload_timestamp
             )
 
-        cookie_metadata = _cookie_metadata(final_cookies, final_detections)
+        cookie_metadata = _cookie_metadata(final_cookies, final_detections, self.adapters)
         limitations = list(_CMP_LIMITATIONS)
         if consent_action == "none":
             limitations.append(
@@ -279,6 +289,7 @@ class CmpAuditRunner:
             lifecycle=lifecycle,
             requests=requests,
             cookies=cookie_metadata,
+            adapters=self.adapters,
         )
 
         return CmpAuditReport(
@@ -351,8 +362,23 @@ class CmpAuditRunner:
         )
 
 
-def _present_globals(session: ObservationSession) -> Tuple[str, ...]:
-    names = sorted({name for adapter in ADAPTERS for name in adapter.global_names})
+def _adapter_registry(extra_adapters: Sequence[CmpAdapter]) -> Tuple[CmpAdapter, ...]:
+    registry = list(ADAPTERS)
+    seen = {adapter.adapter_id for adapter in registry}
+    for adapter in extra_adapters:
+        if not adapter.adapter_id:
+            raise ValueError("custom CMP adapter is missing adapter_id")
+        if adapter.adapter_id in seen:
+            raise ValueError(f"duplicate CMP adapter id: {adapter.adapter_id}")
+        seen.add(adapter.adapter_id)
+        registry.append(adapter)
+    return tuple(registry)
+
+
+def _present_globals(
+    session: ObservationSession, adapters: Sequence[CmpAdapter]
+) -> Tuple[str, ...]:
+    names = sorted({name for adapter in adapters for name in adapter.global_names})
     script = """
     (names) => names.filter((name) => {
       try { return !!window[name]; } catch (error) { return false; }
@@ -382,11 +408,16 @@ def _current_consent_state(
     cookie_names: Sequence[str],
     events: Sequence[TrackingEvent],
     timestamp: float,
+    adapters: Sequence[CmpAdapter],
 ) -> ConsentState:
     states = [
-        read_vendor_consent(detections, session, timestamp=timestamp),
+        read_vendor_consent(detections, session, timestamp=timestamp, adapters=adapters),
+        read_tcf_consent(session, timestamp=timestamp),
+        read_gpp_consent(session, timestamp=timestamp),
         parse_google_consent_mode(events, timestamp=timestamp),
-        cookie_presence_state(detections, cookie_names, timestamp=timestamp),
+        cookie_presence_state(
+            detections, cookie_names, timestamp=timestamp, adapters=adapters
+        ),
     ]
     return merge_consent_states([state for state in states if state is not None], timestamp=timestamp)
 
@@ -484,12 +515,14 @@ def _request_observations(
 
 
 def _cookie_metadata(
-    cookies: Sequence[dict], detections: Sequence[CmpDetection]
+    cookies: Sequence[dict],
+    detections: Sequence[CmpDetection],
+    adapters: Sequence[CmpAdapter],
 ) -> Tuple[CookieMetadata, ...]:
     cmp_names = set()
     cmp_prefixes = []
     for detection in detections:
-        adapter = adapter_for(detection)
+        adapter = adapter_for(detection, adapters=adapters)
         if adapter is None:
             continue
         cmp_names.update(adapter.cookie_names)

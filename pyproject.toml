@@ -4,8 +4,8 @@ build-backend = "maturin"
 
 [project]
 name = "pytagmanager"
-version = "0.5.0"
-description = "AI-native analytics implementation platform: crawl -> semantic DOM graph -> rule-based tracking recommendations -> GTM export, plus Tracking Observability & Diagnostics (real-browser runtime verification) and Site-Wide Tagging QA"
+version = "0.6.0"
+description = "Debugging and implementation intelligence for Google Tag Manager: inspect containers, diagnose runtime tracking, audit consent and script performance, and generate reviewable fixes"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"

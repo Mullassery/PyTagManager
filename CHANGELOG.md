@@ -10,7 +10,7 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
-## [Unreleased]
+## [0.6.0] - 2026-10-22
 
 ### Added
 - GTM container JSON/YAML inspection with findings, best-effort draft
@@ -35,6 +35,9 @@ file is a release-oriented complement to it, not a duplicate.
   persistence checks, stable findings and a v1 JSON schema. Read-only by
   default; consent interaction requires explicit authorization. Reports never
   include raw cookie values or request query strings.
+- CMP audit now reads documented IAB TCF v2 purpose consents and GPP metadata,
+  normalizing them without serializing TC/GPP strings or parsed GPP section
+  payloads, and accepts data-only custom adapter files for unsupported CMPs.
 
 ### Fixed
 - Base `pytagmanager` CLI imports no longer require the optional `yaml` or

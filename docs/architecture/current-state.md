@@ -4,7 +4,7 @@
 - **Audit date:** 2026-10-20
 - **Repository:** `Mullassery/PyTagManager`
 - **Branch/commit audited:** `main` @ `92bc000` (`test/docs: make lighthouse optional-dependency handling explicit`)
-- **Package version:** `0.5.0` (`pyproject.toml`, `Cargo.toml`, `pytagmanager.__version__` agree)
+- **Package version:** `0.6.0` (`pyproject.toml`, `Cargo.toml`, `pytagmanager.__version__` agree)
 - **License:** Apache-2.0
 
 This document records what the repository **actually implements**, where it
@@ -80,7 +80,7 @@ are CLI text and JSON files.
 - Python: `click>=8.0` only, plus optional `diagnostics` extra:
   `playwright`, `pyyaml`, `google-api-python-client`, `google-auth`,
   `google-auth-oauthlib`.
-- Packaging: maturin; wheel + sdist built locally for v0.5.0 (macOS arm64
+- Packaging: maturin; wheel + sdist built locally for v0.6.0 (macOS arm64
   wheel only in `dist/`).
 
 ---

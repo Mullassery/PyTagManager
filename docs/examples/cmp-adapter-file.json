@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "adapters": [
+    {
+      "adapter_id": "acme-consent",
+      "vendor": "Acme Consent",
+      "script_markers": ["cdn.acme.test/consent.js"],
+      "global_names": ["AcmeConsent"],
+      "cookie_names": ["acme_consent"],
+      "accept_selectors": ["#acme-accept-all"],
+      "reject_selectors": ["#acme-reject-all"],
+      "notes": ["Declarative signature for the Acme consent widget."]
+    }
+  ]
+}

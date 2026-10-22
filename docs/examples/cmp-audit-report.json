@@ -42,11 +42,13 @@
         "analytics_storage": "denied",
         "personalization_storage": "denied"
       },
+      "gpp": {},
       "sources": [
         "cookiebot_consent",
         "google_consent_mode",
         "cookie_presence"
       ],
+      "tcf": {},
       "timestamp": 1792660685.688759
     }
   },
@@ -186,7 +188,8 @@
     "A visible consent banner is not proof that consent is enforced; no banner was treated as compliance.",
     "Server-side consent enforcement, logged-in states, and cross-device consent were not tested.",
     "Cookie values were not persisted; cookie presence alone does not prove which categories were granted.",
-    "Only documented vendor consent APIs are read directly; other vendor states are reported as cookie/markup evidence.",
+    "Only documented vendor, TCF v2, and GPP APIs are read directly; other vendor states are reported as cookie/markup evidence.",
+    "TCF/GPP data is self-reported by the page or its CMP; raw TC/GPP strings and parsed GPP payloads are not retained.",
     "This run used a read-only observation session unless consent interaction was explicitly authorized.",
     "No consent choice was exercised; post-choice and withdrawal behavior was not tested."
   ],

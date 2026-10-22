@@ -2521,6 +2521,14 @@ def cmp() -> None:
     show_default=True,
 )
 @click.option(
+    "--adapter-file",
+    "adapter_files",
+    multiple=True,
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    metavar="PATH",
+    help="Declarative JSON adapter file for an unsupported CMP. Repeatable; does not execute code.",
+)
+@click.option(
     "--consent-action",
     type=click.Choice(["none", "accept", "reject"]),
     default="none",
@@ -2558,6 +2566,7 @@ def cmp_audit(
     url,
     headless,
     browser,
+    adapter_files,
     consent_action,
     accept_selector,
     reject_selector,
@@ -2576,11 +2585,18 @@ def cmp_audit(
     --consent-action and --authorize-consent-interaction.
     """
     from pytagmanager.cmp import (
+        AdapterFileError,
         CmpAuditAuthorizationError,
         CmpAuditOptions,
         CmpAuditRunner,
+        load_adapter_files,
         render_cmp_audit_report,
     )
+
+    try:
+        extra_adapters = load_adapter_files(adapter_files) if adapter_files else ()
+    except AdapterFileError as exc:
+        raise click.UsageError(str(exc)) from exc
 
     options = CmpAuditOptions(
         headless=headless,
@@ -2591,6 +2607,7 @@ def cmp_audit(
         selector_timeout_ms=selector_timeout_ms,
         reload_after_consent=reload_after_consent,
         max_network_events=max_network_events,
+        extra_adapters=extra_adapters,
     )
     try:
         report = CmpAuditRunner(options).run(

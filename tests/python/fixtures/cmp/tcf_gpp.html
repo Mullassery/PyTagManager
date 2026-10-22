@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CMP fixture: TCF and GPP APIs</title>
+  <script>
+    window.__tcfapi = function (command, version, callback) {
+      if (command !== "getTCData") { callback(null, false); return; }
+      callback({
+        gdprApplies: true,
+        eventStatus: "tcloaded",
+        cmpStatus: "loaded",
+        tcString: "TCF-SECRET-STRING",
+        purpose: {
+          consents: {
+            "1": true, "2": true, "3": true, "4": true,
+            "5": true, "6": true, "7": true, "8": false,
+            "9": false, "10": false, "11": false
+          }
+        },
+        legitimateInterests: { consents: { "2": false, "7": false } },
+        specialFeatures: { optins: { "1": false } }
+      }, true);
+    };
+    window.__gpp = function (command, callback) {
+      if (command !== "getGPPData") { callback(null, false); return; }
+      callback({
+        gppVersion: "1.1",
+        cmpStatus: "loaded",
+        signalStatus: "ready",
+        gppString: "GPP-SECRET-STRING",
+        applicableSections: [7],
+        parsedSections: { "7": { secret: "SECTION-SECRET" } }
+      }, true);
+    };
+  </script>
+</head>
+<body><h1>TCF/GPP fixture</h1></body>
+</html>

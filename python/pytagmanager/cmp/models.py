@@ -87,6 +87,8 @@ class ConsentState:
     sources: Tuple[str, ...] = ()
     categories: Dict[str, Optional[bool]] = field(default_factory=dict)
     google_mode: Dict[str, str] = field(default_factory=dict)
+    tcf: Dict[str, Any] = field(default_factory=dict)
+    gpp: Dict[str, Any] = field(default_factory=dict)
     confidence: str = "unverified"
     timestamp: float = 0.0
     evidence: Tuple[CmpEvidence, ...] = ()
@@ -112,6 +114,8 @@ class ConsentState:
             "sources": list(self.sources),
             "categories": dict(self.categories),
             "google_mode": dict(self.google_mode),
+            "tcf": dict(self.tcf),
+            "gpp": dict(self.gpp),
             "confidence": self.confidence,
             "timestamp": self.timestamp,
             "evidence": [item.to_dict() for item in self.evidence],

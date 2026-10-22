@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
-from pytagmanager.cmp.adapters import ADAPTERS, google_categories_from_mode
+from pytagmanager.cmp.adapters import ADAPTERS, CmpAdapter, google_categories_from_mode
 from pytagmanager.cmp.models import (
     CmpDetection,
     CmpEvidence,
@@ -35,9 +35,12 @@ def analyze_cmp(
     lifecycle: ConsentLifecycle,
     requests: Sequence[RequestObservation],
     cookies: Sequence[CookieMetadata],
+    adapters: Sequence[CmpAdapter] = ADAPTERS,
 ) -> Tuple[CmpFinding, ...]:
     findings: List[CmpFinding] = []
-    findings.extend(_detection_findings(url, detections, initial_state, requests, cookies))
+    findings.extend(
+        _detection_findings(url, detections, initial_state, requests, cookies, adapters)
+    )
     findings.extend(_pre_consent_findings(url, detections, initial_state, requests))
     findings.extend(_lifecycle_findings(url, lifecycle, after_action_state, requests))
     findings.extend(_consent_mode_findings(url, initial_state, requests))
@@ -51,9 +54,12 @@ def _detection_findings(
     initial_state: ConsentState,
     requests: Sequence[RequestObservation],
     cookies: Sequence[CookieMetadata],
+    adapters: Sequence[CmpAdapter],
 ) -> List[CmpFinding]:
     findings: List[CmpFinding] = []
-    unknown_cookies = _recognized_cookie_names_without_detection(cookies, detections)
+    unknown_cookies = _recognized_cookie_names_without_detection(
+        cookies, detections, adapters
+    )
     if unknown_cookies:
         findings.append(
             CmpFinding.create(
@@ -530,12 +536,14 @@ def _detection_evidence(
 
 
 def _recognized_cookie_names_without_detection(
-    cookies: Sequence[CookieMetadata], detections: Sequence[CmpDetection]
+    cookies: Sequence[CookieMetadata],
+    detections: Sequence[CmpDetection],
+    adapters: Sequence[CmpAdapter],
 ) -> List[str]:
     detected_ids = {item.adapter_id for item in detections}
     known_names = {
         adapter.adapter_id: (adapter.cookie_names, adapter.cookie_prefixes)
-        for adapter in ADAPTERS
+        for adapter in adapters
         if adapter.adapter_id not in detected_ids
     }
     matches = set()

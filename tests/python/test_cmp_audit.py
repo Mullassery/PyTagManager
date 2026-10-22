@@ -9,7 +9,6 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager.cli import main
 from pytagmanager.cmp.adapters import (
     CookiebotAdapter,
@@ -18,6 +17,9 @@ from pytagmanager.cmp.adapters import (
     google_categories_from_mode,
     merge_consent_states,
     parse_google_consent_mode,
+    read_gpp_consent,
+    read_tcf_consent,
+    tcf_categories_from_purposes,
 )
 from pytagmanager.cmp.collector import (
     CmpAuditAuthorizationError,
@@ -27,13 +29,17 @@ from pytagmanager.cmp.collector import (
 )
 from pytagmanager.cmp.models import (
     CmpDetection,
-    CmpEvidence,
     ConsentLifecycle,
     ConsentState,
     CookieMetadata,
     RequestObservation,
     dedupe_findings,
     sanitize_url,
+)
+from pytagmanager.cmp.plugins import (
+    AdapterFileError,
+    load_adapter_file,
+    load_adapter_files,
 )
 from pytagmanager.cmp.report import render_cmp_audit_report
 from pytagmanager.cmp.rules import analyze_cmp
@@ -407,6 +413,191 @@ def test_no_cmp_fixture_is_reported_as_limited_evidence_not_a_violation(cmp_fixt
     assert report.detections == ()
     assert "cmp.no_supported_cmp_detected" in _finding_ids(report.findings)
     assert any("Absence of detection is not evidence" in item for item in report.limitations)
+
+
+def _custom_adapter_payload(adapter_id="acme-consent"):
+    return {
+        "adapter_id": adapter_id,
+        "vendor": "Acme Consent",
+        "script_markers": ["cdn.acme.test/consent.js"],
+        "global_names": ["AcmeConsent"],
+        "cookie_names": ["acme_consent"],
+        "accept_selectors": ["#acme-accept-all"],
+        "reject_selectors": ["#acme-reject-all"],
+    }
+
+
+def _write_adapter_file(path: Path, adapters):
+    path.write_text(json.dumps({"schema_version": 1, "adapters": adapters}), encoding="utf-8")
+    return path
+
+
+def test_declarative_custom_adapter_is_loaded_and_detected(tmp_path):
+    path = _write_adapter_file(tmp_path / "adapter.json", [_custom_adapter_payload()])
+    adapters = load_adapter_file(path)
+    detections = detect_adapters(
+        _signals(
+            "<html><body>custom</body></html>",
+            cookies=("acme_consent",),
+            globals_present=("AcmeConsent",),
+        ),
+        adapters=adapters,
+    )
+    custom = next(item for item in detections if item.adapter_id == "acme-consent")
+    assert custom.confidence == "confirmed"
+    assert custom.accept_selectors == ("#acme-accept-all",)
+    assert "consent_controls" in custom.capabilities
+
+
+def test_custom_adapter_file_cannot_shadow_builtin_ids(tmp_path):
+    path = _write_adapter_file(
+        tmp_path / "adapter.json", [_custom_adapter_payload("cookiebot")]
+    )
+    with pytest.raises(AdapterFileError, match="reserved or already loaded"):
+        load_adapter_file(path)
+
+
+def test_custom_adapter_file_rejects_unknown_fields_and_missing_signatures(tmp_path):
+    unknown = _custom_adapter_payload()
+    unknown["read_consent_js"] = "return true"
+    path = _write_adapter_file(tmp_path / "unknown.json", [unknown])
+    with pytest.raises(AdapterFileError, match="unsupported key"):
+        load_adapter_file(path)
+
+    no_signature = {"adapter_id": "empty-adapter", "vendor": "Empty"}
+    path = _write_adapter_file(tmp_path / "empty.json", [no_signature])
+    with pytest.raises(AdapterFileError, match="detection signature"):
+        load_adapter_file(path)
+
+
+def test_duplicate_custom_adapters_across_files_are_rejected(tmp_path):
+    first = _write_adapter_file(tmp_path / "first.json", [_custom_adapter_payload()])
+    second = _write_adapter_file(tmp_path / "second.json", [_custom_adapter_payload()])
+    with pytest.raises(AdapterFileError, match="reserved or already loaded"):
+        load_adapter_files((first, second))
+
+
+def test_tcf_purpose_mapping_is_conservative_and_gdpr_aware():
+    granted = {str(index): True for index in range(1, 12)}
+    categories = tcf_categories_from_purposes(granted, gdpr_applies=True)
+    assert categories["necessary"] is True
+    assert categories["advertising"] is True
+    assert categories["analytics"] is True
+    assert categories["preferences"] is True
+
+    mixed = {"2": True, "3": False, "4": True, "7": True}
+    assert tcf_categories_from_purposes(mixed)["advertising"] is None
+    not_applicable = tcf_categories_from_purposes(granted, gdpr_applies=False)
+    assert not_applicable["analytics"] is None
+    assert not_applicable["advertising"] is None
+
+
+def test_tcf_reader_normalizes_data_without_the_tc_string():
+    payload = {
+        "gdprApplies": True,
+        "eventStatus": "tcloaded",
+        "cmpStatus": "loaded",
+        "tcString": "SECRET-TCF",
+        "purpose": {"consents": {"2": True, "3": True, "4": True, "7": True,
+                                 "8": False, "9": False, "10": False,
+                                 "5": True, "6": True, "11": True}},
+        "legitimateInterests": {"consents": {"2": False}},
+        "specialFeatures": {"optins": {"1": True}},
+    }
+    state = read_tcf_consent(_FakeSession(payload), timestamp=12.5)
+    assert state is not None
+    assert state.categories["advertising"] is True
+    assert state.categories["analytics"] is False
+    assert state.tcf["gdpr_applies"] is True
+    assert state.tcf["purpose_consents"]["2"] is True
+    assert "tcString" not in json.dumps(state.to_dict())
+    assert "SECRET-TCF" not in json.dumps(state.to_dict())
+
+
+def test_gpp_reader_normalizes_metadata_without_the_gpp_string():
+    payload = {
+        "gppVersion": "1.1",
+        "cmpStatus": "loaded",
+        "signalStatus": "ready",
+        "gppString": "SECRET-GPP",
+        "applicableSections": [7, 8],
+        "parsedSections": {"7": {"secret": "SECTION-SECRET"}},
+    }
+    state = read_gpp_consent(_FakeSession(payload), timestamp=12.5)
+    assert state is not None
+    assert state.gpp["applicable_sections"] == ["7", "8"]
+    assert state.gpp["parsed_section_ids"] == ["7"]
+    assert state.categories["necessary"] is True
+    assert state.categories["advertising"] is None
+    serialized = json.dumps(state.to_dict())
+    assert "SECRET-GPP" not in serialized
+    assert "SECTION-SECRET" not in serialized
+
+
+def test_browser_collects_tcf_and_gpp_without_serializing_consent_strings(cmp_fixture_server):
+    report = CmpAuditRunner(CmpAuditOptions(wait_seconds=0.1)).run(
+        f"{cmp_fixture_server}/tcf_gpp.html"
+    )
+    assert report.consent_initial.tcf["gdpr_applies"] is True
+    assert report.consent_initial.categories["advertising"] is True
+    assert report.consent_initial.categories["analytics"] is False
+    assert report.consent_initial.gpp["applicable_sections"] == ["7"]
+    serialized = json.dumps(report.to_dict())
+    assert "TCF-SECRET-STRING" not in serialized
+    assert "GPP-SECRET-STRING" not in serialized
+    assert "SECTION-SECRET" not in serialized
+
+
+def test_runner_accepts_a_custom_adapter_and_explicit_consent_control(tmp_path, cmp_fixture_server):
+    path = _write_adapter_file(tmp_path / "adapter.json", [_custom_adapter_payload()])
+    adapters = load_adapter_file(path)
+    report = CmpAuditRunner(
+        CmpAuditOptions(
+            wait_seconds=0.1,
+            extra_adapters=adapters,
+            accept_selectors=("#acme-accept-all",),
+        )
+    ).run(
+        f"{cmp_fixture_server}/custom_cmp.html",
+        consent_action="accept",
+        authorize_consent_interaction=True,
+    )
+    assert report.detections[0].adapter_id == "acme-consent"
+    assert report.lifecycle.performed is True
+    assert report.lifecycle.selector == "#acme-accept-all"
+
+
+def test_cli_uses_custom_adapter_file(tmp_path, cmp_fixture_server):
+    path = _write_adapter_file(tmp_path / "adapter.json", [_custom_adapter_payload()])
+    result = CliRunner().invoke(
+        main,
+        [
+            "cmp",
+            "audit",
+            f"{cmp_fixture_server}/custom_cmp.html",
+            "--adapter-file",
+            str(path),
+            "--wait",
+            "0.1",
+            "--format",
+            "json",
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.output)
+    assert payload["detections"][0]["adapter_id"] == "acme-consent"
+    assert payload["consent"]["initial"]["sources"] == ["cookie_presence"]
+
+
+def test_cli_rejects_invalid_adapter_file_without_launching_browser(tmp_path):
+    path = tmp_path / "bad.json"
+    path.write_text('{"schema_version": 1, "adapters": [{"adapter_id": "x"}]}')
+    result = CliRunner().invoke(
+        main,
+        ["cmp", "audit", "http://127.0.0.1:9/never-loaded", "--adapter-file", str(path)],
+    )
+    assert result.exit_code == 2
+    assert "vendor" in result.output.lower()
 
 
 def test_cli_refuses_consent_action_without_authorization():
