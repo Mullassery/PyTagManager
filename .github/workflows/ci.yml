@@ -130,6 +130,11 @@ jobs:
         run: |
           /tmp/pytagmanager-install/bin/pytagmanager --help
           cd "$RUNNER_TEMP"
+          printf '%s\n' \
+            '{"exportFormatVersion":2,"containerVersion":{"tag":[],"trigger":[],"variable":[]}}' \
+            > gtm-wheel-smoke.json
+          /tmp/pytagmanager-install/bin/pytagmanager gtm inspect gtm-wheel-smoke.json \
+            --format json > /dev/null
           /tmp/pytagmanager-install/bin/python - <<'PY'
           import sys
           import tempfile
