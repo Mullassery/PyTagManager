@@ -30,7 +30,7 @@ and `environment`/`container audit`/`config diff` CLI commands.
 | CDN publication | `python/pytagmanager/distribution/publisher.py`, `cdn` CLI | Implemented and tested on filesystem |
 | Collection/validation | `python/pytagmanager/ingest/service.py` | Implemented and tested |
 | Collection HTTP | `python/pytagmanager/ingest/http.py`, `serve-ingest` | Implemented and tested with loopback HTTP |
-| PyTagShield adapter | `python/pytagmanager/ingest/pytagshield.py` | Implemented against documented ingest shape; production integration unverified |
+| PyTagShield adapter | `python/pytagmanager/ingest/pytagshield.py` | Implemented; mapping/routing verified against the real PyTagShield 0.2.0 Python pipeline; live HTTP deployment unverified |
 | Web SDK | `sdk/web/` | Implemented, built, 11 tests pass |
 | iOS SDK | `sdk/ios/` | Foundation-only Swift package; library builds and 19 executable checks pass; XCTest target expanded but requires Xcode/CI |
 | Android SDK | `sdk/android/` | Implemented; Gradle 8.14.6/JDK 21/compileSdk 35 build passes with lint and 28 JUnit tests (debug + release); no emulator/device tests |
@@ -161,8 +161,10 @@ Limitations:
 - CLI `cdn rollback` can leave control-plane and publication states out of sync
   if publishing fails after rollback. Re-run `pytagmanager cdn publish`.
 - No automatic TLS certificate management; use a reverse proxy or `--tls-cert`.
-- No real CDN provider or live PyTagShield control-plane API is available, so
-  those integrations are contract-tested locally, not production-verified.
+- No real CDN provider or live PyTagShield HTTP server is available. CDN
+  behavior is filesystem-tested; PyTagShield payload mapping/routing was checked
+  against the real 0.2.0 Python pipeline, but HTTP deployment remains
+  unverified.
 
 ## 6. Verification evidence
 
@@ -195,6 +197,14 @@ pytagmanager --help
 installed FilesystemCDN.publish_environment -> sdk/web/0.1.0/pytagmanager.js
 ```
 
+A manual compatibility check fed the adapter's mapped event into the real
+PyTagShield 0.2.0 `Pipeline.process()` and confirmed consent resolution,
+pseudonymization and routing to a configured destination.
+
+```text
+PyTagShield 0.2.0 mapping compatibility passed
+```
+
 The wheel install check found and fixed two packaging defects: base CLI imports
 no longer pull in optional `yaml`/Playwright dependencies, and the built wheel
 now bundles the Web SDK asset instead of relying on an untracked `sdk/web/dist`
@@ -218,7 +228,8 @@ Remaining:
 
 1. iOS XCTest run in an Xcode environment, including the UIKit lifecycle test.
 2. Android emulator or physical-device instrumentation tests.
-3. Live PyTagShield/CDN integration and multi-host idempotency.
+3. Live PyTagShield HTTP deployment and real CDN integration; multi-host
+   idempotency.
 
 Acceptance for the extension:
 
