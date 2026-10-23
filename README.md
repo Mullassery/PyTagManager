@@ -248,10 +248,10 @@ PyTagManager stays standalone, but these cross-repo integrations are not green. 
 
 | Integration | Status | Blocking gap | Owner |
 |---|---|---|---|
-| PyCustomerHub + Squid | **BLOCKED** | OCDS envelope vs Squid envelope v1; no schema registration; no write-key auth on the edge gateway | PyCustomerHub |
-| PyReverseETL + Squid | **BLOCKED** | No `Idempotency-Key` header; no per-record Squid payload contract | PyReverseETL |
-| PyTagShield + Squid | **UNVERIFIED/OPEN** | Consent attachment semantics unresolved (records vs events vs both); server binary was a no-op in the audited tree | PyTagShield |
-| ClusterAudienceKit / PyTagManager + Squid | **PARTIAL** | PyTagManager finding schema/write plan defined; Squid acceptance and live write test pending. Segment schema remains ClusterAudienceKit | Squid + PyTagManager |
+| PyCustomerHub + Squid | **CODE-SIDE RESOLVED** | Envelope mapping, `squid.*` schemas, and edge write-key auth implemented; live cross-service test pending | PyCustomerHub |
+| PyReverseETL + Squid | **CODE-SIDE RESOLVED** | Squid adapter sends stable `Idempotency-Key` and native person/company payloads; live account test pending | PyReverseETL |
+| PyTagShield + Squid | **CODE-SIDE RESOLVED** | Event-only consent contract (`pytagshield.consent.v1`) and runnable server implemented; live Squid test pending | PyTagShield |
+| ClusterAudienceKit / PyTagManager + Squid | **PARTIAL** | Both sides now define versioned custom-object schemas/write plans. Squid metadata acceptance and live write tests remain. | Squid + PyTagManager |
 
 Evidence, boundaries and next steps: [`ECOSYSTEM_INTEGRATION.md`](ECOSYSTEM_INTEGRATION.md).
 
