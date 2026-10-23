@@ -80,7 +80,9 @@ browser is launched.
 | Vendor network endpoints | browser network events | Bounded and query-stripped |
 | Cookie names and metadata | browser cookie store | Values never serialized |
 | Consent Mode `default` / `update` | existing `agent.js` consent capture | Mapped to analytics/advertising/preferences |
-| Cookiebot category state | documented `window.Cookiebot.consent` | Only direct built-in vendor API reader |
+| Cookiebot category state | documented `window.Cookiebot.consent` | Direct built-in vendor API reader |
+| Didomi user status | documented `window.Didomi.getCurrentUserStatus()` | Purpose/vendor IDs preserved; consent string omitted |
+| OneTrust active groups | documented `window.OnetrustActiveGroups` (fallback `window.OptanonActiveGroups`) | Group IDs preserved; not mapped to normalized categories |
 | IAB TCF v2 state | documented `window.__tcfapi("getTCData", 2, ...)` | Purpose consents normalized; TC string omitted |
 | IAB GPP metadata | documented `window.__gpp("getGPPData", ...)` | Section IDs and status normalized; GPP string and parsed payloads omitted |
 | Pre/post-choice requests | browser network events | Ordered against the explicit action timestamp |
@@ -95,19 +97,21 @@ evidence; they are not presented as a legal category mapping.
 `Cookiebot`, `OneTrust`, `Usercentrics`, `Didomi`, `Quantcast Choice`,
 `TrustArc`, `Osano`, and `Google Funding Choices`.
 
-Adapter detection is signature-based. Only Cookiebot currently has a direct,
-documented built-in consent-state reader. For the others, cookie presence is
-reported without decoding it, and their click selectors are best-effort
-defaults that must be verified against the deployed version. A custom or
-unsupported CMP is reported as undetected rather than guessed.
+Adapter detection is signature-based. Cookiebot, Didomi, and OneTrust currently
+have direct, documented built-in state readers. Cookiebot supplies normalized
+categories; Didomi and OneTrust preserve deployment-specific purpose, vendor, or
+group IDs without mapping them. For the other adapters, cookie presence is
+reported without decoding it, and their click selectors are best-effort defaults
+that must be verified against the deployed version. A custom or unsupported CMP
+is reported as undetected rather than guessed.
 
 An unsupported CMP can be described with a declarative adapter file. Supported
 signature fields are `script_markers`, `url_markers`, `markup_markers`,
 `global_names`, `cookie_names`, and `cookie_prefixes`; `accept_selectors` and
 `reject_selectors` are optional. At least one detection signature is required.
-Custom adapters never get a consent-state reader automatically: category state
-is reported only when TCF, GPP, Consent Mode, Cookiebot, or cookie metadata
-provides evidence.
+Custom adapters never get a consent-state reader automatically: normalized
+category state comes only from TCF, GPP, Consent Mode, or Cookiebot. Didomi and
+OneTrust expose vendor state without normalized category mappings.
 
 ### TCF and GPP normalization
 
@@ -127,6 +131,12 @@ GPP support reports API metadata (`gppVersion`, `cmpStatus`, `signalStatus`,
 applicable section IDs, and parsed section IDs). Because GPP sections are
 jurisdiction-specific, PyTagManager does not invent a category mapping from
 GPP alone.
+
+Didomi's documented `getCurrentUserStatus()` exposes purpose and vendor IDs.
+OneTrust's documented `OnetrustActiveGroups` list exposes active group IDs.
+Those IDs are preserved in `vendor_state` and are deliberately not mapped to
+normalized categories because they are deployment-specific. Didomi's consent
+string is not serialized.
 
 ## Findings
 
@@ -191,7 +201,8 @@ report = CmpAuditRunner().run(
 - Vendor consent APIs, TCF/GPP signals, and selectors can change between
   deployments. TCF/GPP data is self-reported by the page or its CMP and is not
   independently validated.
-- GPP sections are not mapped to PyTagManager categories.
+- GPP sections, Didomi purpose/vendor IDs, and OneTrust group IDs are not
+  mapped to PyTagManager categories.
 - Only one page and one consent lifecycle are exercised per run.
 - Reports are evidence and remediation inputs, not legal advice or a
   certification of compliance.

@@ -508,6 +508,18 @@ def gtm_plan(generated_path: str, container_id: str, credentials_path: str, outp
     default=None,
     help="Hand-authored journey YAML (spec section 12 format). Overrides auto-discovery and tests only URL itself.",
 )
+@click.option(
+    "--sdr",
+    "sdr_path",
+    type=click.Path(exists=True, dir_okay=False),
+    default=None,
+    help="Solution Design Reference (.json or .csv) to validate against observed dataLayer events and fields.",
+)
+@click.option(
+    "--fail-on-sdr-mismatch",
+    is_flag=True,
+    help="Exit 1 when SDR validation has at least one failed check.",
+)
 @click.option("--gtm-container", default=None, help="GTM public container ID (GTM-XXXXXXX) to cross-check runtime events against.")
 @click.option("--gtm-credentials", type=click.Path(exists=True), default=None, help="Service-account JSON key for the GTM Management API.")
 @click.option("--ga4-property", default=None, help="GA4 property ID to cross-check config/ingestion against.")
@@ -631,6 +643,8 @@ def diagnose(
     url: str,
     max_pages: int,
     scenario_path: str | None,
+    sdr_path: str | None,
+    fail_on_sdr_mismatch: bool,
     gtm_container: str | None,
     gtm_credentials: str | None,
     ga4_property: str | None,
@@ -671,6 +685,16 @@ def diagnose(
         raise click.UsageError("--fail-on-regression requires --history.")
     if tag_graph_html:
         tag_graph = True
+    if fail_on_sdr_mismatch and not sdr_path:
+        raise click.UsageError("--fail-on-sdr-mismatch requires --sdr.")
+    sdr_schema = None
+    if sdr_path:
+        from pytagmanager.sdr import SdrFormatError, load_sdr
+
+        try:
+            sdr_schema = load_sdr(sdr_path)
+        except SdrFormatError as exc:
+            raise click.ClickException(str(exc)) from exc
     from pytagmanager.analytics_api.ga4_client import Ga4ApiClient
     from pytagmanager.analytics_api.gtm_client import GtmApiClient
     from pytagmanager.correlation.journey import correlate_events
@@ -773,6 +797,11 @@ def diagnose(
         state_diffs=all_state_diffs,
     )
     diagnosed = diagnose_journeys(all_journeys, ctx)
+    sdr_validation = None
+    if sdr_schema is not None:
+        from pytagmanager.sdr import validate_sdr
+
+        sdr_validation = validate_sdr(sdr_schema, diagnosed)
 
     traces = []
     if include_trace or tag_graph:
@@ -880,6 +909,8 @@ def diagnose(
                 report_dict["tag_execution_graph"] = tag_execution_graph_json
             if all_test_candidates:
                 report_dict["test_candidates"] = build_test_candidates_json(all_test_candidates)
+            if sdr_validation is not None:
+                report_dict["sdr_alignment"] = sdr_validation.to_dict()
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_site_health_report(
@@ -898,6 +929,10 @@ def diagnose(
                 )
             if all_test_candidates:
                 report += "\n\n" + "\n".join(render_test_candidates(all_test_candidates))
+            if sdr_validation is not None:
+                from pytagmanager.sdr import render_sdr_report
+
+                report += "\n\n" + render_sdr_report(sdr_validation)
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
     else:
@@ -916,6 +951,8 @@ def diagnose(
                 report_dict["tag_execution_graph"] = tag_execution_graph_json
             if all_test_candidates:
                 report_dict["test_candidates"] = build_test_candidates_json(all_test_candidates)
+            if sdr_validation is not None:
+                report_dict["sdr_alignment"] = sdr_validation.to_dict()
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_terminal_report(
@@ -932,6 +969,10 @@ def diagnose(
                 )
             if all_test_candidates:
                 report += "\n\n" + "\n".join(render_test_candidates(all_test_candidates))
+            if sdr_validation is not None:
+                from pytagmanager.sdr import render_sdr_report
+
+                report += "\n\n" + render_sdr_report(sdr_validation)
             if traces:
                 report += "\n\n" + "\n\n".join(render_interaction_trace(t) for t in traces)
 
@@ -941,6 +982,8 @@ def diagnose(
         click.echo(f"Wrote diagnostic report to {output_path}")
     else:
         click.echo(report)
+    if fail_on_sdr_mismatch and sdr_validation is not None and not sdr_validation.is_aligned:
+        raise click.exceptions.Exit(1)
 
 
 @main.command(name="scan-tags")
@@ -2414,6 +2457,18 @@ def cdn_write_cache_policy(home, root_path):
 @click.option("--dedupe-db", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Persist event-id claims in this SQLite file for restart/cross-process dedupe.")
 @click.option("--api-token-ref", default=None, help="Optional server-to-server API token secret reference; not for browser SDKs.")
 @click.option("--allow-origin", "origins", multiple=True, help="Allowed CORS origin (repeatable; default *).")
+@click.option(
+    "--trusted-proxy-cidr",
+    "trusted_proxy_cidrs",
+    multiple=True,
+    help="Trust forwarding headers only from this proxy CIDR (repeatable).",
+)
+@click.option(
+    "--real-ip-header",
+    default="X-Forwarded-For",
+    show_default=True,
+    help="Header used for rate-limit identity when the direct peer is a trusted proxy.",
+)
 @click.option("--path", "collection_path", default="/api/v1/events", show_default=True, help="Public collection path, e.g. /collect for same-origin routing.")
 @click.option("--tls-cert", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.option("--tls-key", type=click.Path(dir_okay=False, path_type=Path), default=None)
@@ -2435,6 +2490,8 @@ def serve_ingest(
     dedupe_db,
     api_token_ref,
     origins,
+    trusted_proxy_cidrs,
+    real_ip_header,
     collection_path,
     tls_cert,
     tls_key,
@@ -2483,6 +2540,8 @@ def serve_ingest(
             rate_limit_per_minute=rate_limit_per_minute,
             api_token_ref=api_token_ref,
             cors_origins=tuple(origins) if origins else ("*",),
+            trusted_proxy_cidrs=trusted_proxy_cidrs,
+            real_ip_header=real_ip_header,
             path=collection_path,
             home=home_path,
         )
@@ -2505,6 +2564,57 @@ def serve_ingest(
         serve(service, host=host, port=port, ssl_context=ssl_context)
     except KeyboardInterrupt:
         click.echo("Stopped.")
+
+@main.group()
+def squid() -> None:
+    """Emit the proposed Squid-CRM findings contract and write plan."""
+
+
+@squid.command("manifest")
+@click.option("-o", "--output", "output_path", type=click.Path(dir_okay=False, path_type=Path), default=None)
+def squid_manifest(output_path):
+    """Print the versioned tagManagerFinding object/field manifest."""
+    from pytagmanager.squid import build_finding_manifest
+
+    text = json.dumps(build_finding_manifest(), indent=2, sort_keys=True, ensure_ascii=False)
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(text + "\n", encoding="utf-8")
+        click.echo(f"Wrote Squid finding manifest to {output_path}")
+    else:
+        click.echo(text)
+
+
+@squid.command("findings")
+@click.option(
+    "--input",
+    "input_path",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    required=True,
+    help="A diagnose --format json report.",
+)
+@click.option("--workspace-id", default=None, help="Optional Squid workspace UUID for the plan metadata.")
+@click.option("-o", "--output", "output_path", type=click.Path(dir_okay=False, path_type=Path), default=None)
+def squid_findings(input_path, workspace_id, output_path):
+    """Map a diagnose JSON report to Squid finding records and a write plan.
+
+    This emits data only. It does not call Squid, create metadata or write records.
+    """
+    from pytagmanager.squid import SquidContractError, build_findings_plan
+
+    try:
+        report = json.loads(input_path.read_text(encoding="utf-8"))
+        plan = build_findings_plan(report, workspace_id=workspace_id)
+    except (OSError, json.JSONDecodeError, SquidContractError) as exc:
+        raise click.ClickException(str(exc)) from exc
+    text = json.dumps(plan, indent=2, sort_keys=True, ensure_ascii=False)
+    if output_path:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(text + "\n", encoding="utf-8")
+        click.echo(f"Wrote Squid finding plan to {output_path}")
+    else:
+        click.echo(text)
+
 
 @main.group()
 def cmp() -> None:

@@ -61,6 +61,19 @@ def render_cmp_audit_report(report: CmpAuditReport) -> str:
             f"{','.join(gpp.get('applicable_sections', [])) or 'none'}, "
             f"signal_status={gpp.get('signal_status') or 'unknown'}"
         )
+    if report.consent_initial.vendor_state:
+        vendor = report.consent_initial.vendor_state
+        details = [f"api={vendor.get('api') or 'unknown'}"]
+        for key in (
+            "groups_enabled",
+            "purposes_enabled",
+            "purposes_disabled",
+            "vendors_enabled",
+            "vendors_disabled",
+        ):
+            if key in vendor:
+                details.append(f"{key}={len(vendor.get(key, []))}")
+        lines.append("  Vendor API state: " + ", ".join(details))
     if report.lifecycle.requested_action != "none":
         lines.append(f"  requested action: {report.lifecycle.requested_action}")
         lines.append(f"  performed: {report.lifecycle.performed}")

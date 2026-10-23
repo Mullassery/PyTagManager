@@ -89,5 +89,11 @@ Routes:
   Google and other destinations.
 - The endpoint acknowledges validated events even when no forwarder is
   configured; acknowledgement is not delivery proof.
+- The systemd example trusts `X-Forwarded-For` only from `127.0.0.1/32` because
+  nginx runs on the same host. Change `PYTAGMANAGER_TRUSTED_PROXY_CIDR` to the
+  exact proxy CIDR if the proxy is remote. Do not trust forwarding headers from
+  arbitrary peers; malformed or untrusted values fall back to the socket peer.
+- Rate limits charge batches per event, not per HTTP request. Limits remain
+  in-process and are not a distributed quota across collector replicas.
 - Do not put bearer tokens, destination secrets or private keys in public config
   or SDK assets. Use environment/file references on the server.

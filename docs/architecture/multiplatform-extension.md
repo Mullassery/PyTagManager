@@ -83,6 +83,13 @@ does not follow redirects, uses bounded timeouts, supports an optional
 URLs unless an operator explicitly opts in. Client consent is passed as input;
 PyTagShield remains responsible for server policy and forwarding.
 
+Response body status is authoritative, not just the HTTP code. A local HTTP
+contract test covers HTTP 202 with `status: "rejected"`: `accepted`/
+`partially_accepted` count as forwarded, `rejected` does not, `backpressure` is
+transient, and unknown statuses fail closed. No live PyTagShield HTTP server was
+run for this. Events without a subject use `anon:<event_id>` rather than a shared
+`_anonymous` identity.
+
 Dedupe defaults to a bounded in-memory cache. `--dedupe-db FILE` selects a
 file-backed SQLite store in WAL mode so claims survive restarts and are shared
 by collector processes on one host. The store contains only event ids, state
@@ -151,9 +158,11 @@ Implemented:
 
 Limitations:
 
-- Rate limiting remains in-process. Durable dedupe is available through
-  `--dedupe-db`; SQLite dedupe is single-host and is not a distributed lock.
-  Multi-host deployments need shared routing or a shared idempotency service.
+- Rate limiting remains in-process and charges batches per event. Durable dedupe
+  is available through `--dedupe-db`; SQLite dedupe is single-host and is not a
+  distributed lock. Multi-host deployments need shared routing or a shared
+  idempotency service. Forwarding-header trust is opt-in via trusted proxy
+  CIDRs; no live reverse-proxy deployment test was run.
 - The collection endpoint acknowledges validated events even without a
   forwarder. That is not delivery proof.
 - CDN integrity does not authenticate a publisher and is not a substitute for
@@ -172,11 +181,11 @@ Commands run in this environment:
 
 ```text
 .venv-test/bin/python -m pytest -q
-637 passed, 6 skipped
+737 passed, 4 skipped
 
 .venv-test/bin/python -m pytest tests/python/test_distribution.py \
   tests/python/test_ingest.py tests/python/test_gtm.py -q
-35 passed
+49 passed
 
 node --test sdk/web/test/sdk.test.js
 11 passed
@@ -187,9 +196,9 @@ Build complete
 swift run --package-path sdk/ios PyTagManagerChecks
 PASS 19 Swift checks
 
-cd sdk/android && ./gradlew :sdk:build
-BUILD SUCCESSFUL
-28 Android JUnit tests passed (debug and release), lint passed, debug/release AARs built
+# Last verified with a full Android SDK: 28 JUnit tests, lint, debug/release AARs.
+# This pass could not rerun it because no Android SDK/emulator is configured.
+# swift test (XCTest) is likewise blocked here by Command Line Tools only.
 
 maturin build --release
 fresh venv + pip install dist/*.whl

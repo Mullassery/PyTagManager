@@ -117,9 +117,12 @@ def to_pytagshield_event(event: Mapping[str, Any]) -> dict[str, Any]:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     subject = event.get("subject")
-    distinct_id = "_anonymous"
     if isinstance(subject, Mapping) and isinstance(subject.get("id"), str):
         distinct_id = subject["id"]
+    else:
+        # Never collapse unrelated anonymous events onto one shared identity.
+        # The event id is stable across retries of the same logical event.
+        distinct_id = f"anon:{event.get('event_id') or 'unknown'}"
     payload: dict[str, Any] = {
         "event": event["event_name"],
         "distinct_id": distinct_id,
@@ -240,13 +243,22 @@ class PyTagShieldClient:
                 status="rejected",
                 error="PyTagShield returned a non-object response",
             )
+        status = document.get("status")
+        if status not in {"accepted", "partially_accepted", "backpressure", "rejected"}:
+            return ForwardResult(
+                forwarded=False,
+                http_status=http_status,
+                status="rejected",
+                error="PyTagShield returned an unexpected ingest status",
+            )
         consent = document.get("consent")
         if not isinstance(consent, Mapping):
             consent = {}
         return ForwardResult(
-            forwarded=True,
+            forwarded=status in {"accepted", "partially_accepted"},
             http_status=http_status,
-            status=str(document.get("status", "accepted")),
+            status=status,
+            transient=status == "backpressure",
             event_id=(
                 document.get("event_id")
                 if isinstance(document.get("event_id"), str)

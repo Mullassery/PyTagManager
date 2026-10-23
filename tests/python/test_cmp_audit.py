@@ -12,6 +12,8 @@ from click.testing import CliRunner
 from pytagmanager.cli import main
 from pytagmanager.cmp.adapters import (
     CookiebotAdapter,
+    DidomiAdapter,
+    OneTrustAdapter,
     detect_adapters,
     extract_signals,
     google_categories_from_mode,
@@ -475,6 +477,87 @@ def test_duplicate_custom_adapters_across_files_are_rejected(tmp_path):
     second = _write_adapter_file(tmp_path / "second.json", [_custom_adapter_payload()])
     with pytest.raises(AdapterFileError, match="reserved or already loaded"):
         load_adapter_files((first, second))
+
+
+def test_didomi_reader_normalizes_purpose_and_vendor_ids():
+    payload = {
+        "consent_string": "DIDOMI-SECRET",
+        "purposes": {
+            "global": {
+                "enabled": ["analytics-purpose", "ads-purpose"],
+                "disabled": ["personalization-purpose"],
+            }
+        },
+        "vendors": {
+            "global": {"enabled": ["google-analytics"], "disabled": ["ad-vendor"]}
+        },
+    }
+    state = DidomiAdapter().read_consent(_FakeSession(payload), timestamp=7.0)
+    assert state is not None
+    assert state.sources == ("didomi_state",)
+    assert state.vendor_state["api"] == "didomi"
+    assert state.vendor_state["purposes_enabled"] == ["analytics-purpose", "ads-purpose"]
+    assert state.vendor_state["vendors_disabled"] == ["ad-vendor"]
+    assert state.categories["analytics"] is None
+    assert state.categories["necessary"] is True
+    assert "DIDOMI-SECRET" not in json.dumps(state.to_dict())
+
+
+def test_onetrust_reader_keeps_active_groups_without_mapping_categories():
+    state = OneTrustAdapter().read_consent(
+        _FakeSession(",C0001, C0002,C0004,"), timestamp=8.0
+    )
+    assert state is not None
+    assert state.sources == ("onetrust_groups",)
+    assert state.vendor_state == {
+        "api": "onetrust",
+        "groups_enabled": ["C0001", "C0002", "C0004"],
+    }
+    assert state.categories["necessary"] is True
+    assert state.categories["analytics"] is None
+    assert state.confidence == "confirmed"
+
+
+def test_onetrust_reader_ignores_missing_or_empty_groups():
+    adapter = OneTrustAdapter()
+    assert adapter.read_consent(_FakeSession(None)) is None
+    assert adapter.read_consent(_FakeSession(" , , ")) is None
+    assert adapter.read_consent(_FakeSession([])) is None
+
+
+def test_onetrust_reader_accepts_group_array_shape():
+    state = OneTrustAdapter().read_consent(_FakeSession(["C0001", "C0002"]))
+    assert state is not None
+    assert state.vendor_state["groups_enabled"] == ["C0001", "C0002"]
+
+
+def test_browser_reads_onetrust_active_groups(cmp_fixture_server):
+    report = CmpAuditRunner(CmpAuditOptions(wait_seconds=0.1)).run(
+        f"{cmp_fixture_server}/onetrust.html"
+    )
+    assert report.detections[0].adapter_id == "onetrust"
+    assert report.detections[0].confidence == "confirmed"
+    assert report.consent_initial.vendor_state["groups_enabled"] == [
+        "C0001",
+        "C0002",
+        "C0004",
+    ]
+    assert report.consent_initial.categories["analytics"] is None
+    assert "groups_enabled=3" in render_cmp_audit_report(report)
+
+
+def test_browser_reads_didomi_state_without_consent_string(cmp_fixture_server):
+    report = CmpAuditRunner(CmpAuditOptions(wait_seconds=0.1)).run(
+        f"{cmp_fixture_server}/didomi.html"
+    )
+    assert report.detections[0].adapter_id == "didomi"
+    assert report.detections[0].confidence == "confirmed"
+    assert report.consent_initial.vendor_state["purposes_enabled"] == [
+        "analytics-purpose",
+        "ads-purpose",
+    ]
+    assert report.consent_initial.vendor_state["vendors_enabled"] == ["google-analytics"]
+    assert "DIDOMI-SECRET-STRING" not in json.dumps(report.to_dict())
 
 
 def test_tcf_purpose_mapping_is_conservative_and_gdpr_aware():

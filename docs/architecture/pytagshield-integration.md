@@ -1,16 +1,18 @@
 # PyTagManager ↔ PyTagShield Integration Contract
 
-- **Status:** Static configuration projection is implemented and verified
-  against PyTagShield `0.2.0` (Python binding). **Live control-plane
-  synchronization is still not implemented.**
-- **Audit date:** 2026-10-20
-- **PyTagShield workspace audited:** `../PyTagShield`, version `0.2.0`, clean
-  git checkout `682f4ab`.
-- **Evidence:** source inspection plus an executed projection test. A generated
-  document was loaded with `pytagshield.Config.from_yaml` and exercised through
-  `pytagshield.Pipeline.process` using the PyTagShield `0.2.0` binding. No
-  PyTagShield HTTP server was started, no live endpoint was called, and the
-  PyTagShield test suite was not run as part of this audit.
+- **Status:** Static configuration projection and event-data-plane mapping are
+  implemented and verified against PyTagShield `0.2.0` (Python binding).
+  **Live control-plane synchronization is still not implemented.**
+- **Audit date:** 2026-10-22 (initial contract audit 2026-10-20)
+- **PyTagShield workspace audited:** `../PyTagShield`, version `0.2.0`, git
+  checkout `682f4ab`.
+- **Evidence:** source inspection plus executed projection and pipeline tests.
+  A generated document was loaded with `pytagshield.Config.from_yaml` and
+  exercised through `pytagshield.Pipeline.process`, including allowed and
+  denied consent. A mapped canonical event was also accepted and routed by the
+  real `Pipeline.process` implementation. No PyTagShield HTTP server was
+  started, no live endpoint was called, and the PyTagShield test suite was not
+  run as part of this audit.
 
 This document separates three things that must never be conflated:
 
@@ -39,6 +41,11 @@ Consequences:
 - The projection is not a 1:1 translation of every browser tag semantic. Only
   server-representable event-name routing is projected; everything else is
   reported.
+- Source inspection found no registration, revision upload, activation,
+  effective-version query, delivery reconciliation, or rollback endpoint. No
+  live control-plane call was made.
+- Client-provided consent is forwarded as input; the collector does not enforce
+  consent. No live PyTagShield consent-policy test was run.
 - The synchronization contract remains separate and provisional.
 
 ---
@@ -371,7 +378,33 @@ Explicit non-goals:
 Verified by `tests/python/test_control_pytagshield.py`; the generated document
 was also loaded and exercised with PyTagShield `0.2.0`.
 
-### 5.2 Future control-plane client (proposed)
+### 5.2 Implemented: event data-plane forwarding
+
+`python/pytagmanager/ingest/pytagshield.py` maps the canonical event to the
+documented `POST /api/v1/event` shape and sends only a bounded response summary
+back to the collector:
+
+- `event` / `name` -> `event`
+- `subject.id` -> `distinct_id`, or `anon:<event_id>` when no subject was
+  supplied (never a shared global `_anonymous` identity)
+- RFC 3339 timestamp -> Unix milliseconds
+- `properties` -> `properties`
+- `consent.purposes` -> `consent`
+- event id, correlation id and session id -> PytagManager diagnostic headers
+
+Response status handling is fail-closed: `accepted` and `partially_accepted`
+count as forwarded, `rejected` does not, `backpressure` is transient, and an
+unknown/missing status is rejected instead of being reported as success. HTTP
+202 alone is not treated as delivery proof. A local HTTP contract test covers a
+202 response with a `rejected` body; no live PyTagShield server was run.
+
+The adapter does not follow redirects, validates HTTPS/host resolution at
+construction, rejects embedded credentials, bounds timeout and response size,
+and supports an optional `env:`/`file:` bearer-token reference. A loopback HTTP
+test server exercises the wire payload and response parsing; a live PyTagShield
+HTTP deployment remains unverified.
+
+### 5.3 Future control-plane client (proposed)
 
 ```python
 class PyTagShieldClient(Protocol):
@@ -399,7 +432,7 @@ Requirements:
 - Capability detection: if the receiver lacks an endpoint, report
   `unsupported`, not a fabricated success.
 
-### 5.3 Test double rules
+### 5.4 Test double rules
 
 - The fake may validate envelope shape, idempotency, checksum, and state
   transitions.
@@ -468,6 +501,9 @@ Requirements:
 7. Where will integration secrets be stored (env/file/OS keychain)?
 8. What is the compatibility policy for `pytagshield.control.v1` and future
    schema majors?
+9. How will Linux deployments install PyTagShield 0.2.0? PyPI currently
+   publishes only a macOS arm64 wheel and no sdist, so Linux requires a source
+   build until packaging is extended.
 
 Until these are answered against a real implementation, Phase 4 must stop at:
 

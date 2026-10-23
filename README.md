@@ -16,7 +16,7 @@ When something breaks, you get a specific finding with evidence, a confidence le
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Downloads](https://img.shields.io/pypi/dm/pytagmanager)](https://pypi.org/project/pytagmanager/)
 
-> **Status:** v0.6.0, actively developed and solo-maintained. The PyPI wheel is macOS arm64 only; other platforms build from source and need a Rust toolchain. The published test suite is 23 Rust tests + 694 Python tests, including real headless-Chromium runs. See [Limitations](#limitations) before relying on it in production.
+> **Status:** v0.6.0, actively developed and solo-maintained. The PyPI wheel is macOS arm64 only; other platforms build from source and need a Rust toolchain. The published test suite is 23 Rust tests + 737 Python tests, including real headless-Chromium runs. See [Limitations](#limitations) before relying on it in production.
 
 ## Why this exists
 
@@ -26,6 +26,7 @@ GTM Preview tells you what fired. It does not tell you:
 - which trigger condition or variable reference is the reason;
 - whether the same business action fires the **same event shape** on every template;
 - whether a tag is duplicated, blocked by consent, or lost between dataLayer and the network;
+- whether required SDR events and fields appear with the right names, types and firing conditions;
 - how much a script actually costs when you block it and re-measure.
 
 Engineers answer those questions today by hand-inspecting pages, clicking through Preview one journey at a time, and discovering regressions after reports look wrong. PyTagManager automates that loop and keeps the evidence attached.
@@ -70,6 +71,9 @@ pytagmanager diagnose https://example.com --trace --format json
 # Is the same business action implemented consistently site-wide?
 pytagmanager diagnose https://example.com --site-wide --max-pages 100
 
+# Does the live implementation match the uploaded Solution Design Reference?
+pytagmanager diagnose https://example.com --scenario checkout.yml --sdr sdr.json --format json
+
 # What variables exist, what type are they, and what changed since last week?
 pytagmanager dictionary https://example.com --compare-to baseline.json
 
@@ -84,6 +88,7 @@ pytagmanager gtm-plan --generated gtm.json --container GTM-XXXXXXX --credentials
 - **You need to prove consent actually blocks tracking.** Use `cmp audit` to capture pre/post-choice requests and reload persistence without making a compliance claim.
 - **A vendor script looks expensive.** Use `perf --isolate` to block it plus its downstream dependencies and re-measure the same page.
 - **A tracking bug needs a regression test.** Turn findings into `--test-candidates`, review them, then formalize the useful ones as Playwright tests.
+- **The implementation drifted from the analytics spec.** Run `diagnose --sdr sdr.json --fail-on-sdr-mismatch` in CI and fail on missing events, fields, types or firing conditions.
 
 ## What it does
 
@@ -91,12 +96,14 @@ pytagmanager gtm-plan --generated gtm.json --container GTM-XXXXXXX --credentials
 |---|---|---|
 | **GTM config review** | `gtm inspect`, `gtm-plan`, `gtm import/export` | Which tag, trigger, or variable is misconfigured — before runtime? |
 | **Runtime diagnosis** | `diagnose`, `--scenario`, `--site-wide`, `--history` | What fired, what should have fired, where did they diverge, and why? |
+| **SDR validation** | `diagnose --sdr`, `--fail-on-sdr-mismatch` | Does the live implementation match the required events, fields, types and conditions? |
 | **Data dictionary** | `dictionary` | Which dataLayer fields, cookies, and storage keys exist, where, and how did they drift? |
 | **Tag execution** | `scan-tags`, `--tag-graph`, `--detect-duplicate-tags`, `--detect-server-side-tagging` | Which vendors are present, what is duplicated, and what is inferred vs. observed? |
 | **Performance** | `perf`, `lighthouse`, `lighthouse-ci` | What do LCP/TBT/INP look like, and what happens when one script is blocked? |
 | **Consent** | `cmp audit` | What does the CMP expose, what fired before/after choice, and does it persist? |
 | **Implementation** | `crawl --export`, `diff`, `--render` | What should be tagged, and what changed between crawls? |
 | **Operations** | `container`, `config`, `environment`, `cdn`, `serve-ingest` | How is tag configuration versioned, reviewed, published, and collected? |
+| **Ecosystem contract** | `squid manifest`, `squid findings` | What exact Squid custom-object schema and write plan should consume PyTagManager findings? |
 
 ### GTM container analysis
 
@@ -121,6 +128,8 @@ pytagmanager gtm-plan --generated gtm.json --container GTM-XXXXXXX --credentials
 
 Every finding carries **severity** (how bad) and **confidence** (how sure the rule is why): `Confirmed`, `Highly likely`, `Possible`, or `Needs investigation`. A JS-error correlation is never presented with the same certainty as a directly observed missing event.
 
+`--sdr` validates the observed journeys against a JSON/CSV Solution Design Reference: event presence, required parameters, types, allow-lists, page/selector conditions, duplicate firing, and optional network observation. It reports an alignment score, per-event failures and remediation hints; `--fail-on-sdr-mismatch` turns any failed check into exit code 1 for CI. See [`docs/SDR_VALIDATION.md`](docs/SDR_VALIDATION.md).
+
 `--site-wide` clusters pages into templates, surfaces cross-page regressions like “51 of 342 product pages never send `add_to_cart`”, flags statistical outliers, checks the same business action across implementations, and builds a runtime event map. `--history` plus `--alert-webhook` turns repeated runs into a regression signal for cron/CI.
 
 ### Tag Execution Graph and Test Candidates
@@ -141,7 +150,7 @@ The differentiator is isolation: block one script — or a class such as `ads`/`
 
 ### Consent evidence, not compliance scores
 
-`cmp audit` detects CMP signatures, reads consent state, records pre/post-choice analytics and advertising requests, and checks reload persistence. It normalizes documented TCF v2 and GPP signals without serializing raw TC/GPP strings, and supports data-only custom adapters.
+`cmp audit` detects CMP signatures, reads documented consent state, records pre/post-choice analytics and advertising requests, and checks reload persistence. Cookiebot categories are normalized; Didomi purpose/vendor IDs and OneTrust active group IDs are retained as vendor state without inventing a category mapping. It normalizes documented TCF v2 and GPP signals without serializing raw TC/GPP strings, and supports data-only custom adapters.
 
 It is read-only by default. It never treats a banner as proof of enforcement, never produces a compliance verdict, and only clicks a consent choice when you pass both `--consent-action` and `--authorize-consent-interaction` in an environment you control.
 
@@ -152,10 +161,24 @@ This project has an explicit documentation-honesty policy:
 - **Confidence is part of the output.** Findings distinguish directly observed facts from correlations, inferences, and possibilities.
 - **Server-side tagging is hedged by construction.** A browser can only infer relaying from request shape; indicators are always `Likely` or `Possible`, never `Confirmed`.
 - **No fabricated metrics.** Missing Lighthouse/Chrome binaries raise an error instead of inventing scores. Per-script CPU time and long-task attribution are disclosed as not measured rather than estimated.
+- **SDR reports do not leak parameter values.** They contain presence, type and allow-list outcomes; raw dataLayer values and URL query strings are omitted.
 - **Writes are reviewable.** GTM import creates drafts, `gtm-plan` is read-only, and publishing still requires explicit human action.
 - **Local-first.** Telemetry does not leave your machine. Optional LLM classification runs against a local Ollama model and falls back to deterministic heuristics when it is unavailable.
 
 See [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) for exactly what is built and reachable, built but not reachable, not built, and red in CI.
+
+For the PyTagManager-owned Squid findings contract, run `pytagmanager squid manifest` and see [`docs/SQUID_FINDINGS.md`](docs/SQUID_FINDINGS.md). It is a proposed contract with no live Squid write path yet.
+
+## What's next
+
+SDR validation v1 now covers observed dataLayer events and parameters. Remaining priority work:
+
+- **SDR depth:** cross-platform network parameter contracts (GA4/Adobe/Segment/etc.) and multi-page/SPA condition joins.
+- **Data-layer recommendations:** parameter `available` flags, JSON-LD/microdata prefilling and a Markdown implementation guide.
+- **Release integrity:** multi-platform wheel artifacts beyond the macOS arm64 wheel; source installs already use the sdist.
+- **Ecosystem contracts:** the PyTagManager side of the Squid findings contract is defined; Squid acceptance and a live write test remain pending.
+
+See [`QUEUE_STATUS.md`](QUEUE_STATUS.md) for the prioritized backlog.
 
 ## How it fits together
 
@@ -167,8 +190,9 @@ flowchart LR
     GRAPH --> REC[Tracking recommendations]
     REC --> EXPORT[GTM · GA4 · Segment · Snowplow · Tealium · RudderStack · Adobe]
     SITE --> DIAG[diagnose: real browser]
+    SDR[SDR JSON/CSV] --> DIAG
     DIAG --> CORR[DOM → dataLayer → GTM → network]
-    CORR --> FIND[Findings + Test Candidates]
+    CORR --> FIND[Findings + Test Candidates + SDR alignment]
     DIAG --> TAGGRAPH[Tag Execution Graph]
     SITE --> PERF[perf / Lighthouse / CMP audit]
     EXPORT --> REVIEW[Reviewable GTM import]
@@ -176,8 +200,8 @@ flowchart LR
 ```
 
 - **Rust core** (`src/`, PyO3 + maturin): MudFish-powered async crawl (priority frontier, sitemap, robots, retry/backoff, per-host circuit breaker, SSRF guard) plus a semantic DOM graph with stable selector generation.
-- **Python layer** (`python/pytagmanager/`): orchestration, recommendations, exporters, GTM analysis, browser observation, correlation, diagnostics, site-wide aggregation, data dictionary, tag execution, performance experiments, CMP audit, reporting, and the CLI.
-- **Control plane:** immutable configuration revisions, containers, environments, CDN publication, and a collection endpoint that validates and deduplicates events without owning destination routing (PyTagShield or another adapter handles policy).
+- **Python layer** (`python/pytagmanager/`): orchestration, recommendations, exporters, GTM analysis, browser observation, correlation, diagnostics, SDR validation, site-wide aggregation, data dictionary, tag execution, performance experiments, CMP audit, reporting, and the CLI.
+- **Control plane:** immutable configuration revisions, containers, environments, CDN publication, and a collection endpoint that validates and deduplicates events without owning destination routing (PyTagShield or another adapter handles policy). Collection batches consume one rate-limit token per event; forwarding headers are trusted only from explicitly configured proxy CIDRs.
 
 ## Who it is for
 
@@ -193,12 +217,15 @@ flowchart LR
 - **Performance results are experimental.** They describe the controlled run, not every visitor or field data.
 - **Mobile SDKs are built but lightly verified.** Web passes 11 Node tests; iOS builds with 19 executable checks (XCTest pending); Android builds with 28 JUnit tests (no device tests).
 - **No compliance certification.** CMP findings are evidence, not a legal opinion.
+- **SDR validation is limited to observed journeys.** It checks dataLayer presence, fields, types, allow-lists and conditions; it does not prove GA4/Adobe parameter equivalence, server-side delivery or consent enforcement.
+- **Collection hardening is partial.** Per-event batch limits and opt-in trusted-proxy identity are covered by local HTTP tests. Live reverse-proxy/CDN behavior, bounded worker concurrency, and multi-host idempotency remain unverified.
+- **Squid integration is a proposed contract only.** PyTagManager emits a `tagManagerFinding` manifest and records, but does not create Squid metadata, hold Squid credentials or write records. Squid must accept the schema and the lookup/upsert sequence before this is an integration.
 
 ## Development
 
 ```bash
-cargo test                # Rust: selectors, robots, sitemap, DOM parsing, crawl integration
-pytest tests/python -v    # Python: heuristics, exporters, diffing, diagnostics, CMP, perf
+cargo test     # Rust: selectors, robots, sitemap, DOM parsing, crawl integration
+pytest -v      # Full Python suite: heuristics, exporters, diagnostics, SDR, CMP, ingest, perf
 ```
 
 Browser tests require the diagnostics extra and a Chromium install. Contributor workflow and the documentation-honesty policy are in [`CONTRIBUTING.md`](CONTRIBUTING.md); vulnerability reporting and disclosed risk areas are in [`SECURITY.md`](SECURITY.md).
@@ -210,7 +237,23 @@ Architecture, design decisions, and the road not taken:
 - [`docs/VISION.md`](docs/VISION.md)
 - [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - [`docs/CMP_AUDIT.md`](docs/CMP_AUDIT.md)
+- [`docs/SDR_VALIDATION.md`](docs/SDR_VALIDATION.md)
 - [`CHANGELOG.md`](CHANGELOG.md)
+- [`ECOSYSTEM_INTEGRATION.md`](ECOSYSTEM_INTEGRATION.md) — verified ecosystem boundaries, security gaps and blockers
+- [`docs/SQUID_FINDINGS.md`](docs/SQUID_FINDINGS.md) — proposed Squid custom-object contract for findings
+
+## Ecosystem integration status
+
+PyTagManager stays standalone, but these cross-repo integrations are not green. Treat them as blockers, not supported paths:
+
+| Integration | Status | Blocking gap | Owner |
+|---|---|---|---|
+| PyCustomerHub + Squid | **BLOCKED** | OCDS envelope vs Squid envelope v1; no schema registration; no write-key auth on the edge gateway | PyCustomerHub |
+| PyReverseETL + Squid | **BLOCKED** | No `Idempotency-Key` header; no per-record Squid payload contract | PyReverseETL |
+| PyTagShield + Squid | **UNVERIFIED/OPEN** | Consent attachment semantics unresolved (records vs events vs both); server binary was a no-op in the audited tree | PyTagShield |
+| ClusterAudienceKit / PyTagManager + Squid | **PARTIAL** | PyTagManager finding schema/write plan defined; Squid acceptance and live write test pending. Segment schema remains ClusterAudienceKit | Squid + PyTagManager |
+
+Evidence, boundaries and next steps: [`ECOSYSTEM_INTEGRATION.md`](ECOSYSTEM_INTEGRATION.md).
 
 ## Related projects
 
@@ -219,7 +262,7 @@ Part of the Mullassery open-source family — PyTagManager sits at the tagging/i
 - [PyTagShield](https://github.com/Mullassery/PyTagShield) — consent-aware, privacy-minimizing server-side event pipeline; can consume PyTagManager's managed revisions as startup config
 - [ClusterAudienceKit](https://github.com/Mullassery/ClusterAudienceKit) — customer segmentation and audience intelligence
 - [PyReverseETL](https://github.com/Mullassery/PyReverseETL) — quality-validated reverse ETL / data activation
-- [MessageBirds](https://github.com/Mullassery/MessageBirds) — event-driven customer data and engagement platform
+- [PyCustomerHub](https://github.com/Mullassery/PyCustomerHub) — event-driven customer data and engagement platform
 - [StatGuardian](https://github.com/Mullassery/StatGuardian) — runtime data-quality validation
 - [PyDeepMesh](https://github.com/Mullassery/PyDeepMesh) — dependency-graph and vulnerability intelligence
 - [Browse all projects](https://github.com/Mullassery?tab=repositories)

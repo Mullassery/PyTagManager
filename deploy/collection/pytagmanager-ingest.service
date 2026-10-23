@@ -22,6 +22,8 @@ ExecStart=/opt/pytagmanager/.venv/bin/pytagmanager serve-ingest \
   --dedupe-ttl-seconds ${PYTAGMANAGER_DEDUPE_TTL} \
   --dedupe-claim-ttl-seconds ${PYTAGMANAGER_DEDUPE_CLAIM_TTL} \
   --dedupe-db ${PYTAGMANAGER_DEDUPE_DB} \
+  --trusted-proxy-cidr ${PYTAGMANAGER_TRUSTED_PROXY_CIDR} \
+  --real-ip-header ${PYTAGMANAGER_REAL_IP_HEADER} \
   --allow-origin ${PYTAGMANAGER_ORIGIN}
 Restart=on-failure
 RestartSec=5s

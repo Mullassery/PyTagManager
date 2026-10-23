@@ -107,6 +107,25 @@ interaction -> DOM/JS -> dataLayer -> GTM trigger -> GTM tag -> network request
 Findings carry severity and confidence separately. A static observation is not
 reported as a confirmed runtime defect.
 
+To validate the implementation against a Solution Design Reference, add `--sdr`:
+
+```bash
+pytagmanager diagnose https://example.com/checkout \
+  --scenario checkout.yml \
+  --sdr docs/examples/sdr-checkout.json \
+  --format json
+
+pytagmanager diagnose https://example.com/checkout \
+  --scenario checkout.yml \
+  --sdr docs/examples/sdr-checkout.csv \
+  --fail-on-sdr-mismatch
+```
+
+The report checks event presence, required parameters, types, allow-lists,
+page/selector conditions, duplicate firing and optional network observation.
+It scores only the journeys actually exercised. See
+[`SDR_VALIDATION.md`](SDR_VALIDATION.md).
+
 ## 5. Publish public configuration when testing SDK event flow
 
 This is secondary integration tooling, not a measurement product.
@@ -226,12 +245,20 @@ pytagmanager serve-ingest \
   --container GTM-ABC1234 \
   --dedupe-db /var/lib/pytagmanager/dedupe.sqlite3 \
   --pytagshield-url https://shield.internal.example \
-  --pytagshield-token-ref env:PYTAGSHIELD_INGEST_TOKEN
+  --pytagshield-token-ref env:PYTAGSHIELD_INGEST_TOKEN \
+  --trusted-proxy-cidr 127.0.0.1/32
 ```
 
 `GET /healthz` reports limits, the dedupe backend and whether forwarding is
-configured. `POST /collect` accepts one event or a batch. The endpoint does not expose secrets or
-echo event properties.
+configured. `POST /collect` accepts one event or a batch; each event consumes a
+rate-limit token. The endpoint does not expose secrets or echo event properties.
+
+`--trusted-proxy-cidr` is opt-in. Set it only to the direct reverse-proxy
+addresses that overwrite or append the configured real-IP header. Untrusted
+peers and malformed headers fall back to the socket peer address. With the
+nginx example on loopback, use `127.0.0.1/32`; if nginx runs on another host,
+use that proxy's exact CIDR and ensure the proxy strips client-supplied
+forwarding headers before adding its own.
 
 For a persistent deployment, use the systemd unit and reverse-proxy examples in
 [`deploy/collection`](../deploy/collection/README.md). Terminate TLS at the

@@ -3,6 +3,7 @@ from __future__ import annotations
 import http.client
 import json
 import threading
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -189,6 +190,33 @@ def test_pytagshield_mapping_uses_documented_shape():
     assert "event_id" not in mapped
 
 
+def test_mapped_event_is_accepted_by_pytagshield_when_available():
+    pytest.importorskip("pytagshield")
+    import pytagshield
+
+    config = {
+        "consent": {"purposes": ["analytics"], "default_policy": "deny"},
+        "minimization": {"pseudonymize_salt": "x" * 24},
+        "destinations": [{"name": "log", "type": "log", "purpose": "analytics"}],
+        "routes": [
+            {
+                "name": "cart",
+                "match": {"events": ["add_to_cart"]},
+                "destinations": ["log"],
+            }
+        ],
+    }
+    pipeline = pytagshield.Pipeline(pytagshield.Config.from_yaml(json.dumps(config)))
+    result = pipeline.process(to_pytagshield_event(_event()))
+    assert result["routing"]["destinations"] == ["log"]
+    assert result["event"]["distinct_id"].startswith("sha256:")
+
+    anonymous = _event(event_id="123e4567-e89b-42d3-a456-426614174009")
+    anonymous.pop("subject")
+    anonymous_result = pipeline.process(to_pytagshield_event(anonymous))
+    assert anonymous_result["event"]["distinct_id"].startswith("sha256:")
+
+
 def test_pytagshield_url_requires_https_or_explicit_private_network():
     with pytest.raises(ValidationError):
         validate_pytagshield_url("http://127.0.0.1:8099")
@@ -197,6 +225,79 @@ def test_pytagshield_url_requires_https_or_explicit_private_network():
     ) == "http://127.0.0.1:8099"
     with pytest.raises(ValidationError):
         validate_pytagshield_url("https://127.0.0.1:8099")
+
+
+@contextmanager
+def _pytagshield_response(payload, *, status=202):
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.dumps(payload).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        yield PyTagShieldClient(
+            f"http://127.0.0.1:{server.server_port}",
+            allow_private_networks=True,
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_pytagshield_rejected_outcome_is_not_reported_as_forwarded():
+    with _pytagshield_response(
+        {
+            "event_id": "shield-event",
+            "status": "rejected",
+            "destinations": ["GA4"],
+            "enqueued": [],
+            "rejected": [{"destination": "GA4", "reason": "queue_full"}],
+        }
+    ) as client:
+        forwarded = client.forward(_event())
+        service = IngestService(forwarder=client)
+        ingested = service.ingest_event(_event())
+
+    assert forwarded.forwarded is False
+    assert forwarded.status == "rejected"
+    assert ingested.status == "rejected"
+    assert ingested.accepted is False
+
+
+def test_pytagshield_unexpected_status_fails_closed():
+    with _pytagshield_response({"status": "mystery"}) as client:
+        result = client.forward(_event())
+    assert result.forwarded is False
+    assert result.status == "rejected"
+    assert result.error == "PyTagShield returned an unexpected ingest status"
+
+
+def test_pytagshield_backpressure_is_transient():
+    with _pytagshield_response({"status": "backpressure"}) as client:
+        result = client.forward(_event())
+    assert result.forwarded is False
+    assert result.transient is True
+    assert result.status == "backpressure"
+
+
+def test_pytagshield_anonymous_events_get_distinct_fallbacks():
+    first = _event(event_id="123e4567-e89b-42d3-a456-426614174001")
+    second = _event(event_id="123e4567-e89b-42d3-a456-426614174002")
+    first.pop("subject")
+    second.pop("subject")
+    assert to_pytagshield_event(first)["distinct_id"] == "anon:123e4567-e89b-42d3-a456-426614174001"
+    assert to_pytagshield_event(first)["distinct_id"] == "anon:123e4567-e89b-42d3-a456-426614174001"
+    assert to_pytagshield_event(second)["distinct_id"] == "anon:123e4567-e89b-42d3-a456-426614174002"
 
 
 def test_pytagshield_client_sends_mapped_event_and_auth(monkeypatch):
@@ -390,6 +491,206 @@ def test_http_requires_content_length(http_endpoint):
     assert response.status == 411
     response.read()
     connection.close()
+
+
+def test_batch_rate_limit_charges_once_per_event_and_consumes_tokens():
+    forwarder = FakeForwarder()
+    service = IngestService(
+        IngestConfig(rate_limit_per_minute=3), forwarder=forwarder
+    )
+    first = _batch(("101", "102"))
+    assert service.ingest_batch(first, client_ip="203.0.113.20")["status"] == "accepted"
+    assert [call["event_id"][-3:] for call in forwarder.calls] == ["101", "102"]
+
+    limited = service.ingest_batch(_batch(("103", "104")), client_ip="203.0.113.20")
+    assert limited["status"] == "rate_limited"
+    assert len(forwarder.calls) == 2
+
+    one = {
+        "schema_version": SCHEMA_VERSION,
+        "events": [_event(event_id="123e4567-e89b-42d3-a456-426614174105")],
+    }
+    assert service.ingest_batch(one, client_ip="203.0.113.20")["status"] == "accepted"
+    assert len(forwarder.calls) == 3
+
+
+def test_batch_larger_than_bucket_is_rejected_without_token_charge():
+    service = IngestService(IngestConfig(rate_limit_per_minute=2))
+    oversized = {
+        "schema_version": SCHEMA_VERSION,
+        "events": [
+            _event(event_id=f"123e4567-e89b-42d3-a456-{index:012d}")
+            for index in range(3)
+        ],
+    }
+    limited = service.ingest_batch(oversized, client_ip="203.0.113.21")
+    assert limited["status"] == "rate_limited"
+    exact = {
+        "schema_version": SCHEMA_VERSION,
+        "events": [
+            _event(event_id="123e4567-e89b-42d3-a456-426614174201"),
+            _event(event_id="123e4567-e89b-42d3-a456-426614174202"),
+        ],
+    }
+    assert service.ingest_batch(exact, client_ip="203.0.113.21")["status"] == "accepted"
+
+
+def _batch(suffixes):
+    return {
+        "schema_version": SCHEMA_VERSION,
+        "events": [
+            _event(event_id=f"123e4567-e89b-42d3-a456-{suffix:0>12}")
+            for suffix in suffixes
+        ],
+    }
+
+
+def _serve(service):
+    server = create_server(service, host="127.0.0.1", port=0)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    return server
+
+
+def test_trusted_proxy_header_controls_rate_limit_identity():
+    forwarder = FakeForwarder()
+    service = IngestService(
+        IngestConfig(
+            rate_limit_per_minute=1,
+            trusted_proxy_cidrs=("127.0.0.1/32",),
+        ),
+        forwarder=forwarder,
+    )
+    server = _serve(service)
+    try:
+        first = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174301"),
+            headers={"X-Forwarded-For": "203.0.113.30"},
+        )
+        assert first[0] == 202
+        same_client = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174302"),
+            headers={"X-Forwarded-For": "203.0.113.30"},
+        )
+        assert same_client[0] == 429
+        other_client = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174303"),
+            headers={"X-Forwarded-For": "203.0.113.31"},
+        )
+        assert other_client[0] == 202
+    finally:
+        server.shutdown()
+        server.server_close()
+    assert len(forwarder.calls) == 2
+
+
+def test_forwarded_header_is_ignored_from_untrusted_peer():
+    service = IngestService(IngestConfig(rate_limit_per_minute=1))
+    server = _serve(service)
+    try:
+        first = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174311"),
+            headers={"X-Forwarded-For": "203.0.113.40"},
+        )
+        assert first[0] == 202
+        spoofed = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174312"),
+            headers={"X-Forwarded-For": "203.0.113.41"},
+        )
+        assert spoofed[0] == 429
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_trusted_proxy_chain_uses_rightmost_untrusted_address():
+    service = IngestService(
+        IngestConfig(
+            rate_limit_per_minute=1,
+            trusted_proxy_cidrs=("127.0.0.1/32", "10.0.0.5/32"),
+        )
+    )
+    server = _serve(service)
+    try:
+        first = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174321"),
+            headers={"X-Forwarded-For": "203.0.113.50, 10.0.0.5"},
+        )
+        assert first[0] == 202
+        same_client = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174322"),
+            headers={"X-Forwarded-For": "203.0.113.50, 10.0.0.5"},
+        )
+        assert same_client[0] == 429
+        other_client = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174323"),
+            headers={"X-Forwarded-For": "203.0.113.51, 10.0.0.5"},
+        )
+        assert other_client[0] == 202
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_malformed_forwarded_header_falls_back_to_peer():
+    service = IngestService(
+        IngestConfig(
+            rate_limit_per_minute=1,
+            trusted_proxy_cidrs=("127.0.0.1/32",),
+        )
+    )
+    server = _serve(service)
+    try:
+        first = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174331"),
+            headers={"X-Forwarded-For": "not-an-ip"},
+        )
+        assert first[0] == 202
+        second = _request(
+            server,
+            "POST",
+            "/api/v1/events",
+            _event(event_id="123e4567-e89b-42d3-a456-426614174332"),
+            headers={"X-Forwarded-For": "also-not-an-ip"},
+        )
+        assert second[0] == 429
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_ingest_config_rejects_invalid_proxy_settings():
+    with pytest.raises(ValueError, match="invalid trusted proxy CIDR"):
+        IngestConfig(trusted_proxy_cidrs=("not-a-cidr",))
+    with pytest.raises(ValueError, match="real IP header"):
+        IngestConfig(real_ip_header="Bad Header")
 
 
 def test_sqlite_dedupe_persists_completed_claims_across_restart(tmp_path):

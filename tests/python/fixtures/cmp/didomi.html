@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CMP fixture: Didomi</title>
+  <script>
+    window.Didomi = {
+      getCurrentUserStatus: function () {
+        return {
+          consent_string: "DIDOMI-SECRET-STRING",
+          purposes: {
+            global: {
+              enabled: ["analytics-purpose", "ads-purpose"],
+              disabled: ["personalization-purpose"]
+            }
+          },
+          vendors: {
+            global: {
+              enabled: ["google-analytics"],
+              disabled: ["ad-vendor"]
+            }
+          }
+        };
+      }
+    };
+  </script>
+</head>
+<body><h1>Didomi fixture</h1></body>
+</html>

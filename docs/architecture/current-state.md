@@ -1,5 +1,11 @@
 # PyTagManager — Current State (Phase 0 Audit)
 
+> **Historical baseline.** This audit records commit `92bc000` before the v0.6.0
+> control plane, collection service and CMP work landed. Several "Unavailable"
+> rows below are now outdated. For current integration status, security gaps and
+> blockers, use [`../../ECOSYSTEM_INTEGRATION.md`](../../ECOSYSTEM_INTEGRATION.md)
+> and [`../../QUEUE_STATUS.md`](../../QUEUE_STATUS.md).
+
 - **Status:** Audit complete; no application code changed.
 - **Audit date:** 2026-10-20
 - **Repository:** `Mullassery/PyTagManager`

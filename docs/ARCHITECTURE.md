@@ -32,6 +32,7 @@ status is recorded in `docs/architecture/multiplatform-extension.md`.
 | Tracking Observability: event correlation into per-interaction journeys | **Implemented** | `python/pytagmanager/correlation/journey.py` |
 | Tracking Observability: live GTM Management API + GA4 Admin/Data API config & realtime-ingestion cross-check | **Implemented** (requires the caller's own GCP credentials — see note below) | `python/pytagmanager/analytics_api/{gtm_client,ga4_client}.py` |
 | Tracking Observability: rule-based diagnostic engine + terminal/JSON reporting | **Implemented** (deterministic, no LLM) | `python/pytagmanager/diagnostics/rules.py`, `python/pytagmanager/reporting/` |
+| SDR-driven validation: JSON/CSV Solution Design Reference vs observed dataLayer events/fields | **Implemented** (observed journeys only; no cross-platform network parameter equivalence) | `python/pytagmanager/sdr/`, `diagnose --sdr` |
 | Site-Wide Tagging QA: fetch/XHR/console-error/visibility observers | **Implemented** | `python/pytagmanager/observability/agent.js` |
 | Site-Wide Tagging QA: page-template detection (URL pattern + DOM fingerprint clustering) | **Implemented** (heuristic — see note below) | `python/pytagmanager/sitewide/templates.py` |
 | Site-Wide Tagging QA: semantic page-type classification (LLM-backed, optional relabeling of templates) | **Implemented** (local model via Ollama, deterministic URL-keyword fallback) | `python/pytagmanager/sitewide/page_type.py`, `diagnose --site-wide --semantic-labels` |

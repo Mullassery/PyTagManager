@@ -1,0 +1,5 @@
+event_name,parameter_name,type,required,allowed_values,page_contains,selector,require_network
+add_to_cart,value,number,true,,/cart,[data-testid='add-to-cart'],true
+add_to_cart,currency,string,true,USD|EUR,/cart,
+add_to_cart,items,array,true,,/cart,
+add_to_cart,coupon,string,false,,/cart,

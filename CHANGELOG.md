@@ -10,6 +10,39 @@ notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
+## [Unreleased]
+
+### Added
+- CMP audit reads documented Didomi user status (`getCurrentUserStatus`) and
+  preserves purpose/vendor IDs without storing the Didomi consent string or
+  inventing a category mapping.
+- Ecosystem integration matrix and security/gap register in
+  `ECOSYSTEM_INTEGRATION.md`, with executable PyTagShield contract checks.
+- macOS CI contract job for `pytagshield==0.2.0`; PyTagShield's own Linux
+  packaging remains a documented gap (macOS arm64 wheel only, no sdist).
+- PyTagManager source distribution now builds and clean-installs with the
+  bundled SDK asset; tested locally on macOS arm64 and added to the Linux CI
+  package job (remote workflow run not yet observed).
+- Proposed Squid-CRM findings contract v1: `pytagmanager squid manifest` and
+  `pytagmanager squid findings` emit a versioned `tagManagerFinding`
+  object/field manifest, stable finding records, JSON Schema and lookup/upsert
+  write plan. No live Squid metadata or records were written.
+- SDR-driven validation v1: `diagnose --sdr` loads JSON/CSV Solution Design
+  References, checks observed dataLayer events, required fields, types,
+  allow-lists, page/selector conditions and optional network observation, and
+  reports an alignment score with remediation. `--fail-on-sdr-mismatch` provides
+  a CI gate. Parameter values and query strings are not serialized.
+
+### Fixed
+- A PyTagShield-contract response with HTTP 202 and body status `rejected` is no
+  longer reported as forwarded; unknown statuses fail closed and `backpressure`
+  is treated as transient. Covered by local HTTP contract tests.
+- Events without a subject no longer share the `_anonymous` PyTagShield
+  identifier; each uses a stable event-scoped `anon:<event_id>` fallback.
+- Updated `Cargo.lock` for RUSTSEC-2026-0381/0382/0383
+  (`rustls-webpki` 0.103.16, `webpki-roots` 1.0.10,
+  `webpki-root-certs` 1.0.10).
+
 ## [0.6.0] - 2026-10-22
 
 ### Added
@@ -38,6 +71,12 @@ file is a release-oriented complement to it, not a duplicate.
 - CMP audit now reads documented IAB TCF v2 purpose consents and GPP metadata,
   normalizing them without serializing TC/GPP strings or parsed GPP section
   payloads, and accepts data-only custom adapter files for unsupported CMPs.
+- CMP audit now reads OneTrust's documented `OnetrustActiveGroups` list. Group
+  IDs are retained as vendor state and are not mapped to normalized categories.
+- Collection batches now consume one rate-limit token per event instead of one
+  per request. Trusted-proxy CIDRs can opt in to `X-Forwarded-For` (or a chosen
+  header) for rate-limit identity; untrusted peers and malformed headers fall
+  back to the direct socket address.
 
 ### Fixed
 - Base `pytagmanager` CLI imports no longer require the optional `yaml` or

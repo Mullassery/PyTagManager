@@ -1,5 +1,11 @@
 # Audit findings — 2026-10-19
 
+> **Historical audit.** This file predates v0.6.0 and is retained for context.
+> Current integration status, security gaps, stubs and blockers are maintained
+> in [`ECOSYSTEM_INTEGRATION.md`](ECOSYSTEM_INTEGRATION.md) and
+> [`QUEUE_STATUS.md`](QUEUE_STATUS.md). Do not cite test counts or packaging
+> claims from this file as current.
+
 This file records the repository-specific findings from the portfolio audit
 conducted on 2026-10-19. It is documentation only; no code or release artifacts
 were changed in this pass unless explicitly noted under "Implementation status".

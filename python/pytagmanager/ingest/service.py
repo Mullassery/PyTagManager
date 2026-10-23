@@ -8,6 +8,8 @@ policy owned by PyTagShield.
 
 from __future__ import annotations
 
+import ipaddress
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -38,6 +40,8 @@ class IngestConfig:
     rate_limit_per_minute: int = 120
     api_token_ref: str | None = None
     cors_origins: tuple[str, ...] = ("*",)
+    trusted_proxy_cidrs: tuple[str, ...] = ()
+    real_ip_header: str = "X-Forwarded-For"
     path: str = "/api/v1/events"
     home: str | None = None
 
@@ -58,6 +62,17 @@ class IngestConfig:
             raise ValueError("at least one CORS origin must be configured")
         if "*" in self.cors_origins and len(self.cors_origins) != 1:
             raise ValueError("wildcard CORS origin cannot be combined with named origins")
+        header = self.real_ip_header.strip()
+        if not header or re.fullmatch(r"[A-Za-z0-9-]+", header) is None:
+            raise ValueError("real IP header must be a valid HTTP header name")
+        object.__setattr__(self, "real_ip_header", header)
+        networks = []
+        for value in self.trusted_proxy_cidrs:
+            try:
+                networks.append(str(ipaddress.ip_network(value.strip(), strict=False)))
+            except ValueError as exc:
+                raise ValueError(f"invalid trusted proxy CIDR: {value!r}") from exc
+        object.__setattr__(self, "trusted_proxy_cidrs", tuple(networks))
         if not self.path.startswith("/") or "?" in self.path or "#" in self.path:
             raise ValueError("collection path must be an absolute path without query/fragment")
 
@@ -96,16 +111,21 @@ class TokenBucketLimiter:
         self._lock = threading.Lock()
 
     def allow(self, key: str, *, now: float | None = None) -> bool:
+        return self.allow_many(key, 1, now=now)
+
+    def allow_many(self, key: str, count: int, *, now: float | None = None) -> bool:
+        if count < 1:
+            return True
         current = time.monotonic() if now is None else now
         with self._lock:
             tokens, updated = self._buckets.get(key, (self.capacity, current))
             tokens = min(self.capacity, tokens + max(0.0, current - updated) * self.rate)
-            if tokens < 1.0:
+            if tokens < count:
                 self._buckets[key] = (tokens, current)
                 return False
             if len(self._buckets) > 10_000:
                 self._buckets.clear()
-            self._buckets[key] = (tokens - 1.0, current)
+            self._buckets[key] = (tokens - count, current)
             return True
 
 
@@ -173,7 +193,9 @@ class IngestService:
         now: datetime | None = None,
     ) -> dict[str, Any]:
         current = now or datetime.now(timezone.utc)
-        if not self.limiter.allow(client_ip or "unknown"):
+        events = raw.get("events")
+        charge = len(events) if isinstance(events, list) and events else 1
+        if not self.limiter.allow_many(client_ip or "unknown", charge):
             return {
                 "accepted": False,
                 "status": "rate_limited",

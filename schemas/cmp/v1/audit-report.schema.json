@@ -143,7 +143,7 @@
     },
     "consentState": {
       "type": "object",
-      "required": ["sources", "categories", "google_mode", "tcf", "gpp", "confidence", "timestamp", "evidence"],
+      "required": ["sources", "categories", "google_mode", "tcf", "gpp", "vendor_state", "confidence", "timestamp", "evidence"],
       "properties": {
         "sources": {"type": "array", "items": {"type": "string"}},
         "categories": {
@@ -183,6 +183,19 @@
             "signal_status": {"type": "string"},
             "applicable_sections": {"type": "array", "items": {"type": "string"}},
             "parsed_section_ids": {"type": "array", "items": {"type": "string"}}
+          },
+          "additionalProperties": false
+        },
+        "vendor_state": {
+          "type": "object",
+          "description": "Vendor API state that is not mapped to normalized categories. Raw consent strings are omitted.",
+          "properties": {
+            "api": {"type": "string"},
+            "groups_enabled": {"type": "array", "items": {"type": "string"}},
+            "purposes_enabled": {"type": "array", "items": {"type": "string"}},
+            "purposes_disabled": {"type": "array", "items": {"type": "string"}},
+            "vendors_enabled": {"type": "array", "items": {"type": "string"}},
+            "vendors_disabled": {"type": "array", "items": {"type": "string"}}
           },
           "additionalProperties": false
         },

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hmac
+import ipaddress
 import json
 import logging
 import ssl
@@ -25,6 +26,10 @@ class IngestHTTPServer(ThreadingHTTPServer):
     def __init__(self, address, handler, service: IngestService, ssl_context=None):
         self.ingest_service = service
         self.ssl_context = ssl_context
+        self.trusted_proxy_networks = tuple(
+            ipaddress.ip_network(value)
+            for value in service.config.trusted_proxy_cidrs
+        )
         super().__init__(address, handler)
 
     def get_request(self):
@@ -62,6 +67,32 @@ class IngestHandler(BaseHTTPRequestHandler):
         if "*" in allowed:
             return "*"
         return origin if origin in allowed else None
+
+    def _is_trusted_proxy(self, value: str) -> bool:
+        try:
+            address = ipaddress.ip_address(value)
+        except ValueError:
+            return False
+        return any(
+            address in network
+            for network in self.server.trusted_proxy_networks  # type: ignore[attr-defined]
+        )
+
+    def _client_ip(self) -> str | None:
+        peer = self.client_address[0] if self.client_address else None
+        networks = self.server.trusted_proxy_networks  # type: ignore[attr-defined]
+        if not peer or not networks or not self._is_trusted_proxy(peer):
+            return peer
+        forwarded = self.headers.get(self._service().config.real_ip_header)
+        if not forwarded:
+            return peer
+        for item in reversed(forwarded.split(",")):
+            candidate = _normalize_ip(item)
+            if candidate is None:
+                return peer
+            if not self._is_trusted_proxy(candidate):
+                return candidate
+        return peer
 
     def _cors_headers(self) -> dict[str, str]:
         allowed = self._allowed_origin()
@@ -152,7 +183,7 @@ class IngestHandler(BaseHTTPRequestHandler):
         if not isinstance(raw, dict):
             self._send(400, {"error": "invalid_payload"})
             return
-        client_ip = self.client_address[0] if self.client_address else None
+        client_ip = self._client_ip()
 
         if isinstance(raw.get("events"), list):
             result = service.ingest_batch(raw, client_ip=client_ip)
@@ -192,6 +223,16 @@ class IngestHandler(BaseHTTPRequestHandler):
         if retryable:
             return 503
         return 422
+
+
+def _normalize_ip(value: str) -> str | None:
+    text = value.strip().strip('"')
+    if text.startswith("[") and "]" in text:
+        text = text[1 : text.index("]")]
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return None
 
 
 def create_server(

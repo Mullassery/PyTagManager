@@ -217,6 +217,37 @@ def test_generated_config_is_accepted_by_pytagshield_when_available():
     assert valid, messages
 
 
+def test_projected_config_routes_through_pytagshield_when_available():
+    if importlib.util.find_spec("pytagshield") is None:
+        pytest.skip("pytagshield is not installed in this environment")
+    import pytagshield
+
+    result = project_to_pytagshield(
+        _payload(), pseudonymize_salt="x" * 24, secret_resolver=lambda ref: "s"
+    )
+    pipeline = pytagshield.Pipeline(pytagshield.Config.from_yaml(json.dumps(result.config)))
+    allowed = pipeline.process(
+        {
+            "event": "add_to_cart",
+            "distinct_id": "customer-1",
+            "properties": {},
+            "consent": {"analytics": True},
+        }
+    )
+    denied = pipeline.process(
+        {
+            "event": "add_to_cart",
+            "distinct_id": "customer-1",
+            "properties": {},
+            "consent": {"analytics": False},
+        }
+    )
+    assert allowed["routing"]["destinations"] == ["GA4 (analytics)"]
+    assert allowed["event"]["distinct_id"].startswith("sha256:")
+    assert denied["routing"]["destinations"] == []
+    assert denied["routing"]["skipped"][0]["reason"] == "consent_denied:analytics"
+
+
 def test_cli_exports_private_file_with_resolved_secret(tmp_path):
     service = ControlPlaneService(FileStore(tmp_path))
     service.create_container("GTM-ABC1234")

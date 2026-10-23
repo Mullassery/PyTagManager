@@ -284,8 +284,51 @@ class OneTrustAdapter(CmpAdapter):
     cookie_prefixes = ("Optanon",)
     accept_selectors = ("#onetrust-accept-btn-handler",)
     reject_selectors = ("#onetrust-reject-all-handler", ".ot-pc-refuse-all-handler")
-    notes = ("Cookie presence is reported; OneTrust categories are not decoded.",)
+    supports_consent_api = True
+    notes = (
+        "Direct state uses the documented window.OnetrustActiveGroups list; group IDs are not mapped to categories.",
+    )
 
+    def read_consent(self, session, timestamp: float = 0.0) -> Optional[ConsentState]:
+        script = """
+        () => {
+          const raw = window.OnetrustActiveGroups || window.OptanonActiveGroups;
+          if (typeof raw === "string" || Array.isArray(raw)) return raw;
+          return null;
+        }
+        """
+        try:
+            raw = session.evaluate(script)
+        except Exception:
+            return None
+        if isinstance(raw, str):
+            enabled_groups = _csv_list(raw)
+        elif isinstance(raw, list):
+            enabled_groups = _string_list(raw)
+        else:
+            return None
+        if not enabled_groups:
+            return None
+        vendor_state = {"api": "onetrust", "groups_enabled": enabled_groups}
+        categories = {name: None for name in CATEGORIES}
+        categories["necessary"] = True
+        evidence = (
+            CmpEvidence(
+                kind="vendor_api",
+                source="javascript",
+                summary="OneTrust active groups read from window.OnetrustActiveGroups",
+                value=f"groups_enabled={len(enabled_groups)}",
+                timestamp=timestamp,
+            ),
+        )
+        return ConsentState(
+            sources=("onetrust_groups",),
+            categories=categories,
+            vendor_state=vendor_state,
+            confidence="confirmed",
+            timestamp=timestamp,
+            evidence=evidence,
+        )
 
 class UsercentricsAdapter(CmpAdapter):
     adapter_id = "usercentrics"
@@ -312,7 +355,77 @@ class DidomiAdapter(CmpAdapter):
     cookie_prefixes = ("didomi_",)
     accept_selectors = ("#didomi-notice-agree-button",)
     reject_selectors = ("#didomi-notice-disagree-button",)
-    notes = ("Cookie presence is reported; Didomi categories are not decoded.",)
+    supports_consent_api = True
+    notes = ("Direct state uses documented Didomi.getCurrentUserStatus(); purpose/vendor IDs are not mapped to categories.",)
+
+    def read_consent(self, session, timestamp: float = 0.0) -> Optional[ConsentState]:
+        script = """
+        () => new Promise((resolve) => {
+          if (!window.Didomi) return resolve(null);
+          const read = (Didomi) => {
+            try {
+              if (typeof Didomi.getCurrentUserStatus !== "function") return resolve(null);
+              const status = Didomi.getCurrentUserStatus();
+              resolve(status && typeof status === "object" ? status : null);
+            } catch (error) {
+              resolve(null);
+            }
+          };
+          if (typeof window.Didomi.getCurrentUserStatus === "function") {
+            return read(window.Didomi);
+          }
+          window.didomiOnReady = window.didomiOnReady || [];
+          window.didomiOnReady.push(read);
+          setTimeout(() => resolve(null), 1500);
+        })
+        """
+        try:
+            raw = session.evaluate(script)
+        except Exception:
+            return None
+        if not isinstance(raw, dict):
+            return None
+        purposes = raw.get("purposes") if isinstance(raw.get("purposes"), dict) else {}
+        purpose_global = purposes.get("global") if isinstance(purposes.get("global"), dict) else {}
+        vendors = raw.get("vendors") if isinstance(raw.get("vendors"), dict) else {}
+        vendor_global = vendors.get("global") if isinstance(vendors.get("global"), dict) else {}
+        enabled_purposes = _string_list(purpose_global.get("enabled"))
+        disabled_purposes = _string_list(purpose_global.get("disabled"))
+        enabled_vendors = _string_list(vendor_global.get("enabled"))
+        disabled_vendors = _string_list(vendor_global.get("disabled"))
+        if not any((enabled_purposes, disabled_purposes, enabled_vendors, disabled_vendors)):
+            return None
+        vendor_state = {
+            "api": "didomi",
+            "purposes_enabled": enabled_purposes,
+            "purposes_disabled": disabled_purposes,
+            "vendors_enabled": enabled_vendors,
+            "vendors_disabled": disabled_vendors,
+        }
+        categories = {name: None for name in CATEGORIES}
+        categories["necessary"] = True
+        evidence = (
+            CmpEvidence(
+                kind="vendor_api",
+                source="javascript",
+                summary="Didomi user consent status read from window.Didomi.getCurrentUserStatus",
+                value=(
+                    f"purposes_enabled={len(enabled_purposes)}, "
+                    f"purposes_disabled={len(disabled_purposes)}, "
+                    f"vendors_enabled={len(enabled_vendors)}, "
+                    f"vendors_disabled={len(disabled_vendors)}"
+                ),
+                timestamp=timestamp,
+            ),
+        )
+        return ConsentState(
+            sources=("didomi_state",),
+            categories=categories,
+            vendor_state=vendor_state,
+            confidence="confirmed",
+            timestamp=timestamp,
+            evidence=evidence,
+        )
 
 
 class QuantcastAdapter(CmpAdapter):
@@ -678,6 +791,7 @@ def merge_consent_states(
     google_mode: Dict[str, str] = {}
     tcf: Dict[str, Any] = {}
     gpp: Dict[str, Any] = {}
+    vendor_state: Dict[str, Any] = {}
     evidence: List[CmpEvidence] = []
     confidence = "unverified"
     for state in usable:
@@ -688,6 +802,7 @@ def merge_consent_states(
         google_mode.update(state.google_mode)
         tcf.update(state.tcf)
         gpp.update(state.gpp)
+        vendor_state.update(state.vendor_state)
         evidence.extend(state.evidence)
         if _confidence_rank(state.confidence) > _confidence_rank(confidence):
             confidence = state.confidence
@@ -697,6 +812,7 @@ def merge_consent_states(
         google_mode=google_mode,
         tcf=tcf,
         gpp=gpp,
+        vendor_state=vendor_state,
         confidence=confidence,
         timestamp=timestamp or max((state.timestamp for state in usable), default=0.0),
         evidence=tuple(evidence),
@@ -705,6 +821,27 @@ def merge_consent_states(
 
 def _as_bool(value) -> Optional[bool]:
     return value if isinstance(value, bool) else None
+
+
+def _csv_list(value: str, limit: int = 200) -> List[str]:
+    result = []
+    for item in value.split(",")[:limit]:
+        text = item.strip()
+        if text:
+            result.append(text)
+    return result
+
+
+def _string_list(value, limit: int = 200) -> List[str]:
+    if not isinstance(value, list):
+        return []
+    result = []
+    for item in value[:limit]:
+        if isinstance(item, (str, int, float)):
+            text = str(item).strip()
+            if text:
+                result.append(text)
+    return result
 
 
 def _bool_map(value) -> Dict[str, bool]:

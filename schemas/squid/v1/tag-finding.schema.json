@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pytagmanager.local/schemas/squid/v1/tag-finding.schema.json",
+  "title": "PyTagManager Squid tagManagerFinding record v1",
+  "description": "One custom-object record for Squid-CRM. Records carry diagnostic evidence, never raw consent strings or full dataLayer payloads.",
+  "type": "object",
+  "required": [
+    "name",
+    "findingId",
+    "ruleId",
+    "rootCause",
+    "severity",
+    "confidence",
+    "message",
+    "recommendation",
+    "source",
+    "schemaVersion"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Existing Squid record id, added only after a findingId lookup match."
+    },
+    "name": {"type": "string", "minLength": 1, "maxLength": 200},
+    "findingId": {
+      "type": "string",
+      "pattern": "^ptm_[a-f0-9]{24}$",
+      "description": "Stable PyTagManager identity for this finding."
+    },
+    "ruleId": {"type": "string", "minLength": 1, "maxLength": 200},
+    "rootCause": {"type": "string", "minLength": 1, "maxLength": 200},
+    "severity": {"type": "string", "enum": ["critical", "warning", "unknown"]},
+    "confidence": {
+      "type": "string",
+      "enum": ["Confirmed", "Highly likely", "Possible", "Needs investigation"]
+    },
+    "message": {"type": "string", "minLength": 1, "maxLength": 500},
+    "recommendation": {"type": "string", "minLength": 1, "maxLength": 1000},
+    "pageUrl": {
+      "type": "string",
+      "description": "Page URL without query string or fragment."
+    },
+    "selector": {"type": "string", "maxLength": 300},
+    "tagId": {"type": "string", "maxLength": 200},
+    "containerId": {"type": "string", "maxLength": 200},
+    "sourceEvent": {"type": "string", "maxLength": 200},
+    "source": {"type": "string", "minLength": 1, "maxLength": 100},
+    "schemaVersion": {"type": "string", "const": "1"}
+  }
+}

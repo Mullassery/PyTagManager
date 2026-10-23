@@ -1,0 +1,376 @@
+{
+  "contract": "pytagmanager.squid.tag-finding.v1",
+  "limitations": [
+    "This is a proposed contract, not a live Squid integration.",
+    "PyTagManager does not perform Squid writes or hold Squid credentials.",
+    "Segments are owned by ClusterAudienceKit; this contract covers findings only.",
+    "No generated GraphQL type is assumed; REST is the interim path.",
+    "No consent decision or compliance verdict is encoded in a finding record."
+  ],
+  "manifest": {
+    "auto_fields": [
+      "name"
+    ],
+    "contract": "pytagmanager.squid.tag-finding.v1",
+    "fields": [
+      {
+        "description": "Stable PyTagManager finding identity.",
+        "isNullable": false,
+        "isSearchable": true,
+        "isUnique": true,
+        "label": "Finding ID",
+        "name": "findingId",
+        "type": "TEXT"
+      },
+      {
+        "description": "Machine-readable diagnostic rule or root-cause identifier.",
+        "isNullable": false,
+        "isSearchable": true,
+        "label": "Rule ID",
+        "name": "ruleId",
+        "type": "TEXT"
+      },
+      {
+        "description": "Root-cause slug emitted by PyTagManager.",
+        "isNullable": false,
+        "isSearchable": true,
+        "label": "Root Cause",
+        "name": "rootCause",
+        "type": "TEXT"
+      },
+      {
+        "description": "PyTagManager severity: critical, warning, or unknown.",
+        "isNullable": false,
+        "label": "Severity",
+        "name": "severity",
+        "type": "TEXT"
+      },
+      {
+        "description": "Evidence confidence from the diagnostic engine.",
+        "isNullable": false,
+        "label": "Confidence",
+        "name": "confidence",
+        "type": "TEXT"
+      },
+      {
+        "description": "Plain-language finding summary.",
+        "isNullable": false,
+        "label": "Message",
+        "name": "message",
+        "type": "TEXT"
+      },
+      {
+        "description": "Actionable remediation guidance.",
+        "isNullable": false,
+        "label": "Recommendation",
+        "name": "recommendation",
+        "type": "TEXT"
+      },
+      {
+        "description": "Page URL without query string or fragment.",
+        "isNullable": true,
+        "label": "Page URL",
+        "name": "pageUrl",
+        "type": "TEXT"
+      },
+      {
+        "description": "Interaction selector associated with the finding.",
+        "isNullable": true,
+        "label": "Selector",
+        "name": "selector",
+        "type": "TEXT"
+      },
+      {
+        "description": "GTM tag identifier when the finding names one.",
+        "isNullable": true,
+        "label": "Tag ID",
+        "name": "tagId",
+        "type": "TEXT"
+      },
+      {
+        "description": "GTM container identifier when available.",
+        "isNullable": true,
+        "label": "Container ID",
+        "name": "containerId",
+        "type": "TEXT"
+      },
+      {
+        "description": "Business event or dataLayer event associated with the finding.",
+        "isNullable": true,
+        "label": "Source Event",
+        "name": "sourceEvent",
+        "type": "TEXT"
+      },
+      {
+        "description": "PyTagManager report source, e.g. diagnose.",
+        "isNullable": false,
+        "label": "Source",
+        "name": "source",
+        "type": "TEXT"
+      },
+      {
+        "description": "PyTagManager Squid finding record schema version.",
+        "isNullable": false,
+        "label": "Schema Version",
+        "name": "schemaVersion",
+        "type": "TEXT"
+      }
+    ],
+    "limitations": [
+      "This is a proposed contract, not a live Squid integration.",
+      "PyTagManager does not perform Squid writes or hold Squid credentials.",
+      "Segments are owned by ClusterAudienceKit; this contract covers findings only.",
+      "No generated GraphQL type is assumed; REST is the interim path.",
+      "No consent decision or compliance verdict is encoded in a finding record."
+    ],
+    "metadata_operations": {
+      "create_fields": [
+        {
+          "field": {
+            "isNullable": false,
+            "isSearchable": true,
+            "isUnique": true,
+            "label": "Finding ID",
+            "name": "findingId",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "isSearchable": true,
+            "label": "Rule ID",
+            "name": "ruleId",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "isSearchable": true,
+            "label": "Root Cause",
+            "name": "rootCause",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "label": "Severity",
+            "name": "severity",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "label": "Confidence",
+            "name": "confidence",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "label": "Message",
+            "name": "message",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "label": "Recommendation",
+            "name": "recommendation",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": true,
+            "label": "Page URL",
+            "name": "pageUrl",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": true,
+            "label": "Selector",
+            "name": "selector",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": true,
+            "label": "Tag ID",
+            "name": "tagId",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": true,
+            "label": "Container ID",
+            "name": "containerId",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": true,
+            "label": "Source Event",
+            "name": "sourceEvent",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "label": "Source",
+            "name": "source",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        },
+        {
+          "field": {
+            "isNullable": false,
+            "label": "Schema Version",
+            "name": "schemaVersion",
+            "objectMetadataId": "<created-object-id>",
+            "type": "TEXT"
+          }
+        }
+      ],
+      "create_object": {
+        "object": {
+          "description": "PyTagManager tracking findings. Created from versioned diagnostic evidence; not a consent or compliance verdict.",
+          "icon": "IconAlertTriangle",
+          "labelPlural": "Tag Manager Findings",
+          "labelSingular": "Tag Manager Finding",
+          "namePlural": "tagManagerFindings",
+          "nameSingular": "tagManagerFinding"
+        }
+      }
+    },
+    "object": {
+      "description": "PyTagManager tracking findings. Created from versioned diagnostic evidence; not a consent or compliance verdict.",
+      "icon": "IconAlertTriangle",
+      "labelPlural": "Tag Manager Findings",
+      "labelSingular": "Tag Manager Finding",
+      "namePlural": "tagManagerFindings",
+      "nameSingular": "tagManagerFinding"
+    },
+    "owner": "PyTagManager",
+    "record_schema": "schemas/squid/v1/tag-finding.schema.json",
+    "required_squid_acceptance": [
+      "Create the tagManagerFinding object and all declared fields from metadata_operations.",
+      "Enforce findingId uniqueness within a workspace.",
+      "Confirm the REST lookup query and /upsert behavior against a live/test workspace.",
+      "Grant the adapter an API key with Update capability; do not expose it to browsers."
+    ],
+    "schema_version": 1,
+    "status": "proposed",
+    "upsert": {
+      "body_shape": {
+        "records": [
+          {
+            "...": "field values",
+            "findingId": "<ptm_...>"
+          }
+        ]
+      },
+      "idempotency": {
+        "header": "Idempotency-Key",
+        "scope": "Squid workspace",
+        "value": "sha256 of the canonical batch body, prefixed pytagmanager-findings-v1:"
+      },
+      "lookup": {
+        "method": "GET",
+        "path": "/rest/tagManagerFindings",
+        "query": "filter=findingId[eq]:<findingId>&limit=1",
+        "selection": "exact findingId match only"
+      },
+      "match_field": "findingId",
+      "method": "POST",
+      "path": "/rest/tagManagerFindings/upsert"
+    }
+  },
+  "plan_id": "ptm-fea4147083dc42e8f4f1a88c",
+  "records": [
+    {
+      "confidence": "Confirmed",
+      "findingId": "ptm_99c6ed40a10707d82141c934",
+      "message": "User interaction occurred but the application did not generate the expected dataLayer event.",
+      "name": "add_to_cart: User interaction occurred but the application did not generate the expected dataLayer event.",
+      "pageUrl": "https://example.com/cart",
+      "recommendation": "Verify the interaction handler pushes the expected dataLayer event; check for JS errors or a missing GTM trigger before re-running diagnose.",
+      "rootCause": "missing_datalayer_event",
+      "ruleId": "missing_datalayer_event",
+      "schemaVersion": "1",
+      "selector": "#add-to-cart",
+      "severity": "critical",
+      "source": "diagnose",
+      "sourceEvent": "add_to_cart"
+    }
+  ],
+  "request": {
+    "body": {
+      "records": [
+        {
+          "confidence": "Confirmed",
+          "findingId": "ptm_99c6ed40a10707d82141c934",
+          "message": "User interaction occurred but the application did not generate the expected dataLayer event.",
+          "name": "add_to_cart: User interaction occurred but the application did not generate the expected dataLayer event.",
+          "pageUrl": "https://example.com/cart",
+          "recommendation": "Verify the interaction handler pushes the expected dataLayer event; check for JS errors or a missing GTM trigger before re-running diagnose.",
+          "rootCause": "missing_datalayer_event",
+          "ruleId": "missing_datalayer_event",
+          "schemaVersion": "1",
+          "selector": "#add-to-cart",
+          "severity": "critical",
+          "source": "diagnose",
+          "sourceEvent": "add_to_cart"
+        }
+      ]
+    },
+    "headers": {
+      "Content-Type": "application/json",
+      "Idempotency-Key": "pytagmanager-findings-v1:fea4147083dc42e8f4f1a88c5f844ece83a1d0a4159118a17e6cc3c591fb33c3",
+      "X-Correlation-Id": "ptm-fea4147083dc42e8f4f1a88c"
+    },
+    "method": "POST",
+    "path": "/rest/tagManagerFindings/upsert"
+  },
+  "schema_version": 1,
+  "status": "proposed",
+  "workspace_id": "00000000-0000-4000-8000-000000000001",
+  "write_strategy": {
+    "match_field": "findingId",
+    "requires": [
+      "tagManagerFinding metadata created from the manifest",
+      "unique findingId enforced per workspace",
+      "Squid API key with Update capability"
+    ],
+    "steps": [
+      "Resolve each findingId with the documented REST lookup.",
+      "Add the existing Squid record id to records that already exist.",
+      "POST the batch to /rest/tagManagerFindings/upsert.",
+      "Retry the identical request with the same Idempotency-Key on transient failure."
+    ]
+  }
+}

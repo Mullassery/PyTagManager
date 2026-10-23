@@ -89,6 +89,7 @@ class ConsentState:
     google_mode: Dict[str, str] = field(default_factory=dict)
     tcf: Dict[str, Any] = field(default_factory=dict)
     gpp: Dict[str, Any] = field(default_factory=dict)
+    vendor_state: Dict[str, Any] = field(default_factory=dict)
     confidence: str = "unverified"
     timestamp: float = 0.0
     evidence: Tuple[CmpEvidence, ...] = ()
@@ -116,6 +117,7 @@ class ConsentState:
             "google_mode": dict(self.google_mode),
             "tcf": dict(self.tcf),
             "gpp": dict(self.gpp),
+            "vendor_state": dict(self.vendor_state),
             "confidence": self.confidence,
             "timestamp": self.timestamp,
             "evidence": [item.to_dict() for item in self.evidence],

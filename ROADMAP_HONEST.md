@@ -21,8 +21,9 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
 
 - **`pytagmanager lighthouse-ci` + `pytagmanager cmp audit`** — repeated-run
   Lighthouse medians/ranges/budgets with failed-run retention, and the first
-  CMP-audit vertical slice: evidence-backed CMP signatures, Cookiebot/Google
-  Consent Mode and documented TCF v2/GPP signals, data-only custom adapter files,
+  CMP-audit vertical slice: evidence-backed CMP signatures, Cookiebot/Didomi/
+  OneTrust state, Google Consent Mode and documented TCF v2/GPP signals, data-only custom
+  adapter files,
   pre/post-choice request ordering, reload persistence, stable findings, v1 JSON
   schema, and a read-only default that requires explicit authorization before
   any consent click. A banner is never treated as a compliance verdict, and raw
@@ -95,7 +96,7 @@ roadmap decision doesn't have to re-derive this from 2,000+ lines of planning do
   `--site-wide` adds cross-page template consistency, statistical anomaly detection,
   `--history`/`--alert-webhook` regression tracking. Optional live `GtmApiClient`/
   `Ga4ApiClient` cross-checks against real published config, if you supply credentials.
-- **23 Rust tests** + **694 Python tests** (2 of which are environment-flaky — see
+- **23 Rust tests** + **737 Python tests** (4 environment-gated Ollama skips — see
   below), plus real end-to-end runs against actual headless Chromium in the diagnostics
   path, not mocks.
 - **Phase 1.95 (Script Impact & Performance Intelligence) is fully shipped.** New
@@ -244,11 +245,11 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
 - **`cargo fmt`/`cargo clippy -D warnings` were also failing** on the same commit
   (formatting drift + a `clippy::type_complexity` lint on a nested `Arc<Mutex<...>>`
   type in `tests/support/mod.rs`) — fixed alongside the above.
-- **2 Python tests are environment-flaky, not code bugs**: `test_intent_ollama.py`'s
-  and `test_sitewide_page_type.py`'s real-Ollama-response tests can fail on a machine
-  where something answers on `localhost:11434` but doesn't actually serve the expected
-  model, since `_ollama_reachable()`'s check doesn't verify the model itself. CI
-  doesn't run Ollama, so this specific flake shouldn't appear there.
+- **4 Python tests are environment-gated, not code bugs**: three real-Ollama-response
+  tests in `test_intent_ollama.py` and one in `test_sitewide_page_type.py` skip unless
+  Ollama is reachable. If something answers on `localhost:11434` without the expected
+  model they can still fail, because `_ollama_reachable()` does not verify the model.
+  CI does not run Ollama, so they skip there instead of being weakened.
 - **`dependency-audit` CI job verified for real 2026-09-22 — and it is currently
   RED, on both sub-jobs.** This sandbox has network access after all (confirmed
   against crates.io, pypi.org, github.com); ran the job's exact steps locally
@@ -405,7 +406,7 @@ to spend time on them.
   in the README/this file's Phase 1.9 section), not undisclosed rot in PyTagManager's
   own codebase. Listed here only so a future search for `TODO` in this repo isn't
   surprised by it.
-- **No coverage measurement** (`pytest-cov` or equivalent) is configured — 694 passing
+- **No coverage measurement** (`pytest-cov` or equivalent) is configured — 737 passing
   Python tests is a real, verified count (this pass ran the full suite live), but
   there is no line/branch coverage number backing it, so "well-tested" is a claim
   about test *count* and CI-verified breadth, not a measured coverage percentage.

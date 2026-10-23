@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "name": "Checkout SDR",
+  "events": [
+    {
+      "event_name": "add_to_cart",
+      "page_contains": "/cart",
+      "selector": "[data-testid='add-to-cart']",
+      "require_network": true,
+      "parameters": [
+        {"name": "value", "type": "number", "required": true},
+        {"name": "currency", "type": "string", "required": true, "allowed": ["USD", "EUR"]},
+        {"name": "items", "type": "array", "required": true},
+        {"name": "coupon", "type": "string", "required": false}
+      ]
+    }
+  ]
+}
