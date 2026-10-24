@@ -56,6 +56,8 @@ starts, and record the decision in the PR or changelog.
 
 ## OSS gap analysis — 2026-10-24
 
+**What matters most here:** always-on monitoring and closing the GTM loop. Recurring scans are left to the caller and imports stop at a draft; add scheduled regression with alerting and a reviewed activation path to match ObservePoint-class expectations.
+
 Scope: Compared PyTagManager's implemented GTM inspection, real-browser diagnosis, SDR validation, dictionary, CMP and performance tooling against the two actively maintained OSS projects closest to its workflow. Google Tag Assistant / GTM Preview is the proprietary baseline named in the README; it is not OSS and is therefore not a table row. No actively maintained OSS project was found that performs root-cause tag diagnosis across the DOM → dataLayer → network chain.
 
 ### Comparable OSS projects
