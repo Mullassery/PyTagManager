@@ -13,6 +13,8 @@ file is a release-oriented complement to it, not a duplicate.
 ## [Unreleased]
 
 ### Changed
+- Documented that all seven Phase 1.8 CTA objectives now export as specific
+  events across GA4, Segment, Snowplow, Tealium, RudderStack, and Adobe.
 - Formatted the Python tree with `ruff format`, cleaned all lint findings, and
   wired `ruff check` / `ruff format --check` into CI.
 

@@ -329,41 +329,16 @@ to spend time on them.
   noted this as a known, accepted "pre-existing boundary quirk... not a bug" (and
   worked around it with `max_pages=2`) were updated to stop describing since-fixed
   behavior as current.
-- **Export-taxonomy gap: 7 of the 21 CTA business objectives added in Phase 1.8
-  export as a generic fallback event on every non-GTM platform, silently losing
-  the specific business action.** `python/pytagmanager/recommend/heuristics.py`'s
-  `_CTA_KEYWORDS` (lines 47-67, added for Phase 1.8 per the inline comment at line
-  40) introduced `"Cart Modification"`, `"Wishlist Intent"`, `"Content Discovery"`,
-  `"Pagination"`, `"Video Engagement"`, `"Navigation"`, and `"Modal Interaction"` as
-  new `business_objective` values. `python/pytagmanager/export/_taxonomy.py`'s
-  `CANONICAL_EVENT_MAP` (lines 17-25) was never updated to include any of them, so
-  `canonical_event()` falls back to `DEFAULT_CANONICAL_EVENT = "custom_event"` for
-  all seven. Every exporter that routes through `canonical_event()` --
-  `export/ga4.py`, `export/segment.py`, `export/snowplow.py`, `export/tealium.py`,
-  `export/rudderstack.py`, `export/adobe_tags.py` (`export/gtm.py` is unaffected --
-  it uses `rec.event_name` directly, not the canonical taxonomy) -- then falls back
-  to *that platform's own* generic default (verified by reading each exporter's
-  `_DEFAULT_*` spec and confirming none of the seven keys appear in any of the six
-  platform-specific spec dicts): GA4 emits `select_content`, Segment emits
-  `"Custom Event Triggered"`, Tealium emits the literal string `"custom_event"` as
-  the `tealium_event` value. Concretely verified: a `business_objective="Wishlist
-  Intent"` recommendation exports to GA4 as `{"name": "select_content", ...}` and to
-  Segment as `{"name": "Custom Event Triggered", ...}` -- the specific business
-  objective survives only in each exporter's side-channel metadata field
-  (`_pytagmanager.businessObjective` / `rules.labels.pytagmanager_business_objective`
-  / etc.), not in the actual event name a GTM/GA4/Segment/Tealium/RudderStack/Adobe
-  admin would see or build a report/audience/tag-trigger against. Tealium is the
-  worst-affected case: since it has no per-canonical-event spec dict at all (just
-  `event_name = canonical_event(rec)` directly, `export/tealium.py:35`), a page with
-  *both* a wishlist-add and a pagination click would emit **the same** Tealium event
-  name (`"custom_event"`) for both, with a single shared Load Rule keyed off it --
-  making them indistinguishable at the platform level even though
-  `business_objective` differs in the UDO payload. **Not fixed here**: closing this
-  gap means deciding a real, platform-documented event name (and, for GA4/Segment/
-  Snowplow/RudderStack, a parameter schema) for each of 7 objectives across 6
-  platforms -- the same category of judgment call the original exporters required,
-  not a mechanical one-line fix, so left as a documented, verified gap rather than
-  force-fit.
+- ~~**Export-taxonomy gap: 7 of the 21 CTA business objectives added in Phase 1.8
+  exported as a generic fallback event on every non-GTM platform.**~~ **Resolved:**
+  `CANONICAL_EVENT_MAP` now includes all seven CTA objectives and every exporter
+  maps them to a specific event: GA4 (`remove_from_cart`, `add_to_wishlist`,
+  `video_start`, and `select_content` with distinct `content_type`s), Segment and
+  RudderStack (dedicated spec entries), Snowplow (per-canonical Iglu schemas),
+  Tealium (canonical name in `tealium_event`), and Adobe (canonical name in the
+  rule action). The previous fallback behavior is no longer reachable for these
+  objectives.
+
 - ~~**Dependency versions verified against known CVEs 2026-09-22 — real findings,
   not clean**~~ **Resolved 2026-10-16** (see the `dependency-audit` CI status above):
   all 3 Rust advisories are cleared (`pyo3` migrated to 0.29, `rustls` bumped to
