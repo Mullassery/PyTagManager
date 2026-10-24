@@ -376,7 +376,8 @@ to spend time on them.
   surprised by it.
 - ~~**No coverage measurement** (`pytest-cov` or equivalent) is configured.~~
   **Resolved:** `pytest-cov` is a dev dependency, `[tool.coverage.*]` is
-  configured, and CI runs `pytest --cov=pytagmanager --cov-report=term-missing`.
+  configured, and CI runs `pytest --cov=pytagmanager --cov-report=term-missing`
+  with a `fail_under = 70` floor. Verified baseline: 78% line coverage.
 - **`src/crawler/fetcher.rs:79`'s HTTP `User-Agent` string was stale** (`PyTagManagerBot/0.1`
   pointing at a nonexistent `github.com/pytagmanager` URL, while the crate itself was
   already at `0.2.0` under `github.com/Mullassery/PyTagManager`) — fixed in this pass to
