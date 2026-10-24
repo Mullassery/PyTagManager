@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 280" role="img" aria-labelledby="title desc">
+  <title id="title">PyTagManager — debug why a GTM tag did not fire</title>
+  <desc id="desc">PyTagManager banner: find out why a tag didn't fire and what to fix.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1020"/>
+      <stop offset="1" stop-color="#111a33"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#34d399"/>
+    </linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+      <path d="M40 0H0V40" fill="none" stroke="#ffffff" stroke-opacity="0.05"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="280" rx="24" fill="url(#bg)"/>
+  <rect width="1200" height="280" rx="24" fill="url(#grid)"/>
+  <rect x="0" y="0" width="8" height="280" rx="4" fill="url(#accent)"/>
+  <g transform="translate(72 78)">
+    <rect x="0" y="0" width="124" height="124" rx="28" fill="#0f1b35" stroke="#22d3ee" stroke-opacity="0.45" stroke-width="2"/>
+    <path d="M31 30h62M31 30v64M31 30l62 64M93 30v14" fill="none" stroke="url(#accent)" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="93" cy="94" r="17" fill="#0f1b35" stroke="#34d399" stroke-width="6"/>
+    <path d="M84 94l7 7 12-14" fill="none" stroke="#34d399" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <text x="232" y="122" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="58" font-weight="750" fill="#f8fafc" letter-spacing="-1">PyTagManager</text>
+  <text x="234" y="170" font-family="ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="25" fill="#b6c2d9">Find out why a tag didn't fire — and what to fix.</text>
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="16" fill="#7dd3fc">
+    <text x="234" y="216">GTM · dataLayer · consent · runtime evidence</text>
+  </g>
+</svg>

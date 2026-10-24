@@ -347,5 +347,5 @@ Squid runtime dependency or credential path.
   built; local trusted-proxy header tests exist.
 - Broader deferred feature work (CMP depth, cloud intent classification,
   data-layer recommendations, XDM, enterprise audit, scale crawling, mobile
-  discovery, cross-platform governance) is tracked in `QUEUE_STATUS.md` and
+  discovery, cross-platform governance) is tracked in `docs/internal/QUEUE_STATUS.md` and
   `docs/ROADMAP.md`; it is not part of this integration baseline.

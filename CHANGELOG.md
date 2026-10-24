@@ -3,10 +3,10 @@
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this
 project does not yet follow semantic versioning strictly (see
-`ROADMAP_HONEST.md` for current version/PyPI status).
+`docs/internal/ROADMAP_HONEST.md` for current version/PyPI status).
 
 Entries below are derived from the actual git history and PyPI publish
-notes, not reconstructed from memory — see `ROADMAP_HONEST.md` for the
+notes, not reconstructed from memory — see `docs/internal/ROADMAP_HONEST.md` for the
 authoritative, continuously-updated built-vs-not-built breakdown; this
 file is a release-oriented complement to it, not a duplicate.
 
@@ -176,7 +176,7 @@ file is a release-oriented complement to it, not a duplicate.
   New `crawl_site(..., browser_mode="off"|"auto"|"always")` /
   `pytagmanager crawl --browser {off,auto,always}` option (default `off`,
   no behavior change) for lightweight per-page browser rendering via
-  Mudfish's real headless-Chrome engine. See `ROADMAP_HONEST.md` for the
+  Mudfish's real headless-Chrome engine. See `docs/internal/ROADMAP_HONEST.md` for the
   disclosed limitations (notably: the browser-render path doesn't go
   through Mudfish's SSRF guard yet).
 
@@ -189,13 +189,13 @@ file is a release-oriented complement to it, not a duplicate.
   soon as `seen` (URLs *discovered*, not fetched) reached `max_pages`, even
   while already-accepted URLs were still sitting unfetched in the queue.
   Concretely, `crawl(url, max_pages=1)` returned zero pages instead of the
-  seed page it should always return. See `ROADMAP_HONEST.md` for full
+  seed page it should always return. See `docs/internal/ROADMAP_HONEST.md` for full
   verification detail and the regression tests added.
 
 ## [0.2.1] - 2026-09-22
 
 Everything shipped on `main` since the v0.2.0 version bump (2026-08-31),
-published to PyPI as v0.2.1 on 2026-09-22 — see `ROADMAP_HONEST.md`'s CI/CD
+published to PyPI as v0.2.1 on 2026-09-22 — see `docs/internal/ROADMAP_HONEST.md`'s CI/CD
 section for the current PyPI status. Highlights, in shipped order:
 
 - Tracking Observability & Diagnostics: Runtime State Capture (cookies/
@@ -244,7 +244,7 @@ section for the current PyPI status. Highlights, in shipped order:
   `crawl_with_fetcher` claiming the real entry point calls `Fetcher::new()`
   — it actually calls `Fetcher::build(true, ...)` directly.
 
-See `ROADMAP_HONEST.md` for exactly which sub-items of the above are
+See `docs/internal/ROADMAP_HONEST.md` for exactly which sub-items of the above are
 fully shipped vs. disclosed-partial, and for known bugs/tech debt, plus
 the now-verified (and currently red) `dependency-audit` CI job results.
 
@@ -260,7 +260,7 @@ No git tag exists for this release in this repository as of this writing.
   arm64 wheel + sdist (no Docker/zig available locally for manylinux
   cross-compilation at publish time), narrower than v0.1.3's release
   (macOS x86_64 + arm64 + Linux x86_64 + aarch64 + sdist). See
-  `ROADMAP_HONEST.md` for detail.
+  `docs/internal/ROADMAP_HONEST.md` for detail.
 
 ## [0.1.3] — 2026-08-26
 

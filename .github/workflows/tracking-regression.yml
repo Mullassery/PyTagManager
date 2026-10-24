@@ -43,8 +43,8 @@ jobs:
         run: |
           set -euo pipefail
           if [ -z "$TARGET_URL" ]; then
-            echo "Set the TRACKING_TARGET_URL repository variable or pass the url input." >&2
-            exit 1
+            echo "::notice title=Tracking regression skipped::Set the TRACKING_TARGET_URL repository variable or pass the url input."
+            exit 0
           fi
           mkdir -p .pytagmanager
           ARGS=(--site-wide --max-pages "$MAX_PAGES"

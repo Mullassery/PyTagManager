@@ -176,6 +176,15 @@ public struct Event: Codable, Equatable, Sendable {
                                       options: .regularExpression) != nil else {
             throw EventError.invalid("source.sdk_version is invalid")
         }
+        let sensitive = ["password", "passwd", "secret", "token", "api_key", "apikey",
+                         "private_key", "credit_card", "card_number", "cvv", "ssn",
+                         "social_security", "authorization"]
+        for key in properties.keys {
+            let lowered = key.lowercased()
+            if sensitive.contains(where: { lowered.contains($0) }) {
+                throw EventError.invalid("sensitive property is not allowed: \(key)")
+            }
+        }
         guard let consent else { return }
         guard !consent.purposes.isEmpty, consent.purposes.count <= 32 else {
             throw EventError.invalid("consent.purposes must contain 1...32 entries")
@@ -188,15 +197,6 @@ public struct Event: Codable, Equatable, Sendable {
         }
         if let updated = consent.updatedAt, Event.parseTimestamp(updated) == nil {
             throw EventError.invalid("consent.updated_at is invalid")
-        }
-        let sensitive = ["password", "passwd", "secret", "token", "api_key", "apikey",
-                         "private_key", "credit_card", "card_number", "cvv", "ssn",
-                         "social_security", "authorization"]
-        for key in properties.keys {
-            let lowered = key.lowercased()
-            if sensitive.contains(where: { lowered.contains($0) }) {
-                throw EventError.invalid("sensitive property is not allowed: \(key)")
-            }
         }
         let serialized = try encoder.encode(self)
         guard serialized.count <= 32_768 else {

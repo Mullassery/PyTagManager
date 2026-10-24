@@ -5,7 +5,7 @@ reuse map, and phases are in [`Mullassery/BUNDLES.md`](https://github.com/Mullas
 
 - **Role:** Measurement and runtime tracking QA
 - **Upstream/downstream:** MudFish (crawl/fetch), PyCustomerHub (events), PyReverseETL (activation), StatGuardian (quality gate)
-- **Current integration state:** MudFish tag-pinned dependency and event contract v1 are implemented; PyTagShield config/event adapters are implemented, live control-plane sync is blocked. See [`ECOSYSTEM_INTEGRATION.md`](ECOSYSTEM_INTEGRATION.md).
+- **Current integration state:** MudFish tag-pinned dependency and event contract v1 are implemented; PyTagShield config/event adapters are implemented, live control-plane sync is blocked. See [`ECOSYSTEM_INTEGRATION.md`](../../ECOSYSTEM_INTEGRATION.md).
 - **Next integration step:** PyTagShield control-plane contract, then a deliberate PyCustomerHub event-envelope mapping decision. Squid write paths are blocked until envelope/schema registration, edge write-key auth, idempotency and consent-attachment semantics are agreed. PyTagManager's findings half is now defined in `docs/SQUID_FINDINGS.md`; Squid acceptance and a live write test remain pending.
 - **Non-goal:** Become a CDP or tag manager.
 

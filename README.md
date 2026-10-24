@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/pytagmanager-banner.svg" alt="PyTagManager — find out why a tag didn't fire and what to fix" width="100%" />
+</p>
+
 # PyTagManager
 
 **Find out why a tag didn't fire — and what to fix — without stepping through GTM Preview one interaction at a time.**
@@ -165,7 +169,7 @@ This project has an explicit documentation-honesty policy:
 - **Writes are reviewable.** GTM import creates drafts, `gtm-plan` is read-only, and publishing still requires explicit human action.
 - **Local-first.** Telemetry does not leave your machine. Optional LLM classification runs against a local Ollama model and falls back to deterministic heuristics when it is unavailable.
 
-See [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) for exactly what is built and reachable, built but not reachable, not built, and red in CI.
+See [`docs/internal/ROADMAP_HONEST.md`](docs/internal/ROADMAP_HONEST.md) for exactly what is built and reachable, built but not reachable, not built, and red in CI.
 
 For the PyTagManager-owned Squid findings contract, run `pytagmanager squid manifest` and see [`docs/SQUID_FINDINGS.md`](docs/SQUID_FINDINGS.md). It is a proposed contract with no live Squid write path yet.
 
@@ -178,7 +182,7 @@ SDR validation v1 now covers observed dataLayer events and parameters. Remaining
 - **Release integrity:** multi-platform wheel artifacts beyond the macOS arm64 wheel; source installs already use the sdist.
 - **Ecosystem contracts:** the PyTagManager side of the Squid findings contract is defined; Squid acceptance and a live write test remain pending.
 
-See [`QUEUE_STATUS.md`](QUEUE_STATUS.md) for the prioritized backlog.
+See [`docs/internal/QUEUE_STATUS.md`](docs/internal/QUEUE_STATUS.md) for the prioritized backlog.
 
 ## How it fits together
 

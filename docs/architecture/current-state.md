@@ -4,7 +4,7 @@
 > control plane, collection service and CMP work landed. Several "Unavailable"
 > rows below are now outdated. For current integration status, security gaps and
 > blockers, use [`../../ECOSYSTEM_INTEGRATION.md`](../../ECOSYSTEM_INTEGRATION.md)
-> and [`../../QUEUE_STATUS.md`](../../QUEUE_STATUS.md).
+> and [`../../QUEUE_STATUS.md`](../internal/QUEUE_STATUS.md).
 
 - **Status:** Audit complete; no application code changed.
 - **Audit date:** 2026-10-20
@@ -449,9 +449,9 @@ Preservation constraints derived from the audit:
 
 These do not change the code baseline, but future work must not repeat them:
 
-- `ROADMAP_HONEST.md` still claims "40 Rust tests" and "404 Python tests";
+- `../internal/ROADMAP_HONEST.md` still claims "40 Rust tests" and "404 Python tests";
   the verified current counts are 23 and 419+4 skipped.
-- `ROADMAP_HONEST.md` still describes the seven-objective export-taxonomy gap
+- `../internal/ROADMAP_HONEST.md` still describes the seven-objective export-taxonomy gap
   as open; `export/_taxonomy.py` and the 0.3.1 changelog show it fixed.
 - `SECURITY.md` says dependency-vulnerability scanning is not run in CI;
   `.github/workflows/ci.yml` contains `cargo audit` and `pip-audit` jobs.
@@ -459,7 +459,7 @@ These do not change the code baseline, but future work must not repeat them:
   code delegates fetch/frontier/robots/politeness/circuit-breaking to
   MudFish, while retaining sitemap seeding and DOM-graph building.
 - The repository contains a large planning corpus (`docs/VISION.md`,
-  `docs/ROADMAP.md`, `ROADMAP_HONEST.md`) whose status claims occasionally
+  `docs/ROADMAP.md`, `../internal/ROADMAP_HONEST.md`) whose status claims occasionally
   lag the code. The code and live tests are the authority.
 
 ---

@@ -3,7 +3,7 @@
 ## Supported versions
 
 PyTagManager does not yet have a formal release/support matrix — see
-[`ROADMAP_HONEST.md`](ROADMAP_HONEST.md) for current PyPI release status.
+[`docs/internal/ROADMAP_HONEST.md`](docs/internal/ROADMAP_HONEST.md) for current PyPI release status.
 In practice, only the latest release on PyPI and the `main` branch receive
 security fixes; there is no backport policy for older versions.
 

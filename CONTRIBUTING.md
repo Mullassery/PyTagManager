@@ -4,7 +4,7 @@
 
 Read [`README.md`](README.md) for what's actually built and working, and
 [`docs/VISION.md`](docs/VISION.md) + [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
-for where the project is going and why. [`ROADMAP_HONEST.md`](ROADMAP_HONEST.md)
+for where the project is going and why. [`docs/internal/ROADMAP_HONEST.md`](docs/internal/ROADMAP_HONEST.md)
 is the current source of truth on what's shipped vs. not — check it before
 assuming a feature is missing or already exists.
 
@@ -64,7 +64,7 @@ CI runs all of the above; a PR that fails any of them won't pass CI.
 
 ## Documentation honesty policy
 
-This project's docs (`README.md`, `ROADMAP_HONEST.md`, `docs/`) are
+This project's docs (`README.md`, `docs/internal/ROADMAP_HONEST.md`, `docs/`) are
 maintained to a specific, deliberately blunt standard: no hedging on
 project status. If something isn't built, the docs say "not built," not
 "planned" or "may be added." If something is untested, the docs say so
@@ -78,7 +78,7 @@ and don't soften a known limitation to make a PR look more finished.
 - **Rust**: `cargo fmt` (default settings) + `cargo clippy` clean, no
   suppressed lints without a comment explaining why.
 - **Python**: no enforced formatter is wired into CI yet (see
-  `ROADMAP_HONEST.md` for other CI gaps); match the existing style in the
+  `docs/internal/ROADMAP_HONEST.md` for other CI gaps); match the existing style in the
   file you're editing. Type hints are used throughout `python/pytagmanager/`
   — new code should include them.
 

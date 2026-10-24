@@ -12,7 +12,7 @@
 
 ## Documentation
 
-- [ ] Updated `README.md` / `ROADMAP_HONEST.md` / `docs/` if this changes what's built, tested, or working
+- [ ] Updated `README.md` / `../docs/internal/ROADMAP_HONEST.md` / `docs/` if this changes what's built, tested, or working
 - [ ] Did not describe untested code as working, and did not soften a known limitation (see `CONTRIBUTING.md`'s documentation honesty policy)
 
 ## Checklist
