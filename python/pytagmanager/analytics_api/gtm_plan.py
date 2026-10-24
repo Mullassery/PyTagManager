@@ -10,14 +10,14 @@ not write to GTM.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 
 @dataclass
 class GtmResourcePlan:
-    added: List[Dict[str, str]] = field(default_factory=list)
-    existing: List[Dict[str, str]] = field(default_factory=list)
-    conflicts: List[Dict[str, str]] = field(default_factory=list)
+    added: list[dict[str, str]] = field(default_factory=list)
+    existing: list[dict[str, str]] = field(default_factory=list)
+    conflicts: list[dict[str, str]] = field(default_factory=list)
 
 
 @dataclass
@@ -30,8 +30,8 @@ class GtmImportPlan:
     def has_conflicts(self) -> bool:
         return bool(self.tags.conflicts or self.triggers.conflicts or self.variables.conflicts)
 
-    def to_dict(self) -> Dict[str, Any]:
-        def dump(plan: GtmResourcePlan) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
+        def dump(plan: GtmResourcePlan) -> dict[str, Any]:
             return {
                 "added": plan.added,
                 "existing": plan.existing,
@@ -46,22 +46,22 @@ class GtmImportPlan:
         }
 
 
-def _container_version(document: Dict[str, Any]) -> Dict[str, Any]:
+def _container_version(document: dict[str, Any]) -> dict[str, Any]:
     version = document.get("containerVersion")
     return version if isinstance(version, dict) else document
 
 
-def _resources(document: Dict[str, Any], key: str) -> Dict[str, Dict[str, Any]]:
+def _resources(document: dict[str, Any], key: str) -> dict[str, dict[str, Any]]:
     version = _container_version(document)
     values = version.get(key) or []
-    result: Dict[str, Dict[str, Any]] = {}
+    result: dict[str, dict[str, Any]] = {}
     for value in values:
         if isinstance(value, dict) and isinstance(value.get("name"), str):
             result[value["name"]] = value
     return result
 
 
-def _plan(generated: Dict[str, Dict[str, Any]], live: Dict[str, Dict[str, Any]]) -> GtmResourcePlan:
+def _plan(generated: dict[str, dict[str, Any]], live: dict[str, dict[str, Any]]) -> GtmResourcePlan:
     plan = GtmResourcePlan()
     for name, resource in sorted(generated.items()):
         existing = live.get(name)
@@ -81,7 +81,7 @@ def _plan(generated: Dict[str, Dict[str, Any]], live: Dict[str, Dict[str, Any]])
     return plan
 
 
-def plan_import(generated: Dict[str, Any], live: Dict[str, Any]) -> GtmImportPlan:
+def plan_import(generated: dict[str, Any], live: dict[str, Any]) -> GtmImportPlan:
     """Compare generated vs live GTM resources. No network or writes."""
     return GtmImportPlan(
         tags=_plan(_resources(generated, "tag"), _resources(live, "tag")),
@@ -110,5 +110,7 @@ def render_plan(plan: GtmImportPlan) -> str:
     render("Triggers", plan.triggers)
     render("Variables", plan.variables)
     if plan.has_conflicts:
-        lines.append("Resolve conflicts by renaming or updating the existing GTM resource before importing.")
+        lines.append(
+            "Resolve conflicts by renaming or updating the existing GTM resource before importing."
+        )
     return "\n".join(lines).rstrip()

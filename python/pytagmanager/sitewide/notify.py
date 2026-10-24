@@ -69,7 +69,7 @@ class WebhookNotifier:
                 return max(0.0, min(float(retry_after), 60.0))
             except ValueError:
                 pass
-        return min(30.0, (2.0 ** attempt)) + random.uniform(0.0, 0.5)
+        return min(30.0, (2.0**attempt)) + random.uniform(0.0, 0.5)
 
     def send(self, message: str) -> bool:
         payload = json.dumps({"text": message}).encode("utf-8")

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from pytagmanager.recommend.models import TrackingRecommendation
 
@@ -12,7 +11,7 @@ _GTM_TRIGGER_TYPE_MAP = {
 }
 
 
-def build_gtm_container(recommendations: List[TrackingRecommendation]) -> dict:
+def build_gtm_container(recommendations: list[TrackingRecommendation]) -> dict:
     """Build a minimal, valid-shape GTM container export (tags + triggers +
     variables) from tracking recommendations. This covers the fields needed
     to review and hand-import a v1 recommendation set -- it is not a full
@@ -66,6 +65,6 @@ def build_gtm_container(recommendations: List[TrackingRecommendation]) -> dict:
     }
 
 
-def export_gtm_json(recommendations: List[TrackingRecommendation], path: str) -> None:
+def export_gtm_json(recommendations: list[TrackingRecommendation], path: str) -> None:
     container = build_gtm_container(recommendations)
     Path(path).write_text(json.dumps(container, indent=2))

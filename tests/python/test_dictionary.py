@@ -9,10 +9,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from click.testing import CliRunner
-
 from pytagmanager import _core, cli
 from pytagmanager.dictionary.build import build_data_dictionary
-from pytagmanager.dictionary.report import build_dictionary_json, render_dictionary_report
+from pytagmanager.dictionary.report import (
+    build_dictionary_json,
+    render_dictionary_report,
+)
 from pytagmanager.observability.state import RuntimeStateSnapshot, StorageEntry
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures" / "observability"
@@ -32,7 +34,7 @@ def _fake_page(fixture_server: str, filename: str):
 
 
 def _snapshot(page_url: str, timestamp: float, **overrides) -> RuntimeStateSnapshot:
-    defaults = dict(page_url=page_url, timestamp=timestamp, label="page_load")
+    defaults = {"page_url": page_url, "timestamp": timestamp, "label": "page_load"}
     defaults.update(overrides)
     return RuntimeStateSnapshot(**defaults)
 
@@ -58,9 +60,24 @@ def test_aggregates_cookies_across_pages_with_presence_ratio():
 def test_multiple_snapshots_of_the_same_page_do_not_inflate_pages_total():
     entry = StorageEntry(key="cart_id", value_type="string", length=2)
     snapshots = [
-        _snapshot("https://example.com/a", 1.0, label="page_load", local_storage={"cart_id": entry}),
-        _snapshot("https://example.com/a", 2.0, label="before:step_0", local_storage={"cart_id": entry}),
-        _snapshot("https://example.com/a", 3.0, label="after:step_0", local_storage={"cart_id": entry}),
+        _snapshot(
+            "https://example.com/a",
+            1.0,
+            label="page_load",
+            local_storage={"cart_id": entry},
+        ),
+        _snapshot(
+            "https://example.com/a",
+            2.0,
+            label="before:step_0",
+            local_storage={"cart_id": entry},
+        ),
+        _snapshot(
+            "https://example.com/a",
+            3.0,
+            label="after:step_0",
+            local_storage={"cart_id": entry},
+        ),
     ]
 
     result = build_data_dictionary(snapshots)
@@ -93,13 +110,23 @@ def test_datalayer_events_and_fields_are_tracked_separately():
 
 def test_value_type_changing_across_pages_is_recorded_as_multiple_types():
     snapshots = [
-        _snapshot("https://example.com/a", 1.0, data_layer=[{"event": "purchase", "transaction_id": "T1"}]),
-        _snapshot("https://example.com/b", 2.0, data_layer=[{"event": "purchase", "transaction_id": 123}]),
+        _snapshot(
+            "https://example.com/a",
+            1.0,
+            data_layer=[{"event": "purchase", "transaction_id": "T1"}],
+        ),
+        _snapshot(
+            "https://example.com/b",
+            2.0,
+            data_layer=[{"event": "purchase", "transaction_id": 123}],
+        ),
     ]
 
     result = build_data_dictionary(snapshots)
 
-    field = next(v for v in result.by_source("datalayer_field") if v.path == "purchase.transaction_id")
+    field = next(
+        v for v in result.by_source("datalayer_field") if v.path == "purchase.transaction_id"
+    )
     assert field.value_types == ("number", "string")
 
 
@@ -112,7 +139,11 @@ def test_empty_snapshot_list_produces_empty_dictionary():
 def test_report_and_json_rendering_do_not_crash_on_empty_dictionary():
     result = build_data_dictionary([])
     assert "No pages" in render_dictionary_report(result)
-    assert build_dictionary_json(result) == {"schema_version": 2, "pages_total": 0, "variables": []}
+    assert build_dictionary_json(result) == {
+        "schema_version": 2,
+        "pages_total": 0,
+        "variables": [],
+    }
 
 
 def test_report_rendering_includes_observed_variable():
@@ -146,7 +177,9 @@ def test_dictionary_cli_end_to_end_json(fixture_server, monkeypatch, tmp_path):
     assert "cart_id" in paths
 
 
-def test_dictionary_cli_presence_labels_and_purpose_classifier(fixture_server, monkeypatch, tmp_path):
+def test_dictionary_cli_presence_labels_and_purpose_classifier(
+    fixture_server, monkeypatch, tmp_path
+):
     pages = [_fake_page(fixture_server, "runtime_state.html")]
     monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: pages)
 
@@ -172,7 +205,10 @@ def test_dictionary_cli_presence_labels_and_purpose_classifier(fixture_server, m
     by_path = {v["path"]: v for v in data["variables"]}
 
     assert "presence" in by_path["visitor_id"]
-    assert by_path["visitor_id"]["presence"]["accessibility"] in ("Accessible", "Possibly accessible")
+    assert by_path["visitor_id"]["presence"]["accessibility"] in (
+        "Accessible",
+        "Possibly accessible",
+    )
     assert "purpose" in by_path["visitor_id"]
     assert by_path["visitor_id"]["purpose"]["purpose"] in {
         "Identity",
@@ -183,13 +219,18 @@ def test_dictionary_cli_presence_labels_and_purpose_classifier(fixture_server, m
     }
 
 
-def test_dictionary_cli_compare_to_reports_no_drift_for_identical_runs(fixture_server, monkeypatch, tmp_path):
+def test_dictionary_cli_compare_to_reports_no_drift_for_identical_runs(
+    fixture_server, monkeypatch, tmp_path
+):
     pages = [_fake_page(fixture_server, "runtime_state.html")]
     monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: pages)
 
     runner = CliRunner()
     baseline_path = tmp_path / "baseline.json"
-    runner.invoke(cli.main, ["dictionary", pages[0].url, "--format", "json", "-o", str(baseline_path)])
+    runner.invoke(
+        cli.main,
+        ["dictionary", pages[0].url, "--format", "json", "-o", str(baseline_path)],
+    )
 
     result = runner.invoke(
         cli.main,

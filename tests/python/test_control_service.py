@@ -3,14 +3,13 @@ from __future__ import annotations
 import copy
 
 import pytest
-
+from pytagmanager.control.config import ConfigPayload, Tag
 from pytagmanager.control.errors import (
     ConflictError,
     NotFoundError,
     SchemaVersionError,
     ValidationError,
 )
-from pytagmanager.control.config import ConfigPayload, Tag
 from pytagmanager.control.service import ControlPlaneService
 from pytagmanager.control.store import FileStore
 
@@ -64,7 +63,11 @@ def test_revision_chain_tracks_parent_and_guards_optimistic_concurrency(service)
 
     third = service.create_revision("GTM-ABC1234", expected_parent=second.config_version)
     assert third.parent_config_version == second.config_version
-    assert [item.revision_number for item in service.list_revisions("GTM-ABC1234")] == [1, 2, 3]
+    assert [item.revision_number for item in service.list_revisions("GTM-ABC1234")] == [
+        1,
+        2,
+        3,
+    ]
 
 
 def test_validate_reports_latest_revision(service):

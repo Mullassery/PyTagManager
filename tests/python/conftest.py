@@ -3,6 +3,7 @@ import http.server
 import json
 import threading
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -53,7 +54,7 @@ def fixture_server():
 
 
 class _CapturingWebhookHandler(http.server.BaseHTTPRequestHandler):
-    received: list = []
+    received: ClassVar[list] = []
 
     def do_POST(self):
         length = int(self.headers.get("Content-Length", 0))
@@ -76,7 +77,10 @@ def capturing_webhook_server():
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     try:
-        yield f"http://127.0.0.1:{server.server_port}", _CapturingWebhookHandler.received
+        yield (
+            f"http://127.0.0.1:{server.server_port}",
+            _CapturingWebhookHandler.received,
+        )
     finally:
         server.shutdown()
         thread.join(timeout=5)

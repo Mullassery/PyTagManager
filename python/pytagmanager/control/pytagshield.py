@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import Any, Callable, Mapping
+from typing import Any
 
-from pytagmanager.control.config import ConfigPayload, Destination, Tag, Trigger
+from pytagmanager.control.config import ConfigPayload, Destination, Trigger
 
 _ALL_TRUE = {"op": "all", "conditions": []}
 
@@ -93,7 +94,9 @@ def _patterns_from_condition(condition: Mapping[str, Any]) -> set[str] | None:
             patterns.add(item)
         return patterns
     if op == "all":
-        children = [child for child in condition.get("conditions", ()) if isinstance(child, Mapping)]
+        children = [
+            child for child in condition.get("conditions", ()) if isinstance(child, Mapping)
+        ]
         if not children:
             return None
         combined: set[str] | None = None
@@ -106,7 +109,9 @@ def _patterns_from_condition(condition: Mapping[str, Any]) -> set[str] | None:
             raise _UnsupportedTrigger("conditions require contradictory event names")
         return combined
     if op == "any":
-        children = [child for child in condition.get("conditions", ()) if isinstance(child, Mapping)]
+        children = [
+            child for child in condition.get("conditions", ()) if isinstance(child, Mapping)
+        ]
         if not children:
             raise _UnsupportedTrigger("empty 'any' condition")
         combined: set[str] = set()
@@ -128,9 +133,7 @@ def _trigger_patterns(trigger: Trigger) -> set[str]:
             raise _UnsupportedTrigger(
                 f"trigger type {trigger.type!r} needs an event.name condition for server-side routing"
             )
-        raise _UnsupportedTrigger(
-            f"trigger type {trigger.type!r} has no event.name condition"
-        )
+        raise _UnsupportedTrigger(f"trigger type {trigger.type!r} has no event.name condition")
     return patterns
 
 
@@ -232,7 +235,11 @@ def _destination_settings(
             )
             return None
         api_secret = _secret(
-            destination, "api_secret", resolver=resolver, errors=errors, warnings=warnings
+            destination,
+            "api_secret",
+            resolver=resolver,
+            errors=errors,
+            warnings=warnings,
         )
         if api_secret is None:
             return None
@@ -265,7 +272,11 @@ def _destination_settings(
             )
             return None
         access_token = _secret(
-            destination, "access_token", resolver=resolver, errors=errors, warnings=warnings
+            destination,
+            "access_token",
+            resolver=resolver,
+            errors=errors,
+            warnings=warnings,
         )
         if access_token is None:
             return None
@@ -566,7 +577,9 @@ def project_to_pytagshield(
     )
 
 
-def validate_with_pytagshield(config: Mapping[str, Any]) -> tuple[bool | None, tuple[str, ...]]:
+def validate_with_pytagshield(
+    config: Mapping[str, Any],
+) -> tuple[bool | None, tuple[str, ...]]:
     """Validate a projected config with PyTagShield when it is installed.
 
     Returns ``(None, ())`` when the optional dependency is unavailable.

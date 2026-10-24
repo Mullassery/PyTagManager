@@ -12,7 +12,11 @@ def _sample_recs():
             event_name="purchase_intent",
             trigger_type="click",
             selector='[data-testid="add-to-cart"]',
-            selector_fallbacks=['[data-testid="add-to-cart"]', "button:nth-child(1)", "/html/body/button[1]"],
+            selector_fallbacks=[
+                '[data-testid="add-to-cart"]',
+                "button:nth-child(1)",
+                "/html/body/button[1]",
+            ],
             event_category="ecommerce",
             business_objective="Purchase Intent",
             confidence=0.95,

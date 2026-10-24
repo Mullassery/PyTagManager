@@ -12,7 +12,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
 
 import yaml
 
@@ -26,7 +25,9 @@ ACTIONS = frozenset({"click", "change", "submit"})
 # which is PyTagManager's own taxonomy, not a prediction of what name a
 # real site will actually push -- asserting an exact match there would
 # flag "event_name_mismatch" on essentially every real site.
-EXPECTATION_KINDS = frozenset({"datalayer_event", "any_datalayer_event", "gtm_tag", "analytics_event"})
+EXPECTATION_KINDS = frozenset(
+    {"datalayer_event", "any_datalayer_event", "gtm_tag", "analytics_event"}
+)
 
 
 @dataclass(frozen=True)
@@ -45,15 +46,15 @@ class Expectation:
 @dataclass(frozen=True)
 class Scenario:
     name: str
-    steps: List[ActionStep] = field(default_factory=list)
-    expectations: List[Expectation] = field(default_factory=list)
+    steps: list[ActionStep] = field(default_factory=list)
+    expectations: list[Expectation] = field(default_factory=list)
     business_event: str = ""
 
     @classmethod
-    def from_dict(cls, data: dict) -> "Scenario":
+    def from_dict(cls, data: dict) -> Scenario:
         journey = data.get("journey", data)
-        steps: List[ActionStep] = []
-        expectations: List[Expectation] = []
+        steps: list[ActionStep] = []
+        expectations: list[Expectation] = []
         for raw_step in journey.get("steps", []):
             if "action" in raw_step:
                 steps.append(
@@ -79,14 +80,17 @@ def load_scenario(path: str) -> Scenario:
     return Scenario.from_dict(data)
 
 
-def load_scenarios_dir(path: str) -> List[Scenario]:
-    return [load_scenario(str(p)) for p in sorted(Path(path).glob("*.yml")) + sorted(Path(path).glob("*.yaml"))]
+def load_scenarios_dir(path: str) -> list[Scenario]:
+    return [
+        load_scenario(str(p))
+        for p in sorted(Path(path).glob("*.yml")) + sorted(Path(path).glob("*.yaml"))
+    ]
 
 
 def auto_scenario_from_recommendations(
-    recommendations: List[TrackingRecommendation],
+    recommendations: list[TrackingRecommendation],
     page_url: str = "",
-) -> List[Scenario]:
+) -> list[Scenario]:
     """Build one Scenario per statically-detected `TrackingRecommendation`
     (recommend.recommend_for_graph output) so `diagnose` can verify runtime
     behavior for a page without requiring a hand-authored journey file --

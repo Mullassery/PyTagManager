@@ -25,10 +25,18 @@ from pytagmanager.gtm import (
     payload_to_gtm,
     write_container,
 )
-from pytagmanager.intent.ollama_classifier import DEFAULT_OLLAMA_BASE_URL, DEFAULT_OLLAMA_MODEL, OllamaIntentClassifier
+from pytagmanager.intent.ollama_classifier import (
+    DEFAULT_OLLAMA_BASE_URL,
+    DEFAULT_OLLAMA_MODEL,
+    OllamaIntentClassifier,
+)
 from pytagmanager.recommend.heuristics import recommend_for_graph
 from pytagmanager.version_control.diff import diff_snapshots, format_diff_report
-from pytagmanager.version_control.snapshot import build_snapshot, load_snapshot, save_snapshot
+from pytagmanager.version_control.snapshot import (
+    build_snapshot,
+    load_snapshot,
+    save_snapshot,
+)
 
 
 @click.group()
@@ -164,10 +172,16 @@ def crawl(
 ) -> None:
     """Crawl URL, generate tracking recommendations, and optionally export them."""
     headers = _parse_headers(raw_headers)
-    classifier = OllamaIntentClassifier(model=ollama_model, base_url=ollama_url) if intent_engine == "ollama" else None
+    classifier = (
+        OllamaIntentClassifier(model=ollama_model, base_url=ollama_url)
+        if intent_engine == "ollama"
+        else None
+    )
 
     if render_mode:
-        click.echo(f"Crawling {url} in render mode (max_pages={max_pages}, concurrency={concurrency})...")
+        click.echo(
+            f"Crawling {url} in render mode (max_pages={max_pages}, concurrency={concurrency})..."
+        )
         pages = crawl_site_rendered(
             url,
             max_pages=max_pages,
@@ -199,7 +213,9 @@ def crawl(
             if page.crawl_status != "success":
                 issue_counts[page.crawl_status] = issue_counts.get(page.crawl_status, 0) + 1
         if issue_counts:
-            issues = ", ".join(f"{count} {status}" for status, count in sorted(issue_counts.items()))
+            issues = ", ".join(
+                f"{count} {status}" for status, count in sorted(issue_counts.items())
+            )
             click.echo(f"Crawl issues: {issues}")
 
     if render_mode:
@@ -211,7 +227,9 @@ def crawl(
                     f"dataLayer present = {page.sniff.data_layer_present}"
                 )
             if page.screenshots is not None:
-                click.echo(f"  {page.url}: screenshots saved under {screenshot_dir} (id={page.screenshots.page_id})")
+                click.echo(
+                    f"  {page.url}: screenshots saved under {screenshot_dir} (id={page.screenshots.page_id})"
+                )
             for obs in page.interactions:
                 status = f"error: {obs.error}" if obs.error else f"{obs.mutation_count} mutation(s)"
                 click.echo(
@@ -229,7 +247,9 @@ def crawl(
 
     click.echo(f"\nTotal recommendations: {len(all_recs)}")
     for rec in all_recs[:20]:
-        click.echo(f"  - {rec.event_name} ({rec.business_objective}, confidence={rec.confidence}) via {rec.selector}")
+        click.echo(
+            f"  - {rec.event_name} ({rec.business_objective}, confidence={rec.confidence}) via {rec.selector}"
+        )
     if len(all_recs) > 20:
         click.echo(f"  ... and {len(all_recs) - 20} more")
 
@@ -265,7 +285,12 @@ def diff(old_snapshot_path: str, new_snapshot_path: str) -> None:
 @click.argument("url")
 @click.option("--max-pages", default=20, show_default=True, type=int)
 @click.option("--headless/--no-headless", default=True, show_default=True)
-@click.option("--browser", type=click.Choice(["chromium", "firefox", "webkit"]), default="chromium", show_default=True)
+@click.option(
+    "--browser",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+    show_default=True,
+)
 @click.option(
     "--capture-storage-values",
     "capture_storage_values",
@@ -273,7 +298,13 @@ def diff(old_snapshot_path: str, new_snapshot_path: str) -> None:
     help="Capture raw cookie/localStorage/sessionStorage values, not just key names/types. Off by default -- see `diagnose --help`'s equivalent flag for the privacy rationale.",
 )
 @click.option("-o", "--output", "output_path", type=click.Path(), default=None)
-@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+)
 @click.option(
     "--presence-labels",
     "include_presence",
@@ -346,15 +377,34 @@ def data_dictionary(
     observed across the crawl, where, and how often. Requires
     `pip install pytagmanager[diagnostics]`.
     """
-    from pytagmanager.dictionary.build import build_data_dictionary, data_dictionary_from_json
-    from pytagmanager.dictionary.gtm_usage import build_gtm_usage_index, load_gtm_container
-    from pytagmanager.dictionary.purpose import HeuristicPurposeClassifier, OllamaPurposeClassifier
-    from pytagmanager.dictionary.report import build_dictionary_json, render_dictionary_report
-    from pytagmanager.dictionary.schema_drift import build_drift_json, diff_dictionaries, render_drift_report
+    from pytagmanager.dictionary.build import (
+        build_data_dictionary,
+        data_dictionary_from_json,
+    )
+    from pytagmanager.dictionary.gtm_usage import (
+        build_gtm_usage_index,
+        load_gtm_container,
+    )
+    from pytagmanager.dictionary.purpose import (
+        HeuristicPurposeClassifier,
+        OllamaPurposeClassifier,
+    )
+    from pytagmanager.dictionary.report import (
+        build_dictionary_json,
+        render_dictionary_report,
+    )
+    from pytagmanager.dictionary.schema_drift import (
+        build_drift_json,
+        diff_dictionaries,
+        render_drift_report,
+    )
     from pytagmanager.observability.scenario import auto_scenario_from_recommendations
     from pytagmanager.observability.session import ObservationSession
     from pytagmanager.testintel.regression import generate_regression_candidates
-    from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
+    from pytagmanager.testintel.report import (
+        build_test_candidates_json,
+        render_test_candidates,
+    )
 
     gtm_usage = None
     if gtm_config_path:
@@ -370,9 +420,7 @@ def data_dictionary(
             raise click.ClickException(
                 f"GTM container {gtm_container_id!r} was not visible to the supplied credentials"
             )
-        gtm_usage = build_gtm_usage_index(
-            client.get_live_container_document(container["path"])
-        )
+        gtm_usage = build_gtm_usage_index(client.get_live_container_document(container["path"]))
 
     click.echo(f"Crawling {url} (max_pages={max_pages})...", err=True)
     pages = crawl_site(url, max_pages=max_pages)
@@ -383,7 +431,9 @@ def data_dictionary(
         recs = recommend_for_graph(page.graph)
         scenarios = auto_scenario_from_recommendations(recs, page.url)
         with ObservationSession(
-            headless=headless, browser_name=browser, capture_storage_values=capture_storage_values
+            headless=headless,
+            browser_name=browser,
+            capture_storage_values=capture_storage_values,
         ) as session:
             session.load(page.url)
             for scenario in scenarios:
@@ -419,7 +469,11 @@ def data_dictionary(
 
     purpose_by_key = None
     if purpose_engine != "none":
-        classifier = OllamaPurposeClassifier() if purpose_engine == "ollama" else HeuristicPurposeClassifier()
+        classifier = (
+            OllamaPurposeClassifier()
+            if purpose_engine == "ollama"
+            else HeuristicPurposeClassifier()
+        )
         purpose_by_key = {
             (v.source, v.path): classifier.classify(v)
             for v in result.variables
@@ -460,7 +514,12 @@ def data_dictionary(
     type=click.Path(exists=True),
     help="Generated container JSON (e.g. `pytagmanager crawl ... --export gtm -o out.json`).",
 )
-@click.option("--container", "container_id", required=True, help="GTM public container ID (GTM-XXXXXXX).")
+@click.option(
+    "--container",
+    "container_id",
+    required=True,
+    help="GTM public container ID (GTM-XXXXXXX).",
+)
 @click.option(
     "--credentials",
     "credentials_path",
@@ -468,8 +527,16 @@ def data_dictionary(
     type=click.Path(exists=True),
     help="Service-account JSON key for the GTM Management API (read-only is enough).",
 )
-@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
-def gtm_plan(generated_path: str, container_id: str, credentials_path: str, output_format: str) -> None:
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+)
+def gtm_plan(
+    generated_path: str, container_id: str, credentials_path: str, output_format: str
+) -> None:
     """Dry-run: compare a generated GTM container with the live container.
 
     Reports resources that would be added, already exist, or conflict by
@@ -486,7 +553,9 @@ def gtm_plan(generated_path: str, container_id: str, credentials_path: str, outp
     client = GtmApiClient.from_service_account(credentials_path)
     container = client.find_container_by_public_id(container_id)
     if container is None:
-        raise click.ClickException(f"GTM container {container_id!r} was not visible to the credentials")
+        raise click.ClickException(
+            f"GTM container {container_id!r} was not visible to the credentials"
+        )
     live = client.get_live_container_document(container["path"])
     plan = plan_import(generated, live)
 
@@ -520,12 +589,35 @@ def gtm_plan(generated_path: str, container_id: str, credentials_path: str, outp
     is_flag=True,
     help="Exit 1 when SDR validation has at least one failed check.",
 )
-@click.option("--gtm-container", default=None, help="GTM public container ID (GTM-XXXXXXX) to cross-check runtime events against.")
-@click.option("--gtm-credentials", type=click.Path(exists=True), default=None, help="Service-account JSON key for the GTM Management API.")
-@click.option("--ga4-property", default=None, help="GA4 property ID to cross-check config/ingestion against.")
-@click.option("--ga4-credentials", type=click.Path(exists=True), default=None, help="Service-account JSON key for the GA4 Admin/Data APIs.")
+@click.option(
+    "--gtm-container",
+    default=None,
+    help="GTM public container ID (GTM-XXXXXXX) to cross-check runtime events against.",
+)
+@click.option(
+    "--gtm-credentials",
+    type=click.Path(exists=True),
+    default=None,
+    help="Service-account JSON key for the GTM Management API.",
+)
+@click.option(
+    "--ga4-property",
+    default=None,
+    help="GA4 property ID to cross-check config/ingestion against.",
+)
+@click.option(
+    "--ga4-credentials",
+    type=click.Path(exists=True),
+    default=None,
+    help="Service-account JSON key for the GA4 Admin/Data APIs.",
+)
 @click.option("--headless/--no-headless", default=True, show_default=True)
-@click.option("--browser", type=click.Choice(["chromium", "firefox", "webkit"]), default="chromium", show_default=True)
+@click.option(
+    "--browser",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+    show_default=True,
+)
 @click.option(
     "--duration",
     default=2.0,
@@ -533,9 +625,22 @@ def gtm_plan(generated_path: str, container_id: str, credentials_path: str, outp
     type=float,
     help="Seconds to wait after each interaction for downstream dataLayer/GTM/network effects to settle.",
 )
-@click.option("--window", "correlation_window", default=5.0, show_default=True, type=float, help="Correlation window in seconds after an interaction.")
+@click.option(
+    "--window",
+    "correlation_window",
+    default=5.0,
+    show_default=True,
+    type=float,
+    help="Correlation window in seconds after an interaction.",
+)
 @click.option("-o", "--output", "output_path", type=click.Path(), default=None)
-@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+)
 @click.option("--verbose", is_flag=True)
 @click.option(
     "--site-wide",
@@ -676,11 +781,17 @@ def diagnose(
     where and why it broke. Requires `pip install pytagmanager[diagnostics]`.
     """
     if scenario_path and site_wide:
-        raise click.UsageError("--site-wide requires crawling the site; it cannot be combined with --scenario.")
+        raise click.UsageError(
+            "--site-wide requires crawling the site; it cannot be combined with --scenario."
+        )
     if history_path and not site_wide:
-        raise click.UsageError("--history requires --site-wide (health scores are a site-wide concept).")
+        raise click.UsageError(
+            "--history requires --site-wide (health scores are a site-wide concept)."
+        )
     if alert_webhook and not history_path:
-        raise click.UsageError("--alert-webhook requires --history (there must be a previous run to compare against).")
+        raise click.UsageError(
+            "--alert-webhook requires --history (there must be a previous run to compare against)."
+        )
     if fail_on_regression and not history_path:
         raise click.UsageError("--fail-on-regression requires --history.")
     if tag_graph_html:
@@ -698,18 +809,32 @@ def diagnose(
     from pytagmanager.analytics_api.ga4_client import Ga4ApiClient
     from pytagmanager.analytics_api.gtm_client import GtmApiClient
     from pytagmanager.correlation.journey import correlate_events
-    from pytagmanager.diagnostics.rules import DiagnosticContext, find_duplicate_purchases, find_untested_recommendations
+    from pytagmanager.diagnostics.rules import (
+        DiagnosticContext,
+        find_duplicate_purchases,
+        find_untested_recommendations,
+    )
     from pytagmanager.diagnostics.trace import (
         build_interaction_trace_json,
         build_interaction_traces,
         render_interaction_trace,
     )
-    from pytagmanager.observability.scenario import auto_scenario_from_recommendations, load_scenario
+    from pytagmanager.observability.scenario import (
+        auto_scenario_from_recommendations,
+        load_scenario,
+    )
     from pytagmanager.observability.session import ObservationSession
     from pytagmanager.reporting.json_report import build_json_report
-    from pytagmanager.reporting.terminal import diagnose_journeys, render_terminal_report
+    from pytagmanager.reporting.terminal import (
+        diagnose_journeys,
+        render_terminal_report,
+    )
     from pytagmanager.tagexec.duplicates import analyze_duplicates
-    from pytagmanager.tagexec.graph import build_graph_html, build_graph_json, build_tag_execution_graph
+    from pytagmanager.tagexec.graph import (
+        build_graph_html,
+        build_graph_json,
+        build_tag_execution_graph,
+    )
     from pytagmanager.tagexec.report import (
         build_duplicate_findings_json,
         build_server_side_indicators_json,
@@ -718,20 +843,33 @@ def diagnose(
     )
     from pytagmanager.tagexec.server_side import analyze_server_side_indicators
     from pytagmanager.tagexec.static_scan import scan_html
-    from pytagmanager.testintel.candidates import generate_consistency_candidates, generate_diagnosis_candidates
-    from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
+    from pytagmanager.testintel.candidates import (
+        generate_consistency_candidates,
+        generate_diagnosis_candidates,
+    )
+    from pytagmanager.testintel.report import (
+        build_test_candidates_json,
+        render_test_candidates,
+    )
 
     gtm_triggers = gtm_tags = None
     if gtm_container and gtm_credentials:
         client = GtmApiClient.from_service_account(gtm_credentials)
         container = client.find_container_by_public_id(gtm_container)
         if container is None:
-            click.echo(f"Warning: GTM container {gtm_container} not found for the given credentials.", err=True)
+            click.echo(
+                f"Warning: GTM container {gtm_container} not found for the given credentials.",
+                err=True,
+            )
         else:
             config = client.get_live_container_config(container["path"])
             gtm_triggers, gtm_tags = config["triggers"], config["tags"]
 
-    ga4_client = Ga4ApiClient.from_service_account(ga4_credentials) if (ga4_property and ga4_credentials) else None
+    ga4_client = (
+        Ga4ApiClient.from_service_account(ga4_credentials)
+        if (ga4_property and ga4_credentials)
+        else None
+    )
 
     if scenario_path:
         scenario = load_scenario(scenario_path)
@@ -743,7 +881,9 @@ def diagnose(
         pages_and_scenarios = []
         for page in pages:
             recs = recommend_for_graph(page.graph)
-            pages_and_scenarios.append((page.url, auto_scenario_from_recommendations(recs, page.url), recs))
+            pages_and_scenarios.append(
+                (page.url, auto_scenario_from_recommendations(recs, page.url), recs)
+            )
 
     all_journeys = []
     all_untested = []
@@ -787,7 +927,9 @@ def diagnose(
     ga4_ingestion: dict = {}
     if ga4_client and ga4_property:
         for event_name in {j.business_event for j in all_journeys}:
-            ga4_ingestion[event_name] = ga4_client.was_event_ingested_realtime(ga4_property, event_name)
+            ga4_ingestion[event_name] = ga4_client.was_event_ingested_realtime(
+                ga4_property, event_name
+            )
 
     ctx = DiagnosticContext(
         expectations_by_selector=expectations_by_selector,
@@ -814,7 +956,9 @@ def diagnose(
 
     tag_execution_graph_json = None
     if tag_graph:
-        graph = build_tag_execution_graph(all_scans, traces, all_duplicate_findings, all_server_side_indicators)
+        graph = build_tag_execution_graph(
+            all_scans, traces, all_duplicate_findings, all_server_side_indicators
+        )
         tag_execution_graph_json = build_graph_json(graph)
         if tag_graph_html:
             import pathlib
@@ -828,11 +972,19 @@ def diagnose(
     regression = None
 
     if site_wide:
-        from pytagmanager.sitewide.aggregation import analyze_template_consistency, compute_site_health
+        from pytagmanager.sitewide.aggregation import (
+            analyze_template_consistency,
+            compute_site_health,
+        )
         from pytagmanager.sitewide.anomalies import detect_site_anomalies
         from pytagmanager.sitewide.event_map import build_runtime_event_map
-        from pytagmanager.sitewide.interaction_consistency import analyze_business_action_consistency
-        from pytagmanager.sitewide.report import build_site_health_json, render_site_health_report
+        from pytagmanager.sitewide.interaction_consistency import (
+            analyze_business_action_consistency,
+        )
+        from pytagmanager.sitewide.report import (
+            build_site_health_json,
+            render_site_health_report,
+        )
         from pytagmanager.sitewide.templates import detect_templates
 
         journeys_by_page: dict = {}
@@ -849,7 +1001,10 @@ def diagnose(
 
         templates = detect_templates(pages)
         if semantic_labels:
-            from pytagmanager.sitewide.page_type import OllamaPageTypeClassifier, assign_semantic_labels
+            from pytagmanager.sitewide.page_type import (
+                OllamaPageTypeClassifier,
+                assign_semantic_labels,
+            )
 
             graphs_by_url = {page.url: page.graph for page in pages}
             templates = assign_semantic_labels(templates, graphs_by_url, OllamaPageTypeClassifier())
@@ -885,11 +1040,18 @@ def diagnose(
                         f"PyTagManager tracking health regression for {url}: {regression.message}"
                     )
                     if not sent:
-                        click.echo("Warning: failed to send regression alert to webhook.", err=True)
+                        click.echo(
+                            "Warning: failed to send regression alert to webhook.",
+                            err=True,
+                        )
 
         if output_format == "json":
             report_dict = build_site_health_json(
-                site_health, consistency_reports, anomalies, business_action_reports, event_map
+                site_health,
+                consistency_reports,
+                anomalies,
+                business_action_reports,
+                event_map,
             )
             if regression:
                 report_dict["regression"] = {
@@ -898,9 +1060,13 @@ def diagnose(
                     "current_score": regression.current_score,
                 }
             if traces:
-                report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
+                report_dict["interaction_traces"] = [
+                    build_interaction_trace_json(t) for t in traces
+                ]
             if all_duplicate_findings:
-                report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(all_duplicate_findings)
+                report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(
+                    all_duplicate_findings
+                )
             if all_server_side_indicators:
                 report_dict["server_side_tagging_indicators"] = build_server_side_indicators_json(
                     all_server_side_indicators
@@ -914,14 +1080,20 @@ def diagnose(
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_site_health_report(
-                site_health, consistency_reports, anomalies, business_action_reports, event_map
+                site_health,
+                consistency_reports,
+                anomalies,
+                business_action_reports,
+                event_map,
             )
             if regression:
                 report += f"\n\nREGRESSION: {regression.message}"
             if all_duplicate_findings:
                 report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
             if all_server_side_indicators:
-                report += "\n\n" + "\n".join(render_server_side_indicators(all_server_side_indicators))
+                report += "\n\n" + "\n".join(
+                    render_server_side_indicators(all_server_side_indicators)
+                )
             if tag_execution_graph_json is not None:
                 report += (
                     f"\n\nTag Execution Graph: {len(tag_execution_graph_json['nodes'])} nodes, "
@@ -938,11 +1110,17 @@ def diagnose(
     else:
         extra_findings = find_duplicate_purchases(diagnosed)
         if output_format == "json":
-            report_dict = build_json_report(diagnosed, all_untested, extra_findings, all_state_diffs)
+            report_dict = build_json_report(
+                diagnosed, all_untested, extra_findings, all_state_diffs
+            )
             if traces:
-                report_dict["interaction_traces"] = [build_interaction_trace_json(t) for t in traces]
+                report_dict["interaction_traces"] = [
+                    build_interaction_trace_json(t) for t in traces
+                ]
             if all_duplicate_findings:
-                report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(all_duplicate_findings)
+                report_dict["duplicate_tag_findings"] = build_duplicate_findings_json(
+                    all_duplicate_findings
+                )
             if all_server_side_indicators:
                 report_dict["server_side_tagging_indicators"] = build_server_side_indicators_json(
                     all_server_side_indicators
@@ -956,12 +1134,18 @@ def diagnose(
             report = json.dumps(report_dict, indent=2)
         else:
             report = render_terminal_report(
-                diagnosed, all_untested, verbose=verbose, extra_findings=extra_findings, state_diffs=all_state_diffs
+                diagnosed,
+                all_untested,
+                verbose=verbose,
+                extra_findings=extra_findings,
+                state_diffs=all_state_diffs,
             )
             if all_duplicate_findings:
                 report += "\n\n" + "\n".join(render_duplicate_findings(all_duplicate_findings))
             if all_server_side_indicators:
-                report += "\n\n" + "\n".join(render_server_side_indicators(all_server_side_indicators))
+                report += "\n\n" + "\n".join(
+                    render_server_side_indicators(all_server_side_indicators)
+                )
             if tag_execution_graph_json is not None:
                 report += (
                     f"\n\nTag Execution Graph: {len(tag_execution_graph_json['nodes'])} nodes, "
@@ -989,7 +1173,12 @@ def diagnose(
 @main.command(name="scan-tags")
 @click.argument("url")
 @click.option("--headless/--no-headless", default=True, show_default=True)
-@click.option("--browser", type=click.Choice(["chromium", "firefox", "webkit"]), default="chromium", show_default=True)
+@click.option(
+    "--browser",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+    show_default=True,
+)
 @click.option(
     "--wait",
     "wait_seconds",
@@ -1000,7 +1189,13 @@ def diagnose(
     "scripts that load asynchronously (consent-gated, interaction-gated, or just slow).",
 )
 @click.option("-o", "--output", "output_path", type=click.Path(), default=None)
-@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+)
 def scan_tags(
     url: str,
     headless: bool,
@@ -1015,7 +1210,10 @@ def scan_tags(
     Requires `pip install pytagmanager[diagnostics]`.
     """
     from pytagmanager.observability.session import ObservationSession
-    from pytagmanager.tagexec.report import build_static_scan_json, render_static_scan_report
+    from pytagmanager.tagexec.report import (
+        build_static_scan_json,
+        render_static_scan_report,
+    )
     from pytagmanager.tagexec.static_scan import detect_delayed_containers, scan_html
 
     click.echo(f"Loading {url}...", err=True)
@@ -1044,11 +1242,25 @@ def scan_tags(
 
 @main.command(name="perf")
 @click.argument("url")
-@click.option("--runs", default=3, show_default=True, type=int, help="Page loads to aggregate (median). Never trust a single-run number.")
-@click.option("--headless/--no-headless", default=True, show_default=True)
-@click.option("--browser", type=click.Choice(["chromium", "firefox", "webkit"]), default="chromium", show_default=True)
 @click.option(
-    "--isolate", "isolate_script_url", default=None, help="Isolate one script by exact URL and measure its impact."
+    "--runs",
+    default=3,
+    show_default=True,
+    type=int,
+    help="Page loads to aggregate (median). Never trust a single-run number.",
+)
+@click.option("--headless/--no-headless", default=True, show_default=True)
+@click.option(
+    "--browser",
+    type=click.Choice(["chromium", "firefox", "webkit"]),
+    default="chromium",
+    show_default=True,
+)
+@click.option(
+    "--isolate",
+    "isolate_script_url",
+    default=None,
+    help="Isolate one script by exact URL and measure its impact.",
 )
 @click.option(
     "--isolate-group",
@@ -1086,7 +1298,13 @@ def scan_tags(
     "scripts and detected regressions, reusing Phase 1.9's TestCandidate model.",
 )
 @click.option("-o", "--output", "output_path", type=click.Path(), default=None)
-@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+)
 def perf(
     url: str,
     runs: int,
@@ -1110,50 +1328,93 @@ def perf(
     """
     isolate_targets = [t for t in (isolate_script_url, isolate_group_name, all_non_essential) if t]
     if len(isolate_targets) > 1:
-        raise click.UsageError("--isolate, --isolate-group, and --all-off are mutually exclusive; pass only one.")
+        raise click.UsageError(
+            "--isolate, --isolate-group, and --all-off are mutually exclusive; pass only one."
+        )
 
-    from pytagmanager.perf.experiments import isolate_all_non_essential, isolate_group, isolate_script
+    from pytagmanager.perf.experiments import (
+        isolate_all_non_essential,
+        isolate_group,
+        isolate_script,
+    )
     from pytagmanager.perf.history import (
         PerformanceHistoryEntry,
         append_performance_history_entry,
         detect_performance_regression,
         load_performance_history,
     )
-    from pytagmanager.perf.measure import TestEnvironmentConfig, measure_page_performance
-    from pytagmanager.perf.report import build_performance_report_json, render_performance_report
+    from pytagmanager.perf.measure import (
+        TestEnvironmentConfig,
+        measure_page_performance,
+    )
+    from pytagmanager.perf.report import (
+        build_performance_report_json,
+        render_performance_report,
+    )
     from pytagmanager.perf.scripts import build_script_inventory
     from pytagmanager.perf.tagging_join import build_tagging_performance_tradeoffs
     from pytagmanager.perf.test_candidates import (
         generate_performance_budget_candidates,
         generate_performance_regression_candidates,
     )
-    from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
+    from pytagmanager.testintel.report import (
+        build_test_candidates_json,
+        render_test_candidates,
+    )
 
     click.echo(f"Building script inventory for {url}...", err=True)
     inventory = build_script_inventory(url, headless=headless, browser_name=browser)
 
     environment = TestEnvironmentConfig(
-        browser_name=browser, headless=headless, run_count=runs, cpu_throttling_rate=cpu_throttling_rate
+        browser_name=browser,
+        headless=headless,
+        run_count=runs,
+        cpu_throttling_rate=cpu_throttling_rate,
     )
 
     click.echo(f"Measuring baseline performance ({runs} run(s))...", err=True)
-    baseline = measure_page_performance(url, runs=runs, headless=headless, browser_name=browser, environment=environment)
+    baseline = measure_page_performance(
+        url, runs=runs, headless=headless, browser_name=browser, environment=environment
+    )
 
     experiment_results = []
     if isolate_script_url:
         click.echo(f"Isolating script {isolate_script_url}...", err=True)
         experiment_results.append(
-            isolate_script(url, isolate_script_url, inventory=inventory, baseline=baseline, runs=runs, headless=headless, browser_name=browser)
+            isolate_script(
+                url,
+                isolate_script_url,
+                inventory=inventory,
+                baseline=baseline,
+                runs=runs,
+                headless=headless,
+                browser_name=browser,
+            )
         )
     elif isolate_group_name:
         click.echo(f"Isolating group '{isolate_group_name}'...", err=True)
         experiment_results.append(
-            isolate_group(url, isolate_group_name, inventory=inventory, baseline=baseline, runs=runs, headless=headless, browser_name=browser)
+            isolate_group(
+                url,
+                isolate_group_name,
+                inventory=inventory,
+                baseline=baseline,
+                runs=runs,
+                headless=headless,
+                browser_name=browser,
+            )
         )
     elif all_non_essential:
         click.echo("Isolating all non-essential (classified) scripts...", err=True)
         experiment_results.append(
-            isolate_all_non_essential(url, inventory=inventory, baseline=baseline, runs=runs, headless=headless, browser_name=browser)
+            isolate_all_non_essential(
+                url,
+                inventory=inventory,
+                baseline=baseline,
+                runs=runs,
+                headless=headless,
+                browser_name=browser,
+            )
         )
 
     tradeoffs = build_tagging_performance_tradeoffs(inventory, experiment_results)
@@ -1161,7 +1422,9 @@ def perf(
     regression_alerts = []
     if history_path:
         history = load_performance_history(history_path)
-        entry = PerformanceHistoryEntry.from_baseline(baseline, script_urls=[s.url for s in inventory.scripts])
+        entry = PerformanceHistoryEntry.from_baseline(
+            baseline, script_urls=[s.url for s in inventory.scripts]
+        )
         regression_alerts = detect_performance_regression(history, entry)
         append_performance_history_entry(history_path, entry)
         for alert in regression_alerts:
@@ -1220,7 +1483,6 @@ def perf(
         click.echo(f"Wrote performance report to {output_path}")
     else:
         click.echo(report)
-
 
 
 @main.command("lighthouse")
@@ -1308,7 +1570,13 @@ def lighthouse_command(url, output_path, lighthouse_path, chrome_path, timeout, 
 )
 @click.option("--lighthouse-path", default="lighthouse", show_default=True)
 @click.option("--chrome-path", default=None)
-@click.option("--timeout", default=120, show_default=True, type=int, help="Per-run timeout in seconds.")
+@click.option(
+    "--timeout",
+    default=120,
+    show_default=True,
+    type=int,
+    help="Per-run timeout in seconds.",
+)
 @click.option(
     "--max-output-mb",
     "max_output_mb",
@@ -1318,7 +1586,13 @@ def lighthouse_command(url, output_path, lighthouse_path, chrome_path, timeout, 
     help="Reject a single Lighthouse JSON report larger than this many MiB.",
 )
 @click.option("-o", "--output", "output_path", type=click.Path(), default=None)
-@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+)
 def lighthouse_ci(
     url: str,
     runs: int,
@@ -1410,9 +1684,7 @@ def _parse_external_refs(raw_refs: tuple[str, ...]) -> list[dict[str, str]]:
     for raw in raw_refs:
         system, separator, ref_id = raw.partition(":")
         if not separator or not system.strip() or not ref_id.strip():
-            raise click.UsageError(
-                f"--external-ref must be 'SYSTEM:ID', got: {raw!r}"
-            )
+            raise click.UsageError(f"--external-ref must be 'SYSTEM:ID', got: {raw!r}")
         refs.append({"system": system.strip(), "id": ref_id.strip()})
     return refs
 
@@ -1462,7 +1734,9 @@ def _flatten_snapshot_recommendations(document: dict, path: str) -> list[dict]:
             raise click.ClickException(f"snapshot page {page_url!r} has invalid recommendations")
         for raw in raw_recommendations:
             if not isinstance(raw, dict):
-                raise click.ClickException(f"snapshot page {page_url!r} has a non-object recommendation")
+                raise click.ClickException(
+                    f"snapshot page {page_url!r} has a non-object recommendation"
+                )
             item = dict(raw)
             item.setdefault("page_url", page_url)
             recommendations.append(item)
@@ -1488,7 +1762,12 @@ def container() -> None:
     metavar="SYSTEM:ID",
     help="Repeatable external relation, e.g. gtm:GTM-ABC1234. Never implies ownership.",
 )
-@click.option("--org", "org_id", default=None, help="Organization UUID (default scope if omitted).")
+@click.option(
+    "--org",
+    "org_id",
+    default=None,
+    help="Organization UUID (default scope if omitted).",
+)
 @click.option("--workspace", "workspace_id", default=None, help="Workspace UUID.")
 @click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
 @click.option("--json", "as_json", is_flag=True)
@@ -1527,9 +1806,7 @@ def container_create(
 @_control_command
 def container_list(org_id, home, as_json):
     """List containers in an organization."""
-    containers = _control_service(str(home) if home else None).list_containers(
-        org_id=org_id
-    )
+    containers = _control_service(str(home) if home else None).list_containers(org_id=org_id)
     if as_json:
         _print_json([item.to_dict() for item in containers])
         return
@@ -1548,9 +1825,7 @@ def container_list(org_id, home, as_json):
 @_control_command
 def container_show(container_id, org_id, home, as_json):
     """Show one container."""
-    item = _control_service(str(home) if home else None).get_container(
-        container_id, org_id=org_id
-    )
+    item = _control_service(str(home) if home else None).get_container(container_id, org_id=org_id)
     if as_json:
         _print_json(item.to_dict())
         return
@@ -1644,12 +1919,11 @@ def container_audit(container_id, limit, org_id, home, as_json):
         return
     for event in events:
         target = event.config_version or "-"
-        click.echo(
-            f"{event.created_at}\t{event.action}\t{event.result}\t"
-            f"{event.actor}\t{target}"
-        )
+        click.echo(f"{event.created_at}\t{event.action}\t{event.result}\t{event.actor}\t{target}")
         if event.details:
-            click.echo("  " + ", ".join(f"{key}={value}" for key, value in sorted(event.details.items())))
+            click.echo(
+                "  " + ", ".join(f"{key}={value}" for key, value in sorted(event.details.items()))
+            )
 
 
 @main.group()
@@ -1914,10 +2188,7 @@ def config_diff(container_id, from_version, to_version, org_id, home, as_json):
     if diff.identical:
         click.echo("No object changes.")
         return
-    click.echo(
-        "Summary: "
-        + ", ".join(f"{key}={value}" for key, value in diff.summary.items())
-    )
+    click.echo("Summary: " + ", ".join(f"{key}={value}" for key, value in diff.summary.items()))
     markers = {"added": "+", "removed": "-", "changed": "~"}
     for change in diff.changes:
         suffix = f" ({', '.join(change.fields)})" if change.fields else ""
@@ -2012,8 +2283,7 @@ def config_validate(ctx, container_id, config_version, org_id, home, as_json):
         for issue in report.warnings:
             click.echo(f"WARNING {issue.code}: {issue.message}")
         click.echo(
-            "Objects: "
-            + ", ".join(f"{key}={value}" for key, value in report.counts.items())
+            "Objects: " + ", ".join(f"{key}={value}" for key, value in report.counts.items())
         )
     ctx.exit(0 if report.valid else 1)
 
@@ -2113,8 +2383,6 @@ def config_draft_from_recommendations(
     click.echo(f"Tags: {result.tag_count}; triggers: {result.trigger_count}")
     for warning in result.warnings:
         click.echo(f"WARNING: {warning}")
-
-
 
 
 def _write_private_text(path: Path, text: str) -> None:
@@ -2270,12 +2538,22 @@ def cdn() -> None:
 @click.argument("environment_ref")
 @click.option("--org", "org_id", default=None)
 @click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
-@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None, help="CDN output directory (default: HOME/cdn).")
+@click.option(
+    "--root",
+    "root_path",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+    help="CDN output directory (default: HOME/cdn).",
+)
 @click.option("--base-url", default=None, help="Public base URL used in generated links.")
 @click.option("--sdk-version", default="0.1.0", show_default=True)
 @click.option("--sdk-asset", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.option("--default-consent", "default_consent", multiple=True, metavar="PURPOSE=true|false")
-@click.option("--allow-protected", is_flag=True, help="Explicitly approve publishing a protected environment.")
+@click.option(
+    "--allow-protected",
+    is_flag=True,
+    help="Explicitly approve publishing a protected environment.",
+)
 @click.option("--json", "as_json", is_flag=True)
 @_control_command
 def cdn_publish(
@@ -2308,7 +2586,9 @@ def cdn_publish(
     if as_json:
         _print_json(result.to_dict())
         return
-    click.echo(f"Published {result.container_id} / {result.environment} at {result.config_version}.")
+    click.echo(
+        f"Published {result.container_id} / {result.environment} at {result.config_version}."
+    )
     click.echo(f"Config: {result.config_url}")
     click.echo(f"Latest pointer: {result.latest_url}")
     click.echo(f"Manifest: {result.manifest_path}")
@@ -2318,7 +2598,12 @@ def cdn_publish(
 
 @cdn.command("verify")
 @click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
-@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option(
+    "--root",
+    "root_path",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+)
 @click.option("--json", "as_json", is_flag=True)
 @_control_command
 def cdn_verify(home, root_path, as_json):
@@ -2343,7 +2628,12 @@ def cdn_verify(home, root_path, as_json):
 @click.argument("environment_ref")
 @click.option("--org", "org_id", default=None)
 @click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
-@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option(
+    "--root",
+    "root_path",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+)
 @click.option("--json", "as_json", is_flag=True)
 @_control_command
 def cdn_status(container_id, environment_ref, org_id, home, root_path, as_json):
@@ -2352,9 +2642,7 @@ def cdn_status(container_id, environment_ref, org_id, home, root_path, as_json):
     service = _control_service(home_path)
     container = service.get_container(container_id, org_id=org_id)
     publisher = FilesystemCDN(_cdn_root(home_path, str(root_path) if root_path else None))
-    manifest = publisher.read_manifest(
-        container_id, environment_ref, org_id=container.org_id
-    )
+    manifest = publisher.read_manifest(container_id, environment_ref, org_id=container.org_id)
     if as_json:
         _print_json(manifest)
         return
@@ -2378,7 +2666,12 @@ def cdn_status(container_id, environment_ref, org_id, home, root_path, as_json):
 @click.option("--actor", default="local", show_default=True)
 @click.option("--org", "org_id", default=None)
 @click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
-@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option(
+    "--root",
+    "root_path",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+)
 @click.option("--base-url", default=None)
 @click.option("--json", "as_json", is_flag=True)
 @_control_command
@@ -2433,7 +2726,12 @@ def cdn_rollback(
 
 @cdn.command("write-cache-policy")
 @click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
-@click.option("--root", "root_path", type=click.Path(file_okay=False, path_type=Path), default=None)
+@click.option(
+    "--root",
+    "root_path",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=None,
+)
 def cdn_write_cache_policy(home, root_path):
     """Write a self-hosting cache-policy note into the CDN tree."""
     path = write_static_server_config(
@@ -2441,22 +2739,75 @@ def cdn_write_cache_policy(home, root_path):
     )
     click.echo(f"Wrote {path}")
 
+
 @main.command("serve-ingest")
 @click.option("--host", default="127.0.0.1", show_default=True)
 @click.option("--port", type=click.IntRange(0, 65535), default=8080, show_default=True)
-@click.option("--container", "containers", multiple=True, help="Allowed public container ID (repeatable).")
-@click.option("--pytagshield-url", default=None, help="Forward accepted events to this PyTagShield base URL.")
-@click.option("--pytagshield-token-ref", default=None, help="Secret reference for PyTagShield bearer auth (env:NAME or file:PATH).")
-@click.option("--allow-private-pytagshield", is_flag=True, help="Allow a private/loopback PyTagShield URL; use only for intentional self-hosting.")
+@click.option(
+    "--container",
+    "containers",
+    multiple=True,
+    help="Allowed public container ID (repeatable).",
+)
+@click.option(
+    "--pytagshield-url",
+    default=None,
+    help="Forward accepted events to this PyTagShield base URL.",
+)
+@click.option(
+    "--pytagshield-token-ref",
+    default=None,
+    help="Secret reference for PyTagShield bearer auth (env:NAME or file:PATH).",
+)
+@click.option(
+    "--allow-private-pytagshield",
+    is_flag=True,
+    help="Allow a private/loopback PyTagShield URL; use only for intentional self-hosting.",
+)
 @click.option("--pytagshield-timeout", type=float, default=5.0, show_default=True)
-@click.option("--rate-limit-per-minute", type=click.IntRange(1, 1_000_000), default=120, show_default=True)
-@click.option("--max-body-bytes", type=click.IntRange(1, 10_000_000), default=65_536, show_default=True)
+@click.option(
+    "--rate-limit-per-minute",
+    type=click.IntRange(1, 1_000_000),
+    default=120,
+    show_default=True,
+)
+@click.option(
+    "--max-body-bytes",
+    type=click.IntRange(1, 10_000_000),
+    default=65_536,
+    show_default=True,
+)
 @click.option("--max-batch-events", type=click.IntRange(1, 100), default=100, show_default=True)
-@click.option("--dedupe-ttl-seconds", type=click.IntRange(1, 31_536_000), default=86_400, show_default=True)
-@click.option("--dedupe-claim-ttl-seconds", type=click.IntRange(1, 3_600), default=60, show_default=True, help="How long an in-flight claim blocks retries before it can be reclaimed.")
-@click.option("--dedupe-db", type=click.Path(dir_okay=False, path_type=Path), default=None, help="Persist event-id claims in this SQLite file for restart/cross-process dedupe.")
-@click.option("--api-token-ref", default=None, help="Optional server-to-server API token secret reference; not for browser SDKs.")
-@click.option("--allow-origin", "origins", multiple=True, help="Allowed CORS origin (repeatable; default *).")
+@click.option(
+    "--dedupe-ttl-seconds",
+    type=click.IntRange(1, 31_536_000),
+    default=86_400,
+    show_default=True,
+)
+@click.option(
+    "--dedupe-claim-ttl-seconds",
+    type=click.IntRange(1, 3_600),
+    default=60,
+    show_default=True,
+    help="How long an in-flight claim blocks retries before it can be reclaimed.",
+)
+@click.option(
+    "--dedupe-db",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+    help="Persist event-id claims in this SQLite file for restart/cross-process dedupe.",
+)
+@click.option(
+    "--api-token-ref",
+    default=None,
+    help="Optional server-to-server API token secret reference; not for browser SDKs.",
+)
+@click.option(
+    "--allow-origin",
+    "origins",
+    multiple=True,
+    help="Allowed CORS origin (repeatable; default *).",
+)
 @click.option(
     "--trusted-proxy-cidr",
     "trusted_proxy_cidrs",
@@ -2469,7 +2820,13 @@ def cdn_write_cache_policy(home, root_path):
     show_default=True,
     help="Header used for rate-limit identity when the direct peer is a trusted proxy.",
 )
-@click.option("--path", "collection_path", default="/api/v1/events", show_default=True, help="Public collection path, e.g. /collect for same-origin routing.")
+@click.option(
+    "--path",
+    "collection_path",
+    default="/api/v1/events",
+    show_default=True,
+    help="Public collection path, e.g. /collect for same-origin routing.",
+)
 @click.option("--tls-cert", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.option("--tls-key", type=click.Path(dir_okay=False, path_type=Path), default=None)
 @click.option("--home", type=click.Path(file_okay=False, path_type=Path), default=None)
@@ -2556,8 +2913,9 @@ def serve_ingest(
     click.echo(f"Collection endpoint listening at {scheme}://{host}:{port}{collection_path}")
     click.echo(f"Dedupe backend: {service.dedupe.backend}")
     click.echo(
-        "Forwarding to PyTagShield." if forwarder else
-        "No forwarder configured; validated events are acknowledged but not delivered."
+        "Forwarding to PyTagShield."
+        if forwarder
+        else "No forwarder configured; validated events are acknowledged but not delivered."
     )
     click.echo("Press Ctrl-C to stop.", err=True)
     try:
@@ -2565,13 +2923,20 @@ def serve_ingest(
     except KeyboardInterrupt:
         click.echo("Stopped.")
 
+
 @main.group()
 def squid() -> None:
     """Emit the proposed Squid-CRM findings contract and write plan."""
 
 
 @squid.command("manifest")
-@click.option("-o", "--output", "output_path", type=click.Path(dir_okay=False, path_type=Path), default=None)
+@click.option(
+    "-o",
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+)
 def squid_manifest(output_path):
     """Print the versioned tagManagerFinding object/field manifest."""
     from pytagmanager.squid import build_finding_manifest
@@ -2593,8 +2958,18 @@ def squid_manifest(output_path):
     required=True,
     help="A diagnose --format json report.",
 )
-@click.option("--workspace-id", default=None, help="Optional Squid workspace UUID for the plan metadata.")
-@click.option("-o", "--output", "output_path", type=click.Path(dir_okay=False, path_type=Path), default=None)
+@click.option(
+    "--workspace-id",
+    default=None,
+    help="Optional Squid workspace UUID for the plan metadata.",
+)
+@click.option(
+    "-o",
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+)
 def squid_findings(input_path, workspace_id, output_path):
     """Map a diagnose JSON report to Squid finding records and a write plan.
 
@@ -2661,8 +3036,14 @@ def cmp() -> None:
     help="Explicitly authorize clicking one consent control in a test environment you control. "
     "Without this flag, PyTagManager never submits a consent choice.",
 )
-@click.option("--wait", "wait_seconds", default=1.0, show_default=True, type=float,
-              help="Seconds to wait after a consent interaction before reading state/network evidence.")
+@click.option(
+    "--wait",
+    "wait_seconds",
+    default=1.0,
+    show_default=True,
+    type=float,
+    help="Seconds to wait after a consent interaction before reading state/network evidence.",
+)
 @click.option("--selector-timeout-ms", default=5000, show_default=True, type=int)
 @click.option(
     "--reload-after-consent",
@@ -2670,8 +3051,20 @@ def cmp() -> None:
     help="Reload after the consent action to test whether the choice persisted.",
 )
 @click.option("--max-network-events", default=500, show_default=True, type=click.IntRange(1, 5000))
-@click.option("--format", "output_format", type=click.Choice(["text", "json"]), default="text", show_default=True)
-@click.option("-o", "--output", "output_path", type=click.Path(dir_okay=False, path_type=Path), default=None)
+@click.option(
+    "--format",
+    "output_format",
+    type=click.Choice(["text", "json"]),
+    default="text",
+    show_default=True,
+)
+@click.option(
+    "-o",
+    "--output",
+    "output_path",
+    type=click.Path(dir_okay=False, path_type=Path),
+    default=None,
+)
 def cmp_audit(
     url,
     headless,
@@ -2778,8 +3171,7 @@ def _render_gtm_findings(findings) -> str:
     lines = [f"{len(findings)} GTM configuration finding(s):"]
     for finding in findings:
         lines.append(
-            f"[{finding.severity.upper()}/{finding.confidence}] {finding.code}: "
-            f"{finding.message}"
+            f"[{finding.severity.upper()}/{finding.confidence}] {finding.code}: {finding.message}"
         )
         for evidence in finding.evidence:
             lines.append(f"  evidence: {evidence}")

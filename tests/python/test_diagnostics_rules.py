@@ -25,11 +25,22 @@ def _journey(observations, business_event="add_to_cart"):
 
 
 def _event(event_type, source="browser", event_name="", selector=None, payload=None):
-    return TrackingEvent.create(source=source, event_type=event_type, event_name=event_name, selector=selector, payload=payload)
+    return TrackingEvent.create(
+        source=source,
+        event_type=event_type,
+        event_name=event_name,
+        selector=selector,
+        payload=payload,
+    )
 
 
 def test_gtm_tag_not_executed_when_trigger_matches_but_nothing_downstream():
-    trigger = GtmTrigger(trigger_id="1", name="Add To Cart Trigger", type="CUSTOM_EVENT", event_name="add_to_cart")
+    trigger = GtmTrigger(
+        trigger_id="1",
+        name="Add To Cart Trigger",
+        type="CUSTOM_EVENT",
+        event_name="add_to_cart",
+    )
     tag = GtmTag(tag_id="10", name="GA4 - Add to Cart", type="gaawe", firing_trigger_ids=["1"])
     journey = _journey(
         [
@@ -49,7 +60,12 @@ def test_consent_blocking_detected():
         [
             _event("click", selector="#buy"),
             _event("datalayer_push", source="datalayer", event_name="add_to_cart"),
-            _event("consent_change", source="consent", event_name="update", payload={"analytics_storage": "denied"}),
+            _event(
+                "consent_change",
+                source="consent",
+                event_name="update",
+                payload={"analytics_storage": "denied"},
+            ),
         ]
     )
     ctx = DiagnosticContext()
@@ -61,7 +77,12 @@ def test_pii_leak_detected_in_datalayer_payload():
     journey = _journey(
         [
             _event("click", selector="#form"),
-            _event("datalayer_push", source="datalayer", event_name="generate_lead", payload={"search_term": "contact me at jane@example.com"}),
+            _event(
+                "datalayer_push",
+                source="datalayer",
+                event_name="generate_lead",
+                payload={"search_term": "contact me at jane@example.com"},
+            ),
         ]
     )
     ctx = DiagnosticContext()
@@ -70,7 +91,12 @@ def test_pii_leak_detected_in_datalayer_payload():
 
 
 def test_healthy_journey_with_full_gtm_config_produces_no_diagnosis():
-    trigger = GtmTrigger(trigger_id="1", name="Add To Cart Trigger", type="CUSTOM_EVENT", event_name="add_to_cart")
+    trigger = GtmTrigger(
+        trigger_id="1",
+        name="Add To Cart Trigger",
+        type="CUSTOM_EVENT",
+        event_name="add_to_cart",
+    )
     tag = GtmTag(tag_id="10", name="GA4 - Add to Cart", type="gaawe", firing_trigger_ids=["1"])
     journey = _journey(
         [
@@ -79,14 +105,22 @@ def test_healthy_journey_with_full_gtm_config_produces_no_diagnosis():
                 "datalayer_push",
                 source="datalayer",
                 event_name="add_to_cart",
-                payload={"value": 19.99, "currency": "USD", "items": [{"item_id": "sku123"}]},
+                payload={
+                    "value": 19.99,
+                    "currency": "USD",
+                    "items": [{"item_id": "sku123"}],
+                },
             ),
             _event(
                 "network_request",
                 source="network",
                 payload={
                     "url": "https://www.google-analytics.com/g/collect",
-                    "params": {"en": "add_to_cart", "ep.value": "19.99", "ep.currency": "USD"},
+                    "params": {
+                        "en": "add_to_cart",
+                        "ep.value": "19.99",
+                        "ep.currency": "USD",
+                    },
                 },
             ),
         ]
@@ -100,12 +134,19 @@ def test_ecommerce_missing_parameters_flags_incomplete_purchase():
         [
             _event("click", selector="#checkout"),
             # Missing transaction_id and currency.
-            _event("datalayer_push", source="datalayer", event_name="purchase", payload={"value": 49.99, "items": []}),
+            _event(
+                "datalayer_push",
+                source="datalayer",
+                event_name="purchase",
+                payload={"value": 49.99, "items": []},
+            ),
         ],
         business_event="purchase",
     )
     ctx = DiagnosticContext()
-    diagnosis = next(d for d in diagnose_journey(journey, ctx) if d.root_cause == "ecommerce_missing_parameters")
+    diagnosis = next(
+        d for d in diagnose_journey(journey, ctx) if d.root_cause == "ecommerce_missing_parameters"
+    )
     assert diagnosis.confidence == "Confirmed"
     assert "transaction_id" in diagnosis.details["missing_parameters"]
     assert "currency" in diagnosis.details["missing_parameters"]
@@ -113,21 +154,47 @@ def test_ecommerce_missing_parameters_flags_incomplete_purchase():
 
 def test_ecommerce_missing_parameters_silent_for_non_ecommerce_events():
     journey = _journey(
-        [_event("click", selector="#subscribe"), _event("datalayer_push", source="datalayer", event_name="newsletter_signup")],
+        [
+            _event("click", selector="#subscribe"),
+            _event("datalayer_push", source="datalayer", event_name="newsletter_signup"),
+        ],
         business_event="newsletter_signup",
     )
     ctx = DiagnosticContext()
-    assert all(d.root_cause != "ecommerce_missing_parameters" for d in diagnose_journey(journey, ctx))
+    assert all(
+        d.root_cause != "ecommerce_missing_parameters" for d in diagnose_journey(journey, ctx)
+    )
 
 
 def test_find_duplicate_purchases_across_journeys():
-    complete_payload = {"transaction_id": "T1", "value": 10.0, "currency": "USD", "items": [{"item_id": "x"}]}
+    complete_payload = {
+        "transaction_id": "T1",
+        "value": 10.0,
+        "currency": "USD",
+        "items": [{"item_id": "x"}],
+    }
     journey_a = _journey(
-        [_event("click", selector="#confirm"), _event("datalayer_push", source="datalayer", event_name="purchase", payload=complete_payload)],
+        [
+            _event("click", selector="#confirm"),
+            _event(
+                "datalayer_push",
+                source="datalayer",
+                event_name="purchase",
+                payload=complete_payload,
+            ),
+        ],
         business_event="purchase",
     )
     journey_b = _journey(
-        [_event("click", selector="#confirm"), _event("datalayer_push", source="datalayer", event_name="purchase", payload=complete_payload)],
+        [
+            _event("click", selector="#confirm"),
+            _event(
+                "datalayer_push",
+                source="datalayer",
+                event_name="purchase",
+                payload=complete_payload,
+            ),
+        ],
         business_event="purchase",
     )
 
@@ -140,10 +207,24 @@ def test_find_duplicate_purchases_across_journeys():
 
 def test_find_duplicate_purchases_ignores_distinct_transactions():
     journey_a = _journey(
-        [_event("datalayer_push", source="datalayer", event_name="purchase", payload={"transaction_id": "T1"})],
+        [
+            _event(
+                "datalayer_push",
+                source="datalayer",
+                event_name="purchase",
+                payload={"transaction_id": "T1"},
+            )
+        ],
     )
     journey_b = _journey(
-        [_event("datalayer_push", source="datalayer", event_name="purchase", payload={"transaction_id": "T2"})],
+        [
+            _event(
+                "datalayer_push",
+                source="datalayer",
+                event_name="purchase",
+                payload={"transaction_id": "T2"},
+            )
+        ],
     )
     assert find_duplicate_purchases([journey_a, journey_b]) == []
 
@@ -182,7 +263,12 @@ def test_find_untested_recommendations_filters_by_selector():
 
 def _event_at(event_type, timestamp, source="browser", event_name="", selector=None, payload=None):
     return TrackingEvent.create(
-        source=source, event_type=event_type, event_name=event_name, selector=selector, payload=payload, timestamp=timestamp
+        source=source,
+        event_type=event_type,
+        event_name=event_name,
+        selector=selector,
+        payload=payload,
+        timestamp=timestamp,
     )
 
 
@@ -294,10 +380,16 @@ def test_state_diff_for_journey_picks_closest_by_time_among_repeated_selector():
         observations=[_event_at("click", 100.0, selector='[data-testid="add-to-cart"]')],
     )
     far_diff = StateDiff(
-        before_label="before:a", after_label="after:a", selector='[data-testid="add-to-cart"]', before_timestamp=10.0
+        before_label="before:a",
+        after_label="after:a",
+        selector='[data-testid="add-to-cart"]',
+        before_timestamp=10.0,
     )
     close_diff = StateDiff(
-        before_label="before:b", after_label="after:b", selector='[data-testid="add-to-cart"]', before_timestamp=99.95
+        before_label="before:b",
+        after_label="after:b",
+        selector='[data-testid="add-to-cart"]',
+        before_timestamp=99.95,
     )
     ctx = DiagnosticContext(state_diffs=[far_diff, close_diff])
 

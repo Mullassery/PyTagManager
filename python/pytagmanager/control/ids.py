@@ -15,9 +15,7 @@ from datetime import datetime, timezone
 
 from pytagmanager.control.errors import ValidationError
 
-_UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
-)
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
 _CONTAINER_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$")
 _NAME_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
 _SLUG_RE = re.compile(r"[^a-z0-9]+")
@@ -84,15 +82,11 @@ def container_storage_key(org_id: str, container_id: str) -> str:
     """
     validate_id(org_id, field="org_id")
     normalized = normalize_container_id(container_id)
-    digest = hashlib.sha256(f"{org_id}\0{normalized}".encode("utf-8")).hexdigest()[:24]
+    digest = hashlib.sha256(f"{org_id}\0{normalized}".encode()).hexdigest()[:24]
     slug = _SLUG_RE.sub("-", normalized).strip("-")[:32] or "container"
     return f"{slug}-{digest}"
 
 
 def utc_now() -> str:
     """Return an RFC 3339 UTC timestamp with millisecond precision."""
-    return (
-        datetime.now(timezone.utc)
-        .isoformat(timespec="milliseconds")
-        .replace("+00:00", "Z")
-    )
+    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")

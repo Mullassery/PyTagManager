@@ -1,10 +1,10 @@
 from pytagmanager.observability.events import TrackingEvent
 
 __all__ = [
-    "TrackingEvent",
-    "Scenario",
-    "auto_scenario_from_recommendations",
     "ObservationSession",
+    "Scenario",
+    "TrackingEvent",
+    "auto_scenario_from_recommendations",
 ]
 
 
@@ -16,9 +16,7 @@ def __getattr__(name: str):
         )
 
         globals()["Scenario"] = Scenario
-        globals()[
-            "auto_scenario_from_recommendations"
-        ] = auto_scenario_from_recommendations
+        globals()["auto_scenario_from_recommendations"] = auto_scenario_from_recommendations
         return globals()[name]
     if name == "ObservationSession":
         from pytagmanager.observability.session import ObservationSession

@@ -7,19 +7,19 @@ from pytagmanager.perf.measure import PerformanceBaseline, PerformanceSnapshot
 
 
 def _snapshot(**overrides):
-    defaults = dict(
-        lcp_ms=1000.0,
-        lcp_url="https://example.com/hero.jpg",
-        cls=0.05,
-        fcp_ms=500.0,
-        tbt_ms=100.0,
-        inp_ms=80.0,
-        dom_content_loaded_ms=900.0,
-        load_event_ms=1200.0,
-        transfer_bytes=50000.0,
-        request_count=20,
-        long_task_count=2,
-    )
+    defaults = {
+        "lcp_ms": 1000.0,
+        "lcp_url": "https://example.com/hero.jpg",
+        "cls": 0.05,
+        "fcp_ms": 500.0,
+        "tbt_ms": 100.0,
+        "inp_ms": 80.0,
+        "dom_content_loaded_ms": 900.0,
+        "load_event_ms": 1200.0,
+        "transfer_bytes": 50000.0,
+        "request_count": 20,
+        "long_task_count": 2,
+    }
     defaults.update(overrides)
     return PerformanceSnapshot(**defaults)
 

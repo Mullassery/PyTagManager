@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager.cli import main
 from pytagmanager.squid import (
     CONTRACT_ID,
@@ -85,7 +84,11 @@ def test_manifest_defines_a_single_versioned_finding_object():
     assert manifest["upsert"]["match_field"] == "findingId"
     assert manifest["upsert"]["lookup"]["path"] == "/rest/tagManagerFindings"
     identifier = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,62}")
-    for name in [manifest["object"]["nameSingular"], manifest["object"]["namePlural"], *names]:
+    for name in [
+        manifest["object"]["nameSingular"],
+        manifest["object"]["namePlural"],
+        *names,
+    ]:
         assert identifier.fullmatch(name), name
     for operation in manifest["metadata_operations"]["create_fields"]:
         assert operation["field"]["objectMetadataId"] == "<created-object-id>"
@@ -125,13 +128,18 @@ def test_plan_skips_healthy_journeys_and_has_stable_idempotency():
     assert plan["request"]["headers"]["Idempotency-Key"].startswith("pytagmanager-findings-v1:")
     assert plan["write_strategy"]["match_field"] == "findingId"
     again = build_findings_plan(_report(), workspace_id="workspace-1")
-    assert plan["request"]["headers"]["Idempotency-Key"] == again["request"]["headers"]["Idempotency-Key"]
+    assert (
+        plan["request"]["headers"]["Idempotency-Key"]
+        == again["request"]["headers"]["Idempotency-Key"]
+    )
     assert plan["plan_id"] == again["plan_id"]
 
 
 def test_record_matches_the_published_json_schema_required_shape():
     schema = json.loads(
-        (Path(__file__).parents[2] / "schemas" / "squid" / "v1" / "tag-finding.schema.json").read_text()
+        (
+            Path(__file__).parents[2] / "schemas" / "squid" / "v1" / "tag-finding.schema.json"
+        ).read_text()
     )
     record = diagnosis_to_finding_record(_finding())
     assert set(schema["required"]) <= set(record)
@@ -189,7 +197,14 @@ def test_squid_cli_manifest_and_findings_plan(tmp_path):
     report_path.write_text(json.dumps(_report()), encoding="utf-8")
     plan_result = runner.invoke(
         main,
-        ["squid", "findings", "--input", str(report_path), "--workspace-id", "workspace-1"],
+        [
+            "squid",
+            "findings",
+            "--input",
+            str(report_path),
+            "--workspace-id",
+            "workspace-1",
+        ],
     )
     assert plan_result.exit_code == 0, plan_result.output
     plan = json.loads(plan_result.output)

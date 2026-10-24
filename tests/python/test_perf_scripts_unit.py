@@ -15,7 +15,9 @@ def test_is_first_party_subdomain_counts_as_first_party():
 
 
 def test_is_first_party_different_domain_is_third_party():
-    assert _is_first_party("https://connect.facebook.net/a.js", "https://shop.example.com/") is False
+    assert (
+        _is_first_party("https://connect.facebook.net/a.js", "https://shop.example.com/") is False
+    )
 
 
 def test_is_first_party_empty_hostname_is_false():
@@ -23,7 +25,10 @@ def test_is_first_party_empty_hostname_is_false():
 
 
 def test_initiator_url_from_script_type_uses_first_stack_frame():
-    initiator = {"type": "script", "stack": {"callFrames": [{"url": "https://shop.example.com/loader.js"}]}}
+    initiator = {
+        "type": "script",
+        "stack": {"callFrames": [{"url": "https://shop.example.com/loader.js"}]},
+    }
     assert _initiator_url_from(initiator) == "https://shop.example.com/loader.js"
 
 

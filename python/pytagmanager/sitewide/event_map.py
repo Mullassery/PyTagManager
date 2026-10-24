@@ -15,7 +15,6 @@ interaction, not per page.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List
 
 from pytagmanager.correlation.journey import TrackingJourney
 
@@ -24,7 +23,12 @@ from pytagmanager.correlation.journey import TrackingJourney
 # visible), "Network" -> the analytics request stage. "interaction" and
 # "application" stages aren't part of this matrix -- they describe the
 # trigger itself and app-internal API calls, not the tracking chain.
-_COLUMNS = (("js", "mutation"), ("datalayer", "datalayer"), ("network", "network"), ("gtm", "gtm"))
+_COLUMNS = (
+    ("js", "mutation"),
+    ("datalayer", "datalayer"),
+    ("network", "network"),
+    ("gtm", "gtm"),
+)
 
 
 @dataclass(frozen=True)
@@ -37,7 +41,7 @@ class RuntimeEventMapRow:
     gtm_coverage: float
 
     @property
-    def stage_coverage(self) -> Dict[str, float]:
+    def stage_coverage(self) -> dict[str, float]:
         return {
             "js": self.js_coverage,
             "datalayer": self.datalayer_coverage,
@@ -46,8 +50,10 @@ class RuntimeEventMapRow:
         }
 
 
-def build_runtime_event_map(journeys: List[TrackingJourney]) -> List[RuntimeEventMapRow]:
-    grouped: Dict[str, List[TrackingJourney]] = {}
+def build_runtime_event_map(
+    journeys: list[TrackingJourney],
+) -> list[RuntimeEventMapRow]:
+    grouped: dict[str, list[TrackingJourney]] = {}
     for journey in journeys:
         grouped.setdefault(journey.business_event, []).append(journey)
 
@@ -55,7 +61,8 @@ def build_runtime_event_map(journeys: List[TrackingJourney]) -> List[RuntimeEven
     for business_event, group in sorted(grouped.items()):
         total = len(group)
         coverage = {
-            column: sum(1 for j in group if j.stage_present(stage)) / total for column, stage in _COLUMNS
+            column: sum(1 for j in group if j.stage_present(stage)) / total
+            for column, stage in _COLUMNS
         }
         rows.append(
             RuntimeEventMapRow(

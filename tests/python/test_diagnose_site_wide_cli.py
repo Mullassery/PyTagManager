@@ -13,7 +13,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from click.testing import CliRunner
-
 from pytagmanager import _core
 from pytagmanager.cli import main
 
@@ -60,10 +59,21 @@ def test_diagnose_site_wide_semantic_labels(fixture_server, monkeypatch):
     # availability/behavior in CI/test environments is not something this
     # test should depend on to be fast and deterministic.
     monkeypatch.setattr(
-        "pytagmanager.sitewide.page_type.OllamaPageTypeClassifier.is_available", lambda self: False
+        "pytagmanager.sitewide.page_type.OllamaPageTypeClassifier.is_available",
+        lambda self: False,
     )
 
-    result = CliRunner().invoke(main, ["diagnose", pages[0].url, "--site-wide", "--semantic-labels", "--format", "text"])
+    result = CliRunner().invoke(
+        main,
+        [
+            "diagnose",
+            pages[0].url,
+            "--site-wide",
+            "--semantic-labels",
+            "--format",
+            "text",
+        ],
+    )
 
     assert result.exit_code == 0, result.output
     assert "PyTagManager Site Health" in result.output
@@ -74,7 +84,9 @@ def test_diagnose_site_wide_history_records_first_run(fixture_server, monkeypatc
     monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: pages)
     history_path = tmp_path / "history.json"
 
-    result = CliRunner().invoke(main, ["diagnose", pages[0].url, "--site-wide", "--history", str(history_path)])
+    result = CliRunner().invoke(
+        main, ["diagnose", pages[0].url, "--site-wide", "--history", str(history_path)]
+    )
 
     assert result.exit_code == 0, result.output
     assert "Regression detected" not in result.output  # nothing to compare against on the first run
@@ -94,7 +106,10 @@ def test_diagnose_site_wide_history_detects_regression_and_alerts(
 
     # Run 1: healthy page -> a good score recorded as the baseline.
     monkeypatch.setattr("pytagmanager.cli.crawl_site", lambda *a, **k: [healthy_page])
-    first = CliRunner().invoke(main, ["diagnose", healthy_page.url, "--site-wide", "--history", str(history_path)])
+    first = CliRunner().invoke(
+        main,
+        ["diagnose", healthy_page.url, "--site-wide", "--history", str(history_path)],
+    )
     assert first.exit_code == 0, first.output
 
     # Run 2: same URL, but the crawl now only turns up a broken page --
@@ -135,7 +150,10 @@ def test_diagnose_rejects_history_without_site_wide(fixture_server):
 
 def test_diagnose_rejects_alert_webhook_without_history(fixture_server):
     url = f"{fixture_server}/healthy_tracking.html"
-    result = CliRunner().invoke(main, ["diagnose", url, "--site-wide", "--alert-webhook", "https://example.com/hook"])
+    result = CliRunner().invoke(
+        main,
+        ["diagnose", url, "--site-wide", "--alert-webhook", "https://example.com/hook"],
+    )
     assert result.exit_code != 0
     assert "--alert-webhook requires --history" in result.output
 

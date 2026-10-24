@@ -11,10 +11,16 @@ import json
 import tempfile
 from pathlib import Path
 
-from pytagmanager.export.adobe_tags import build_adobe_launch_rules, export_adobe_tags_json
+from pytagmanager.export.adobe_tags import (
+    build_adobe_launch_rules,
+    export_adobe_tags_json,
+)
 from pytagmanager.export.base import EXPORTERS
 from pytagmanager.export.ga4 import build_ga4_config, export_ga4_json
-from pytagmanager.export.rudderstack import build_rudderstack_tracking_plan, export_rudderstack_json
+from pytagmanager.export.rudderstack import (
+    build_rudderstack_tracking_plan,
+    export_rudderstack_json,
+)
 from pytagmanager.export.segment import build_segment_tracking_plan, export_segment_json
 from pytagmanager.export.snowplow import build_snowplow_schemas, export_snowplow_json
 from pytagmanager.export.tealium import build_tealium_profile, export_tealium_json
@@ -27,7 +33,11 @@ def _sample_recs():
             event_name="purchase_intent",
             trigger_type="click",
             selector='[data-testid="add-to-cart"]',
-            selector_fallbacks=['[data-testid="add-to-cart"]', "button:nth-child(1)", "/html/body/button[1]"],
+            selector_fallbacks=[
+                '[data-testid="add-to-cart"]',
+                "button:nth-child(1)",
+                "/html/body/button[1]",
+            ],
             event_category="ecommerce",
             business_objective="Purchase Intent",
             confidence=0.95,
@@ -115,7 +125,9 @@ def test_segment_tracking_plan_shape_and_ecommerce_spec_name():
     assert props["type"] == "object"
     assert "product_id" in props["properties"]
     assert "product_id" in props["required"]
-    assert product_added["rules"]["labels"]["pytagmanager_selector"] == '[data-testid="add-to-cart"]'
+    assert (
+        product_added["rules"]["labels"]["pytagmanager_selector"] == '[data-testid="add-to-cart"]'
+    )
 
     lead = events[1]
     assert lead["name"] == "Lead Generated"
@@ -151,7 +163,9 @@ def test_snowplow_schemas_are_valid_iglu_self_describing_documents():
     events = doc["events"]
     assert len(events) == 2
     unstruct = events[0]
-    assert unstruct["schema"] == "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"
+    assert (
+        unstruct["schema"] == "iglu:com.snowplowanalytics.snowplow/unstruct_event/jsonschema/1-0-0"
+    )
     assert unstruct["data"]["schema"] == "iglu:com.pytagmanager/add_to_cart/jsonschema/1-0-0"
     assert unstruct["data"]["data"]["selector"] == '[data-testid="add-to-cart"]'
 
@@ -186,7 +200,11 @@ def test_tealium_profile_udo_events_and_load_rules():
     load_rules = profile["load_rules"]
     assert len(load_rules) == 2
     condition = load_rules[0]["conditions"][0]
-    assert condition == {"variable": "tealium_event", "operator": "equals", "value": "add_to_cart"}
+    assert condition == {
+        "variable": "tealium_event",
+        "operator": "equals",
+        "value": "add_to_cart",
+    }
 
 
 def test_export_tealium_json_writes_valid_json_file():
@@ -256,7 +274,15 @@ def test_export_adobe_tags_json_writes_valid_json_file():
 
 
 def test_all_exporters_registered_and_handle_empty_input():
-    assert set(EXPORTERS) == {"gtm", "ga4", "segment", "snowplow", "tealium", "rudderstack", "adobe_tags"}
+    assert set(EXPORTERS) == {
+        "gtm",
+        "ga4",
+        "segment",
+        "snowplow",
+        "tealium",
+        "rudderstack",
+        "adobe_tags",
+    }
     for name, spec in EXPORTERS.items():
         result = spec.build([])
         assert isinstance(result, dict), f"{name} builder must return a dict"
@@ -310,7 +336,9 @@ def test_every_canonical_event_has_an_exporter_spec_entry():
     for canonical in CANONICAL_EVENT_MAP.values():
         assert canonical in _GA4_EVENT_SPECS, f"ga4.py missing spec for '{canonical}'"
         assert canonical in _SEGMENT_EVENT_SPECS, f"segment.py missing spec for '{canonical}'"
-        assert canonical in _RUDDERSTACK_EVENT_SPECS, f"rudderstack.py missing spec for '{canonical}'"
+        assert canonical in _RUDDERSTACK_EVENT_SPECS, (
+            f"rudderstack.py missing spec for '{canonical}'"
+        )
 
     # Phase 1.8 objectives resolve to real, distinct (non-generic) names.
     assert _GA4_EVENT_SPECS["remove_from_cart"][0] == "remove_from_cart"

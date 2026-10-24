@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import tempfile
 import time
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any
 
 from pytagmanager.control.checksums import canonical_json
 from pytagmanager.control.errors import (
@@ -58,7 +60,9 @@ def _acquire_lock(handle: Any, timeout: float) -> None:
                 return
             except (BlockingIOError, OSError):
                 if time.monotonic() >= deadline:
-                    raise ControlError("timed out waiting for the control-plane store lock")
+                    raise ControlError(
+                        "timed out waiting for the control-plane store lock"
+                    ) from None
                 time.sleep(0.05)
 
     try:
@@ -74,7 +78,9 @@ def _acquire_lock(handle: Any, timeout: float) -> None:
                 return
             except OSError:
                 if time.monotonic() >= deadline:
-                    raise ControlError("timed out waiting for the control-plane store lock")
+                    raise ControlError(
+                        "timed out waiting for the control-plane store lock"
+                    ) from None
                 time.sleep(0.05)
     return
 
@@ -125,7 +131,12 @@ class FileStore:
 
     def container_dir(self, org_id: str, container_id: str) -> Path:
         org_id = validate_id(org_id, field="org_id")
-        return self.organizations_dir / org_id / "containers" / container_storage_key(org_id, container_id)
+        return (
+            self.organizations_dir
+            / org_id
+            / "containers"
+            / container_storage_key(org_id, container_id)
+        )
 
     def _ensure_layout(self) -> None:
         (self.root / ".locks").mkdir(parents=True, exist_ok=True)
@@ -137,10 +148,8 @@ class FileStore:
     @staticmethod
     def _chmod(path: Path, mode: int) -> None:
         if os.name == "posix":
-            try:
+            with contextlib.suppress(OSError):
                 path.chmod(mode)
-            except OSError:
-                pass
 
     @contextmanager
     def lock(self, *, timeout: float = 10.0) -> Iterator[None]:
@@ -367,10 +376,8 @@ class FileStore:
                 handle.flush()
                 os.fsync(handle.fileno())
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 path.unlink()
-            except OSError:
-                pass
             raise
         _fsync_dir(path.parent)
 
@@ -393,8 +400,6 @@ class FileStore:
             os.replace(temporary, path)
             _fsync_dir(path.parent)
         except BaseException:
-            try:
+            with contextlib.suppress(OSError):
                 os.unlink(temporary)
-            except OSError:
-                pass
             raise

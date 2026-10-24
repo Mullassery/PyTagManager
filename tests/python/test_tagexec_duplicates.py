@@ -14,11 +14,17 @@ from pytagmanager.tagexec.duplicates import (
     find_duplicate_candidates,
     find_runtime_duplicate_evidence,
 )
-from pytagmanager.tagexec.static_scan import GtmContainerDetection, StaticScanResult, VendorDetection
+from pytagmanager.tagexec.static_scan import (
+    GtmContainerDetection,
+    StaticScanResult,
+    VendorDetection,
+)
 
 
 def _scan(gtm_containers=(), vendors=()):
-    return StaticScanResult(page_url="https://example.com/", gtm_containers=gtm_containers, vendors=vendors)
+    return StaticScanResult(
+        page_url="https://example.com/", gtm_containers=gtm_containers, vendors=vendors
+    )
 
 
 def _network_step(url, params, timestamp=1.0):
@@ -70,7 +76,9 @@ def test_single_gtm_container_is_not_a_candidate():
 def test_gtm_plus_hardcoded_analytics_vendor_is_a_candidate():
     scan = _scan(
         gtm_containers=(GtmContainerDetection("GTM-AAA1111", "script_tag"),),
-        vendors=(VendorDetection(vendor="GA4", category="analytics", evidence="gtag config G-ABC"),),
+        vendors=(
+            VendorDetection(vendor="GA4", category="analytics", evidence="gtag config G-ABC"),
+        ),
     )
     candidates = find_duplicate_candidates(scan)
     assert any(c.kind == CANDIDATE_GTM_PLUS_HARDCODED_VENDOR for c in candidates)
@@ -80,7 +88,9 @@ def test_gtm_plus_hardcoded_chat_vendor_is_not_a_candidate():
     # Chat widgets don't overlap with what a GTM container's own tags send.
     scan = _scan(
         gtm_containers=(GtmContainerDetection("GTM-AAA1111", "script_tag"),),
-        vendors=(VendorDetection(vendor="Intercom", category="chat", evidence="widget.intercom.io"),),
+        vendors=(
+            VendorDetection(vendor="Intercom", category="chat", evidence="widget.intercom.io"),
+        ),
     )
     candidates = find_duplicate_candidates(scan)
     assert not any(c.kind == CANDIDATE_GTM_PLUS_HARDCODED_VENDOR for c in candidates)
@@ -100,7 +110,9 @@ def test_same_vendor_with_distinct_evidence_is_a_duplicate_vendor_candidate():
 def test_no_candidates_for_a_clean_single_implementation_page():
     scan = _scan(
         gtm_containers=(GtmContainerDetection("GTM-AAA1111", "script_tag"),),
-        vendors=(VendorDetection(vendor="Intercom", category="chat", evidence="widget.intercom.io"),),
+        vendors=(
+            VendorDetection(vendor="Intercom", category="chat", evidence="widget.intercom.io"),
+        ),
     )
     assert find_duplicate_candidates(scan) == []
 
@@ -109,15 +121,23 @@ def test_no_candidates_for_a_clean_single_implementation_page():
 
 
 def test_runtime_evidence_requires_at_least_two_network_requests():
-    trace = _trace([_network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart"})])
+    trace = _trace(
+        [_network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart"})]
+    )
     assert find_runtime_duplicate_evidence(trace) is None
 
 
 def test_runtime_evidence_computes_payload_similarity():
     trace = _trace(
         [
-            _network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart", "value": "9.99"}),
-            _network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart", "value": "9.99"}),
+            _network_step(
+                "https://www.google-analytics.com/g/collect",
+                {"en": "add_to_cart", "value": "9.99"},
+            ),
+            _network_step(
+                "https://www.google-analytics.com/g/collect",
+                {"en": "add_to_cart", "value": "9.99"},
+            ),
         ]
     )
     evidence = find_runtime_duplicate_evidence(trace)
@@ -129,8 +149,14 @@ def test_runtime_evidence_computes_payload_similarity():
 def test_runtime_evidence_similarity_partial_overlap():
     trace = _trace(
         [
-            _network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart", "value": "9.99"}),
-            _network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart", "value": "0.00"}),
+            _network_step(
+                "https://www.google-analytics.com/g/collect",
+                {"en": "add_to_cart", "value": "9.99"},
+            ),
+            _network_step(
+                "https://www.google-analytics.com/g/collect",
+                {"en": "add_to_cart", "value": "0.00"},
+            ),
         ]
     )
     evidence = find_runtime_duplicate_evidence(trace)
@@ -147,7 +173,9 @@ def test_candidate_without_runtime_evidence_produces_no_finding():
             GtmContainerDetection("GTM-BBB2222", "script_tag"),
         )
     )
-    trace = _trace([_network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart"})])
+    trace = _trace(
+        [_network_step("https://www.google-analytics.com/g/collect", {"en": "add_to_cart"})]
+    )
 
     findings = analyze_duplicates(scan, [trace])
     assert findings == []

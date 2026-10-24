@@ -5,11 +5,13 @@ root-cause line per non-healthy journey, not a raw event log.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pytagmanager.correlation.journey import STAGES, TrackingJourney
 from pytagmanager.diagnostics.models import Diagnosis
-from pytagmanager.diagnostics.rules import DiagnosticContext, diagnose_journey, primary_diagnosis
+from pytagmanager.diagnostics.rules import (
+    DiagnosticContext,
+    diagnose_journey,
+    primary_diagnosis,
+)
 from pytagmanager.observability.state import StateDiff
 from pytagmanager.recommend.models import TrackingRecommendation
 from pytagmanager.reporting.summary import compute_health_summary
@@ -25,9 +27,9 @@ _STAGE_LABELS = {
 
 
 def diagnose_journeys(
-    journeys: List[TrackingJourney],
+    journeys: list[TrackingJourney],
     ctx: DiagnosticContext,
-) -> List[TrackingJourney]:
+) -> list[TrackingJourney]:
     """Run the rule engine over every journey and return new journeys with
     `.status`/`.diagnosis` populated (TrackingJourney is frozen; this
     returns replacements rather than mutating in place)."""
@@ -39,11 +41,11 @@ def diagnose_journeys(
 
 
 def render_terminal_report(
-    journeys: List[TrackingJourney],
-    untested: Optional[List[TrackingRecommendation]] = None,
+    journeys: list[TrackingJourney],
+    untested: list[TrackingRecommendation] | None = None,
     verbose: bool = False,
-    extra_findings: Optional[List[Diagnosis]] = None,
-    state_diffs: Optional[List[StateDiff]] = None,
+    extra_findings: list[Diagnosis] | None = None,
+    state_diffs: list[StateDiff] | None = None,
 ) -> str:
     untested = untested or []
     summary = compute_health_summary(journeys, untested)
@@ -54,9 +56,9 @@ def render_terminal_report(
     lines.append(f"Pages tested: {summary.pages_tested}")
     lines.append(f"Tracking journeys: {summary.journeys_total}")
     lines.append("")
-    lines.append(f"\U0001F534 {summary.critical} Critical")
-    lines.append(f"\U0001F7E0 {summary.warnings} Warnings")
-    lines.append(f"\U0001F7E2 {summary.healthy} Healthy")
+    lines.append(f"\U0001f534 {summary.critical} Critical")
+    lines.append(f"\U0001f7e0 {summary.warnings} Warnings")
+    lines.append(f"\U0001f7e2 {summary.healthy} Healthy")
     lines.append("")
 
     if critical:
@@ -103,12 +105,22 @@ def render_terminal_report(
     return "\n".join(lines)
 
 
-def _render_state_diff_changes(diff: StateDiff) -> List[str]:
+def _render_state_diff_changes(diff: StateDiff) -> list[str]:
     lines = []
     categories = [
         ("cookies", diff.cookies_added, diff.cookies_removed, diff.cookies_modified),
-        ("localStorage", diff.local_storage_added, diff.local_storage_removed, diff.local_storage_modified),
-        ("sessionStorage", diff.session_storage_added, diff.session_storage_removed, diff.session_storage_modified),
+        (
+            "localStorage",
+            diff.local_storage_added,
+            diff.local_storage_removed,
+            diff.local_storage_modified,
+        ),
+        (
+            "sessionStorage",
+            diff.session_storage_added,
+            diff.session_storage_removed,
+            diff.session_storage_modified,
+        ),
     ]
     for label, added, removed, modified in categories:
         for key in added:
@@ -122,7 +134,7 @@ def _render_state_diff_changes(diff: StateDiff) -> List[str]:
     return lines
 
 
-def _render_journey(index: int, journey: TrackingJourney) -> List[str]:
+def _render_journey(index: int, journey: TrackingJourney) -> list[str]:
     lines = [f"{index}. {journey.business_event}", ""]
     for stage in STAGES:
         mark = "✓" if journey.stage_present(stage) else "✗"

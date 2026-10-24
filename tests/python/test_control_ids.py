@@ -4,7 +4,6 @@ import re
 import uuid
 
 import pytest
-
 from pytagmanager.control.errors import ValidationError
 from pytagmanager.control.ids import (
     container_storage_key,

@@ -25,12 +25,14 @@ from Website Data Dictionary schema drift (`testintel.regression`, item 3).
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Dict, List, Sequence, Tuple
 
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.diagnostics.models import CONFIDENCE_LEVELS
-from pytagmanager.sitewide.interaction_consistency import BusinessActionConsistencyReport
+from pytagmanager.sitewide.interaction_consistency import (
+    BusinessActionConsistencyReport,
+)
 
 CATEGORY_EVENT_EXISTENCE = "event_existence"
 CATEGORY_EVENT_PAYLOAD = "event_payload"
@@ -61,7 +63,9 @@ SEVERITY_OBSERVED = "Observed"
 SEVERITY_POTENTIAL_ISSUE = "Potential issue"
 SEVERITY_SUSPECTED_DEFECT = "Suspected defect"
 SEVERITY_REQUIRES_VERIFICATION = "Requires verification"
-SEVERITY_CONFIRMED_DEFECT = "Confirmed defect"  # never assigned by this module -- see module docstring
+SEVERITY_CONFIRMED_DEFECT = (
+    "Confirmed defect"  # never assigned by this module -- see module docstring
+)
 
 SEVERITY_LEVELS = (
     SEVERITY_OBSERVED,
@@ -77,18 +81,20 @@ SEVERITY_LEVELS = (
 # event fired, confirmed"), not that the underlying defect classification
 # (intentional vs. bug) has been confirmed, which only a human/Playwright
 # run can do.
-_SEVERITY_BY_CONFIDENCE: Dict[str, str] = {
+_SEVERITY_BY_CONFIDENCE: dict[str, str] = {
     "Confirmed": SEVERITY_REQUIRES_VERIFICATION,
     "Highly likely": SEVERITY_SUSPECTED_DEFECT,
     "Possible": SEVERITY_POTENTIAL_ISSUE,
     "Needs investigation": SEVERITY_OBSERVED,
 }
-assert set(_SEVERITY_BY_CONFIDENCE) == set(CONFIDENCE_LEVELS)  # stay in sync with diagnostics.models
+assert set(_SEVERITY_BY_CONFIDENCE) == set(
+    CONFIDENCE_LEVELS
+)  # stay in sync with diagnostics.models
 
 # root_cause -> category, for every root_cause diagnostics/rules.py's
 # REGISTRY (+ find_duplicate_purchases) actually emits. See module
 # docstring for the two categories with no source here.
-_CATEGORY_BY_ROOT_CAUSE: Dict[str, str] = {
+_CATEGORY_BY_ROOT_CAUSE: dict[str, str] = {
     "spa_navigation_missing_pageview": CATEGORY_EVENT_EXISTENCE,
     "missing_datalayer_event": CATEGORY_EVENT_EXISTENCE,
     "api_call_without_tracking_event": CATEGORY_EVENT_EXISTENCE,
@@ -108,7 +114,7 @@ _CATEGORY_BY_ROOT_CAUSE: Dict[str, str] = {
     "timing_delay": CATEGORY_TIMING,
 }
 
-_VERIFICATION_STEPS_BY_CATEGORY: Dict[str, Tuple[str, ...]] = {
+_VERIFICATION_STEPS_BY_CATEGORY: dict[str, tuple[str, ...]] = {
     CATEGORY_EVENT_EXISTENCE: (
         "Open the page and trigger the interaction ({selector})",
         "Capture window.dataLayer before and after the interaction",
@@ -147,7 +153,7 @@ _VERIFICATION_STEPS_BY_CATEGORY: Dict[str, Tuple[str, ...]] = {
     ),
 }
 
-_ROOT_CAUSE_LABELS: Dict[str, str] = {
+_ROOT_CAUSE_LABELS: dict[str, str] = {
     "spa_navigation_missing_pageview": "should fire a page_view event on SPA navigation",
     "missing_datalayer_event": "should fire a dataLayer event",
     "api_call_without_tracking_event": "should fire a dataLayer event when its API call succeeds",
@@ -181,30 +187,38 @@ class TestCandidate:
     severity: str  # one of SEVERITY_LEVELS, never SEVERITY_CONFIRMED_DEFECT at generation time
     observed: str
     observed_problem: str
-    evidence_pages: Tuple[str, ...] = field(default_factory=tuple)  # deduped, sorted
-    suggested_verification: Tuple[str, ...] = field(default_factory=tuple)
-    source_root_causes: Tuple[str, ...] = field(default_factory=tuple)
+    evidence_pages: tuple[str, ...] = field(default_factory=tuple)  # deduped, sorted
+    suggested_verification: tuple[str, ...] = field(default_factory=tuple)
+    source_root_causes: tuple[str, ...] = field(default_factory=tuple)
 
     @property
     def evidence_count(self) -> int:
         return len(self.evidence_pages)
 
 
-def format_verification_steps(category: str, business_event: str, selector: "str | None", **extra: str) -> Tuple[str, ...]:
+def format_verification_steps(
+    category: str, business_event: str, selector: str | None, **extra: str
+) -> tuple[str, ...]:
     templates = _VERIFICATION_STEPS_BY_CATEGORY.get(category, ())
     return tuple(
-        step.format(business_event=business_event, selector=selector or "the relevant element", **extra)
+        step.format(
+            business_event=business_event,
+            selector=selector or "the relevant element",
+            **extra,
+        )
         for step in templates
     )
 
 
-def generate_diagnosis_candidates(journeys: Sequence[TrackingJourney]) -> List[TestCandidate]:
+def generate_diagnosis_candidates(
+    journeys: Sequence[TrackingJourney],
+) -> list[TestCandidate]:
     """Groups journeys by (root_cause, business_event) -- the same
     underlying problem observed across however many pages/interactions it
     showed up on becomes ONE candidate with an evidence list, not one
     candidate per occurrence (VISION.md §15's own example: "Evidence: 23
     product pages", not 23 separate candidates)."""
-    groups: Dict[Tuple[str, str], List[TrackingJourney]] = {}
+    groups: dict[tuple[str, str], list[TrackingJourney]] = {}
     for journey in journeys:
         diagnosis = journey.diagnosis
         if diagnosis is None or diagnosis.root_cause == "none":
@@ -229,14 +243,18 @@ def generate_diagnosis_candidates(journeys: Sequence[TrackingJourney]) -> List[T
                 observed=f"'{business_event}' event observed",
                 observed_problem=diagnosis.message,
                 evidence_pages=pages,
-                suggested_verification=format_verification_steps(category, business_event, selector),
+                suggested_verification=format_verification_steps(
+                    category, business_event, selector
+                ),
                 source_root_causes=(root_cause,),
             )
         )
     return candidates
 
 
-def generate_consistency_candidates(reports: Sequence[BusinessActionConsistencyReport]) -> List[TestCandidate]:
+def generate_consistency_candidates(
+    reports: Sequence[BusinessActionConsistencyReport],
+) -> list[TestCandidate]:
     """One candidate per business action whose fired implementations
     disagree on event naming/shape across UI surfaces -- reuses Phase 1.8's
     `analyze_business_action_consistency()` output rather than a new

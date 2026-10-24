@@ -22,8 +22,9 @@ import math
 import shutil
 import statistics
 import subprocess
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 LIGHTHOUSE_CI_SCHEMA_VERSION = 1
 
@@ -172,9 +173,7 @@ class LighthouseRunner:
             )
         return resolved
 
-    def run(
-        self, url: str, *, only_categories: list[str] | None = None
-    ) -> LighthouseReport:
+    def run(self, url: str, *, only_categories: list[str] | None = None) -> LighthouseReport:
         binary = self._binary()
         command = [
             binary,
@@ -213,9 +212,7 @@ class LighthouseRunner:
 
         if completed.returncode != 0:
             detail = (completed.stderr or stdout or "").strip()
-            raise RuntimeError(
-                f"lighthouse failed ({completed.returncode}): {detail[:800]}"
-            )
+            raise RuntimeError(f"lighthouse failed ({completed.returncode}): {detail[:800]}")
         try:
             payload = json.loads(stdout)
         except json.JSONDecodeError as exc:
@@ -232,7 +229,7 @@ class LighthouseRunner:
         min_runs: int | None = None,
         budgets: Mapping[str, float] | None = None,
         only_categories: list[str] | None = None,
-    ) -> "LighthouseCIReport":
+    ) -> LighthouseCIReport:
         """Run Lighthouse several times and aggregate honestly.
 
         Each invocation is a separate Lighthouse process. Failed runs are
@@ -253,13 +250,15 @@ class LighthouseRunner:
         # failures that obscure the actual setup error.
         self._binary()
 
-        samples: List[LighthouseSample] = []
+        samples: list[LighthouseSample] = []
         for index in range(runs):
             started = datetime.datetime.now(datetime.timezone.utc)
             try:
                 report = self.run(url, only_categories=only_categories)
                 duration = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds()
-                samples.append(LighthouseSample(index=index, report=report, duration_seconds=duration))
+                samples.append(
+                    LighthouseSample(index=index, report=report, duration_seconds=duration)
+                )
             except Exception as exc:  # noqa: BLE001 - retained as evidence, not swallowed
                 duration = (datetime.datetime.now(datetime.timezone.utc) - started).total_seconds()
                 samples.append(
@@ -282,7 +281,7 @@ class LighthouseRunner:
 @dataclass(frozen=True)
 class LighthouseSample:
     index: int
-    report: Optional[LighthouseReport] = None
+    report: LighthouseReport | None = None
     error: str = ""
     duration_seconds: float = 0.0
 
@@ -311,7 +310,7 @@ class LighthouseSample:
 @dataclass(frozen=True)
 class LighthouseDistribution:
     key: str
-    values: Tuple[float, ...]
+    values: tuple[float, ...]
     median: float
     minimum: float
     maximum: float
@@ -321,7 +320,7 @@ class LighthouseDistribution:
     unit: str = ""
 
     @classmethod
-    def from_values(cls, key: str, values: Sequence[float]) -> "LighthouseDistribution":
+    def from_values(cls, key: str, values: Sequence[float]) -> LighthouseDistribution:
         if not values:
             raise ValueError("a distribution requires at least one value")
         ordered = tuple(float(value) for value in values)
@@ -357,7 +356,7 @@ class LighthouseDistribution:
 class LighthouseBudgetResult:
     key: str
     limit: float
-    observed: Optional[float]
+    observed: float | None
     direction: str
     passed: bool
     reason: str = ""
@@ -380,14 +379,14 @@ class LighthouseCIReport:
     min_runs: int
     completed_runs: int
     failed_runs: int
-    samples: Tuple[LighthouseSample, ...]
+    samples: tuple[LighthouseSample, ...]
     metrics: Mapping[str, LighthouseDistribution]
     categories: Mapping[str, LighthouseDistribution]
-    budget_results: Tuple[LighthouseBudgetResult, ...]
+    budget_results: tuple[LighthouseBudgetResult, ...]
     status: str
     confidence: str
     assessment: str
-    limitations: Tuple[str, ...]
+    limitations: tuple[str, ...]
     generated_at: str
     schema_version: int = LIGHTHOUSE_CI_SCHEMA_VERSION
 
@@ -429,9 +428,9 @@ def _validate_budget_keys(budgets: Mapping[str, float]) -> None:
             raise ValueError(f"budget {key!r} must be a finite non-negative number, got {value!r}")
 
 
-def parse_budgets(specs: Iterable[str]) -> Dict[str, float]:
+def parse_budgets(specs: Iterable[str]) -> dict[str, float]:
     """Parse repeatable ``key=value`` budget CLI options."""
-    budgets: Dict[str, float] = {}
+    budgets: dict[str, float] = {}
     for spec in specs:
         key, separator, raw_value = spec.partition("=")
         key = key.strip()
@@ -452,8 +451,8 @@ def _collect_distributions(
     reports: Sequence[LighthouseReport],
     attribute: str,
     keys: Sequence[str],
-) -> Dict[str, LighthouseDistribution]:
-    distributions: Dict[str, LighthouseDistribution] = {}
+) -> dict[str, LighthouseDistribution]:
+    distributions: dict[str, LighthouseDistribution] = {}
     for key in keys:
         values = []
         for report in reports:
@@ -469,8 +468,8 @@ def _budget_results(
     budgets: Mapping[str, float],
     metrics: Mapping[str, LighthouseDistribution],
     categories: Mapping[str, LighthouseDistribution],
-) -> Tuple[LighthouseBudgetResult, ...]:
-    results: List[LighthouseBudgetResult] = []
+) -> tuple[LighthouseBudgetResult, ...]:
+    results: list[LighthouseBudgetResult] = []
     for key, limit in budgets.items():
         direction = _BUDGET_DIRECTION[key]
         distribution = metrics.get(key) or categories.get(key)
@@ -544,7 +543,7 @@ def _assessment_text(
             "no performance assessment is made. This is an execution failure, not a clean result."
         )
 
-    parts: List[str] = []
+    parts: list[str] = []
     if "lcp_ms" in metrics:
         lcp = metrics["lcp_ms"]
         parts.append(
@@ -577,7 +576,9 @@ def _assessment_text(
     if budget_results:
         text += " Budgets are evaluated against the median, not the best run."
     if confidence == "low":
-        text += " Run-to-run spread is high or the sample is small; treat these medians as provisional."
+        text += (
+            " Run-to-run spread is high or the sample is small; treat these medians as provisional."
+        )
     return text
 
 
@@ -586,7 +587,7 @@ def _limitations(
     failed_runs: int,
     confidence: str,
     has_budgets: bool,
-) -> Tuple[str, ...]:
+) -> tuple[str, ...]:
     limitations = [
         "Lighthouse is a lab measurement; it does not prove field (CrUX/RUM) speed or business impact.",
         "Medians from a small number of runs are a technical heuristic, not a statistical guarantee.",
@@ -686,7 +687,13 @@ def render_lighthouse_ci_report(report: LighthouseCIReport) -> str:
         f"Runs: {report.requested_runs} requested, {report.completed_runs} completed, "
         f"{report.failed_runs} failed (minimum required: {report.min_runs})"
     )
-    versions = sorted({sample.report.lighthouse_version for sample in report.samples if sample.report and sample.report.lighthouse_version})
+    versions = sorted(
+        {
+            sample.report.lighthouse_version
+            for sample in report.samples
+            if sample.report and sample.report.lighthouse_version
+        }
+    )
     if versions:
         lines.append(f"Lighthouse version(s): {', '.join(versions)}")
     lines.append(f"Status: {report.status.upper().replace('_', ' ')}")
@@ -752,6 +759,7 @@ __all__ = [
     "LIGHTHOUSE_CATEGORY_KEYS",
     "LIGHTHOUSE_CI_SCHEMA_VERSION",
     "LIGHTHOUSE_METRIC_KEYS",
+    "MAX_CI_RUNS",
     "LighthouseBudgetResult",
     "LighthouseCIReport",
     "LighthouseDistribution",
@@ -759,7 +767,6 @@ __all__ = [
     "LighthouseRunner",
     "LighthouseSample",
     "LighthouseUnavailable",
-    "MAX_CI_RUNS",
     "build_lighthouse_ci_report",
     "parse_budgets",
     "render_lighthouse_ci_report",

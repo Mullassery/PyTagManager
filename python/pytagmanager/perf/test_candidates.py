@@ -13,7 +13,7 @@ nothing is fabricated for that case here.
 
 from __future__ import annotations
 
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from pytagmanager.perf.experiments import IsolationExperimentResult
 from pytagmanager.perf.history import PerformanceRegressionAlert
@@ -29,15 +29,20 @@ DEFAULT_TBT_BUDGET_MS = 200.0
 
 
 def generate_performance_budget_candidates(
-    results: Sequence[IsolationExperimentResult], tbt_budget_ms: float = DEFAULT_TBT_BUDGET_MS
-) -> List[TestCandidate]:
+    results: Sequence[IsolationExperimentResult],
+    tbt_budget_ms: float = DEFAULT_TBT_BUDGET_MS,
+) -> list[TestCandidate]:
     """One candidate per isolation result whose measured TBT contribution
     meets or exceeds `tbt_budget_ms` -- "Potential issue", not stronger:
     a single controlled run exceeding a budget is worth a human look, not
     a confirmed regression on its own."""
     candidates = []
     for result in results:
-        if result.tbt_delta_ms is None or result.tbt_delta_ms < tbt_budget_ms or result.baseline is None:
+        if (
+            result.tbt_delta_ms is None
+            or result.tbt_delta_ms < tbt_budget_ms
+            or result.baseline is None
+        ):
             continue
         candidates.append(
             TestCandidate(
@@ -61,7 +66,9 @@ def generate_performance_budget_candidates(
     return candidates
 
 
-def generate_performance_regression_candidates(alerts: Sequence[PerformanceRegressionAlert]) -> List[TestCandidate]:
+def generate_performance_regression_candidates(
+    alerts: Sequence[PerformanceRegressionAlert],
+) -> list[TestCandidate]:
     candidates = []
     for alert in alerts:
         candidates.append(

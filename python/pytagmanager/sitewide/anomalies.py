@@ -19,13 +19,15 @@ a single data point can't be judged anomalous relative to itself.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.sitewide.templates import PageTemplate
 
-_REPETITION_MULTIPLIER = 3.0  # a page must fire an event at least this many times the template average to flag
+_REPETITION_MULTIPLIER = (
+    3.0  # a page must fire an event at least this many times the template average to flag
+)
 
 
 @dataclass(frozen=True)
@@ -33,10 +35,10 @@ class Anomaly:
     kind: str  # "unusual_event_repetition" | "config_drift"
     message: str
     page_url: str
-    details: Dict[str, object] = field(default_factory=dict)
+    details: dict[str, object] = field(default_factory=dict)
 
 
-def _extract_gtm_container_id(journey: TrackingJourney) -> Optional[str]:
+def _extract_gtm_container_id(journey: TrackingJourney) -> str | None:
     for request in journey.events_of_type("network_request"):
         if "gtm.js" in request.payload.get("url", ""):
             container_id = request.payload.get("params", {}).get("id")
@@ -45,7 +47,7 @@ def _extract_gtm_container_id(journey: TrackingJourney) -> Optional[str]:
     return None
 
 
-def _extract_measurement_id(journey: TrackingJourney) -> Optional[str]:
+def _extract_measurement_id(journey: TrackingJourney) -> str | None:
     for request in journey.events_of_type("network_request"):
         measurement_id = request.payload.get("params", {}).get("tid")
         if measurement_id:
@@ -55,11 +57,11 @@ def _extract_measurement_id(journey: TrackingJourney) -> Optional[str]:
 
 def _detect_event_repetition_anomalies(
     template: PageTemplate,
-    journeys_by_page: Dict[str, List[TrackingJourney]],
-) -> List[Anomaly]:
-    counts_by_page: Dict[str, Dict[str, int]] = {}
+    journeys_by_page: dict[str, list[TrackingJourney]],
+) -> list[Anomaly]:
+    counts_by_page: dict[str, dict[str, int]] = {}
     for url in template.page_urls:
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for journey in journeys_by_page.get(url, []):
             counts[journey.business_event] = counts.get(journey.business_event, 0) + 1
         counts_by_page[url] = counts
@@ -83,7 +85,11 @@ def _detect_event_repetition_anomalies(
                             f"vs. a {template.label} template average of {average:.1f}."
                         ),
                         page_url=url,
-                        details={"event_name": event_name, "count": count, "template_average": round(average, 2)},
+                        details={
+                            "event_name": event_name,
+                            "count": count,
+                            "template_average": round(average, 2),
+                        },
                     )
                 )
     return anomalies
@@ -91,11 +97,11 @@ def _detect_event_repetition_anomalies(
 
 def _detect_config_drift(
     template: PageTemplate,
-    journeys_by_page: Dict[str, List[TrackingJourney]],
-    extractor: Callable[[TrackingJourney], Optional[str]],
+    journeys_by_page: dict[str, list[TrackingJourney]],
+    extractor: Callable[[TrackingJourney], str | None],
     label: str,
-) -> List[Anomaly]:
-    ids_by_page: Dict[str, set] = {
+) -> list[Anomaly]:
+    ids_by_page: dict[str, set] = {
         url: {extractor(journey) for journey in journeys_by_page.get(url, []) if extractor(journey)}
         for url in template.page_urls
     }
@@ -121,17 +127,25 @@ def _detect_config_drift(
 
 def detect_template_anomalies(
     template: PageTemplate,
-    journeys_by_page: Dict[str, List[TrackingJourney]],
-) -> List[Anomaly]:
+    journeys_by_page: dict[str, list[TrackingJourney]],
+) -> list[Anomaly]:
     return [
         *_detect_event_repetition_anomalies(template, journeys_by_page),
-        *_detect_config_drift(template, journeys_by_page, _extract_gtm_container_id, "GTM container"),
-        *_detect_config_drift(template, journeys_by_page, _extract_measurement_id, "GA4 measurement ID"),
+        *_detect_config_drift(
+            template, journeys_by_page, _extract_gtm_container_id, "GTM container"
+        ),
+        *_detect_config_drift(
+            template, journeys_by_page, _extract_measurement_id, "GA4 measurement ID"
+        ),
     ]
 
 
 def detect_site_anomalies(
-    templates: List[PageTemplate],
-    journeys_by_page: Dict[str, List[TrackingJourney]],
-) -> List[Anomaly]:
-    return [anomaly for template in templates for anomaly in detect_template_anomalies(template, journeys_by_page)]
+    templates: list[PageTemplate],
+    journeys_by_page: dict[str, list[TrackingJourney]],
+) -> list[Anomaly]:
+    return [
+        anomaly
+        for template in templates
+        for anomaly in detect_template_anomalies(template, journeys_by_page)
+    ]

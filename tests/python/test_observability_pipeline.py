@@ -8,22 +8,29 @@ uses.
 
 from __future__ import annotations
 
-from typing import List
-
 from pytagmanager.correlation.journey import TrackingJourney, correlate_events
-from pytagmanager.diagnostics.rules import DiagnosticContext, diagnose_journey, primary_diagnosis
+from pytagmanager.diagnostics.rules import (
+    DiagnosticContext,
+    diagnose_journey,
+    primary_diagnosis,
+)
 from pytagmanager.observability.scenario import ActionStep, Expectation, Scenario
 from pytagmanager.observability.session import ObservationSession
 
 _ADD_TO_CART_SELECTOR = '[data-testid="add-to-cart"]'
 
 
-def _run(fixture_server: str, page_name: str, scenario: Scenario, wait: float = 1.0) -> List[TrackingJourney]:
+def _run(
+    fixture_server: str, page_name: str, scenario: Scenario, wait: float = 1.0
+) -> list[TrackingJourney]:
     with ObservationSession(headless=True) as session:
         # Fulfill locally instead of hitting the real internet -- request
         # events still fire for `_on_network_request` regardless of how the
         # request is fulfilled.
-        session.add_route("https://www.google-analytics.com/**", lambda route: route.fulfill(status=204))
+        session.add_route(
+            "https://www.google-analytics.com/**",
+            lambda route: route.fulfill(status=204),
+        )
         session.load(f"{fixture_server}/{page_name}")
         session.run_scenario(scenario)
         session.wait(wait)
@@ -80,7 +87,9 @@ def test_missing_datalayer_event_detected(fixture_server):
 
 
 def test_duplicate_tracking_detected(fixture_server):
-    scenario = Scenario(name="dup", steps=[ActionStep(action="click", selector=_ADD_TO_CART_SELECTOR)])
+    scenario = Scenario(
+        name="dup", steps=[ActionStep(action="click", selector=_ADD_TO_CART_SELECTOR)]
+    )
     journeys = _run(fixture_server, "duplicate_tracking.html", scenario)
     ctx = DiagnosticContext()
     root_causes = {d.root_cause for d in diagnose_journey(journeys[0], ctx)}
@@ -90,7 +99,10 @@ def test_duplicate_tracking_detected(fixture_server):
 
 
 def test_missing_ga4_request_detected(fixture_server):
-    scenario = Scenario(name="no network", steps=[ActionStep(action="click", selector=_ADD_TO_CART_SELECTOR)])
+    scenario = Scenario(
+        name="no network",
+        steps=[ActionStep(action="click", selector=_ADD_TO_CART_SELECTOR)],
+    )
     journeys = _run(fixture_server, "missing_ga4_request.html", scenario)
     ctx = DiagnosticContext()
     primary = primary_diagnosis(diagnose_journey(journeys[0], ctx))
@@ -99,7 +111,10 @@ def test_missing_ga4_request_detected(fixture_server):
 
 
 def test_spa_navigation_missing_pageview_detected(fixture_server):
-    scenario = Scenario(name="spa nav", steps=[ActionStep(action="click", selector='[data-testid="nav-products"]')])
+    scenario = Scenario(
+        name="spa nav",
+        steps=[ActionStep(action="click", selector='[data-testid="nav-products"]')],
+    )
     journeys = _run(fixture_server, "spa_tracking.html", scenario)
     ctx = DiagnosticContext()
     primary = primary_diagnosis(diagnose_journey(journeys[0], ctx))

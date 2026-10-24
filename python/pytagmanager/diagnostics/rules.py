@@ -14,8 +14,8 @@ single-line headline in reporting.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Dict, List, Optional
 
 from pytagmanager.analytics_api.models import GtmTag, GtmTrigger
 from pytagmanager.correlation.journey import TrackingJourney
@@ -58,16 +58,18 @@ class DiagnosticContext:
     # (`journey.anchor_selector`), not by business_event -- business_event
     # is inferred from the observed runtime event, so it's exactly the
     # wrong key when what we're checking is whether that name is correct.
-    expectations_by_selector: Dict[str, List[Expectation]] = field(default_factory=dict)
-    gtm_triggers: Optional[List[GtmTrigger]] = None
-    gtm_tags: Optional[List[GtmTag]] = None
-    ga4_ingestion: Dict[str, Optional[bool]] = field(default_factory=dict)  # event_name -> was_ingested
+    expectations_by_selector: dict[str, list[Expectation]] = field(default_factory=dict)
+    gtm_triggers: list[GtmTrigger] | None = None
+    gtm_tags: list[GtmTag] | None = None
+    ga4_ingestion: dict[str, bool | None] = field(
+        default_factory=dict
+    )  # event_name -> was_ingested
     # Every StateDiff observed this run (session.py's per-scenario-step
     # diffs, which now carry a `selector` -- see observability/state.py).
     # Phase 1.8's timing-delay rule joins a journey back to the StateDiff
     # that happened alongside it via this list, not a dict, since the same
     # selector can be exercised more than once in a session.
-    state_diffs: List[StateDiff] = field(default_factory=list)
+    state_diffs: list[StateDiff] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # CSS attribute selectors are quote-style-agnostic
@@ -79,7 +81,7 @@ class DiagnosticContext:
             _normalize_selector(k): v for k, v in self.expectations_by_selector.items()
         }
 
-    def state_diff_for_journey(self, journey: TrackingJourney) -> Optional[StateDiff]:
+    def state_diff_for_journey(self, journey: TrackingJourney) -> StateDiff | None:
         """The StateDiff whose selector matches this journey's anchor
         interaction and whose `before_timestamp` is closest to the
         journey's start time -- a best-effort join, not a guaranteed exact
@@ -89,12 +91,16 @@ class DiagnosticContext:
         if not selector:
             return None
         normalized = _normalize_selector(selector)
-        candidates = [d for d in self.state_diffs if d.selector and _normalize_selector(d.selector) == normalized]
+        candidates = [
+            d
+            for d in self.state_diffs
+            if d.selector and _normalize_selector(d.selector) == normalized
+        ]
         if not candidates:
             return None
         return min(candidates, key=lambda d: abs(d.before_timestamp - journey.start_time))
 
-    def expected_datalayer_event(self, selector: Optional[str]) -> Optional[str]:
+    def expected_datalayer_event(self, selector: str | None) -> str | None:
         """The exact event name a hand-authored scenario asserts, or None.
         Deliberately does NOT include `any_datalayer_event` expectations --
         those are auto-derived best guesses, not real predictions of the
@@ -109,7 +115,7 @@ class DiagnosticContext:
                 return expectation.value
         return None
 
-    def expects_any_datalayer_event(self, selector: Optional[str]) -> bool:
+    def expects_any_datalayer_event(self, selector: str | None) -> bool:
         if not selector:
             return False
         return any(
@@ -117,11 +123,11 @@ class DiagnosticContext:
             for expectation in self.expectations_by_selector.get(_normalize_selector(selector), [])
         )
 
-    def ga4_ingested(self, event_name: str) -> Optional[bool]:
+    def ga4_ingested(self, event_name: str) -> bool | None:
         return self.ga4_ingestion.get(event_name)
 
 
-def _first_event_name(journey: TrackingJourney, event_type: str) -> Optional[str]:
+def _first_event_name(journey: TrackingJourney, event_type: str) -> str | None:
     events = journey.events_of_type(event_type)
     return events[0].event_name or None if events else None
 
@@ -130,23 +136,33 @@ def _normalize(name: str) -> str:
     return re.sub(r"[_\-\s]", "", name.lower())
 
 
-def _find_trigger_by_event(name: str, triggers: List[GtmTrigger]) -> Optional[GtmTrigger]:
+def _find_trigger_by_event(name: str, triggers: list[GtmTrigger]) -> GtmTrigger | None:
     return next((t for t in triggers if t.event_name == name), None)
 
 
-def _find_closest_trigger(name: str, triggers: List[GtmTrigger]) -> Optional[GtmTrigger]:
+def _find_closest_trigger(name: str, triggers: list[GtmTrigger]) -> GtmTrigger | None:
     normalized = _normalize(name)
     return next(
-        (t for t in triggers if t.event_name and _normalize(t.event_name) == normalized and t.event_name != name),
+        (
+            t
+            for t in triggers
+            if t.event_name and _normalize(t.event_name) == normalized and t.event_name != name
+        ),
         None,
     )
 
 
-def rule_spa_navigation_missing_pageview(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_spa_navigation_missing_pageview(
+    journey: TrackingJourney, ctx: DiagnosticContext
+) -> Diagnosis | None:
     route_changes = journey.events_of_type("route_change")
     if not route_changes:
         return None
-    pageviews = [e for e in journey.events_of_type("datalayer_push") if "page_view" in (e.event_name or "").lower()]
+    pageviews = [
+        e
+        for e in journey.events_of_type("datalayer_push")
+        if "page_view" in (e.event_name or "").lower()
+    ]
     if pageviews:
         return None
     return Diagnosis(
@@ -159,7 +175,9 @@ def rule_spa_navigation_missing_pageview(journey: TrackingJourney, ctx: Diagnost
     )
 
 
-def rule_missing_datalayer_event(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_missing_datalayer_event(
+    journey: TrackingJourney, ctx: DiagnosticContext
+) -> Diagnosis | None:
     if not ctx.expects_any_datalayer_event(journey.anchor_selector):
         return None
     if journey.stage_present("datalayer"):
@@ -175,7 +193,7 @@ def rule_missing_datalayer_event(journey: TrackingJourney, ctx: DiagnosticContex
     )
 
 
-def rule_event_name_mismatch(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_event_name_mismatch(journey: TrackingJourney, ctx: DiagnosticContext) -> Diagnosis | None:
     observed = _first_event_name(journey, "datalayer_push")
     if not observed:
         return None
@@ -202,13 +220,19 @@ def rule_event_name_mismatch(journey: TrackingJourney, ctx: DiagnosticContext) -
                     f"Runtime: '{observed}'. GTM trigger '{closest.name}' expects: '{closest.event_name}'."
                 ),
                 rule_name="event_name_mismatch",
-                details={"runtime_event": observed, "configured_event": closest.event_name, "affected_trigger": closest.name},
+                details={
+                    "runtime_event": observed,
+                    "configured_event": closest.event_name,
+                    "affected_trigger": closest.name,
+                },
                 confidence="Highly likely",
             )
     return None
 
 
-def rule_api_call_without_tracking_event(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_api_call_without_tracking_event(
+    journey: TrackingJourney, ctx: DiagnosticContext
+) -> Diagnosis | None:
     """Site-Wide QA spec section 4: '/cart API succeeds -> cart UI changes
     -> add_to_cart event absent' should be flagged as a potential tracking
     gap. Deliberately narrow: only fires when this interaction's selector
@@ -237,7 +261,7 @@ def rule_api_call_without_tracking_event(journey: TrackingJourney, ctx: Diagnost
     )
 
 
-def rule_gtm_tag_not_executed(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_gtm_tag_not_executed(journey: TrackingJourney, ctx: DiagnosticContext) -> Diagnosis | None:
     observed = _first_event_name(journey, "datalayer_push")
     if not observed or ctx.gtm_triggers is None or ctx.gtm_tags is None:
         return None
@@ -265,7 +289,9 @@ def _consent_denied(journey: TrackingJourney) -> bool:
     )
 
 
-def rule_missing_analytics_request(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_missing_analytics_request(
+    journey: TrackingJourney, ctx: DiagnosticContext
+) -> Diagnosis | None:
     if not (journey.stage_present("datalayer") or journey.stage_present("gtm")):
         return None
     observed = _first_event_name(journey, "datalayer_push") or journey.business_event
@@ -296,7 +322,9 @@ def rule_missing_analytics_request(journey: TrackingJourney, ctx: DiagnosticCont
     return None
 
 
-def rule_duplicate_analytics_request(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_duplicate_analytics_request(
+    journey: TrackingJourney, ctx: DiagnosticContext
+) -> Diagnosis | None:
     requests = journey.events_of_type("network_request")
     if len(requests) <= 1:
         return None
@@ -310,8 +338,14 @@ def rule_duplicate_analytics_request(journey: TrackingJourney, ctx: DiagnosticCo
     )
 
 
-def rule_duplicate_datalayer_event(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
-    pushes = [e for e in journey.events_of_type("datalayer_push") if e.event_name == journey.business_event]
+def rule_duplicate_datalayer_event(
+    journey: TrackingJourney, ctx: DiagnosticContext
+) -> Diagnosis | None:
+    pushes = [
+        e
+        for e in journey.events_of_type("datalayer_push")
+        if e.event_name == journey.business_event
+    ]
     if len(pushes) <= 1:
         return None
     return Diagnosis(
@@ -324,7 +358,7 @@ def rule_duplicate_datalayer_event(journey: TrackingJourney, ctx: DiagnosticCont
     )
 
 
-def rule_consent_blocking(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_consent_blocking(journey: TrackingJourney, ctx: DiagnosticContext) -> Diagnosis | None:
     if journey.stage_present("network") or not journey.stage_present("datalayer"):
         return None
     if not _consent_denied(journey):
@@ -339,8 +373,10 @@ def rule_consent_blocking(journey: TrackingJourney, ctx: DiagnosticContext) -> O
     )
 
 
-def rule_js_error_blocking(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
-    if not ctx.expects_any_datalayer_event(journey.anchor_selector) or journey.stage_present("datalayer"):
+def rule_js_error_blocking(journey: TrackingJourney, ctx: DiagnosticContext) -> Diagnosis | None:
+    if not ctx.expects_any_datalayer_event(journey.anchor_selector) or journey.stage_present(
+        "datalayer"
+    ):
         return None
     errors = journey.events_of_type("js_error")
     if not errors:
@@ -355,7 +391,7 @@ def rule_js_error_blocking(journey: TrackingJourney, ctx: DiagnosticContext) -> 
     )
 
 
-def rule_parameter_loss(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_parameter_loss(journey: TrackingJourney, ctx: DiagnosticContext) -> Diagnosis | None:
     pushes = journey.events_of_type("datalayer_push")
     requests = journey.events_of_type("network_request")
     if not pushes or not requests:
@@ -363,12 +399,16 @@ def rule_parameter_loss(journey: TrackingJourney, ctx: DiagnosticContext) -> Opt
     # "items" is a structured ecommerce array, not a scalar that flows
     # through GA4 hit query params the same way -- it's validated
     # separately by rule_ecommerce_missing_parameters, not here.
-    upstream_params = {k for k, v in pushes[0].payload.items() if k not in ("event", "items") and v not in (None, "")}
+    upstream_params = {
+        k
+        for k, v in pushes[0].payload.items()
+        if k not in ("event", "items") and v not in (None, "")
+    }
     downstream_params = set()
     for request in requests:
         params = request.payload.get("params", {})
         for key in params:
-            downstream_params.add(key[3:] if key.startswith("ep.") else key)
+            downstream_params.add(key.removeprefix("ep."))
     missing = upstream_params - downstream_params
     if not missing:
         return None
@@ -400,7 +440,9 @@ _ECOMMERCE_REQUIRED_PARAMS = {
 }
 
 
-def rule_ecommerce_missing_parameters(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_ecommerce_missing_parameters(
+    journey: TrackingJourney, ctx: DiagnosticContext
+) -> Diagnosis | None:
     pushes = journey.events_of_type("datalayer_push")
     if not pushes:
         return None
@@ -422,7 +464,7 @@ def rule_ecommerce_missing_parameters(journey: TrackingJourney, ctx: DiagnosticC
     )
 
 
-def rule_timing_delay(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_timing_delay(journey: TrackingJourney, ctx: DiagnosticContext) -> Diagnosis | None:
     """Phase 1.8 item 4 (docs/VISION.md §7): a variable can be available at
     load but not before the trigger that needed it, or become available
     only some time *after* that trigger already fired -- a distinct,
@@ -442,7 +484,10 @@ def rule_timing_delay(journey: TrackingJourney, ctx: DiagnosticContext) -> Optio
     if diff is None:
         return None
     changed_keys = sorted(
-        diff.cookies_added + diff.local_storage_added + diff.session_storage_added + diff.new_data_layer_events
+        diff.cookies_added
+        + diff.local_storage_added
+        + diff.session_storage_added
+        + diff.new_data_layer_events
     )
     if not changed_keys:
         return None
@@ -463,7 +508,7 @@ def rule_timing_delay(journey: TrackingJourney, ctx: DiagnosticContext) -> Optio
     )
 
 
-def rule_pii_leak(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[Diagnosis]:
+def rule_pii_leak(journey: TrackingJourney, ctx: DiagnosticContext) -> Diagnosis | None:
     """Content-pattern PII scan over dataLayer/network payload *values*
     (not just key names -- see events.redact_payload for the key-based
     denylist this complements). Inspired by ObservePoint's PII Detection
@@ -489,8 +534,8 @@ def rule_pii_leak(journey: TrackingJourney, ctx: DiagnosticContext) -> Optional[
     )
 
 
-def _flatten_values(payload) -> List[str]:
-    values: List[str] = []
+def _flatten_values(payload) -> list[str]:
+    values: list[str] = []
     if isinstance(payload, dict):
         for v in payload.values():
             values.extend(_flatten_values(v))
@@ -502,7 +547,7 @@ def _flatten_values(payload) -> List[str]:
     return values
 
 
-REGISTRY: List[Callable[[TrackingJourney, DiagnosticContext], Optional[Diagnosis]]] = [
+REGISTRY: list[Callable[[TrackingJourney, DiagnosticContext], Diagnosis | None]] = [
     rule_spa_navigation_missing_pageview,
     rule_missing_datalayer_event,
     rule_api_call_without_tracking_event,
@@ -520,20 +565,20 @@ REGISTRY: List[Callable[[TrackingJourney, DiagnosticContext], Optional[Diagnosis
 ]
 
 
-def diagnose_journey(journey: TrackingJourney, ctx: DiagnosticContext) -> List[Diagnosis]:
+def diagnose_journey(journey: TrackingJourney, ctx: DiagnosticContext) -> list[Diagnosis]:
     return [d for rule in REGISTRY if (d := rule(journey, ctx)) is not None]
 
 
-def primary_diagnosis(diagnoses: List[Diagnosis]) -> Diagnosis:
+def primary_diagnosis(diagnoses: list[Diagnosis]) -> Diagnosis:
     if not diagnoses:
         return Diagnosis.healthy()
     return max(diagnoses, key=lambda d: _SEVERITY_RANK.get(d.severity, 0))
 
 
 def find_untested_recommendations(
-    recommendations: List[TrackingRecommendation],
-    journeys: List[TrackingJourney],
-) -> List[TrackingRecommendation]:
+    recommendations: list[TrackingRecommendation],
+    journeys: list[TrackingJourney],
+) -> list[TrackingRecommendation]:
     """Static candidates (`recommend.recommend_for_graph()` output) with no
     corresponding runtime journey -- i.e. the element was never exercised
     during observation. Distinct severity from the rules above: this means
@@ -549,7 +594,7 @@ def find_untested_recommendations(
     return [r for r in recommendations if r.selector not in tested_selectors]
 
 
-def find_duplicate_purchases(journeys: List[TrackingJourney]) -> List[Diagnosis]:
+def find_duplicate_purchases(journeys: list[TrackingJourney]) -> list[Diagnosis]:
     """Cross-journey ecommerce check: the same `transaction_id` appearing in
     more than one 'purchase' dataLayer push anywhere in the session is a
     strong signal of a double-fired purchase event (e.g. a confirmation
@@ -557,14 +602,16 @@ def find_duplicate_purchases(journeys: List[TrackingJourney]) -> List[Diagnosis]
     detected from a single journey in isolation, so it isn't in `REGISTRY`
     -- callers run it once over the full journey list, not per journey.
     """
-    counts_by_transaction: Dict[str, int] = {}
+    counts_by_transaction: dict[str, int] = {}
     for journey in journeys:
         for push in journey.events_of_type("datalayer_push"):
             if push.event_name != "purchase":
                 continue
             transaction_id = push.payload.get("transaction_id")
             if transaction_id:
-                counts_by_transaction[transaction_id] = counts_by_transaction.get(transaction_id, 0) + 1
+                counts_by_transaction[transaction_id] = (
+                    counts_by_transaction.get(transaction_id, 0) + 1
+                )
 
     return [
         Diagnosis(

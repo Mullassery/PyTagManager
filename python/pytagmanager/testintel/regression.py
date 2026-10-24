@@ -26,8 +26,6 @@ hedged "possible rename" would overclaim.
 
 from __future__ import annotations
 
-from typing import List
-
 from pytagmanager.dictionary.schema_drift import DictionaryDrift
 from pytagmanager.testintel.candidates import (
     CATEGORY_REGRESSION,
@@ -37,7 +35,9 @@ from pytagmanager.testintel.candidates import (
 )
 
 
-def generate_regression_candidates(drift: DictionaryDrift, old_crawl_label: str, new_crawl_label: str) -> List[TestCandidate]:
+def generate_regression_candidates(
+    drift: DictionaryDrift, old_crawl_label: str, new_crawl_label: str
+) -> list[TestCandidate]:
     renamed_paths = {(r.old_source, r.old_path) for r in drift.possible_renames}
 
     candidates = []

@@ -19,8 +19,9 @@ site's information architecture. Two signals, in priority order:
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence
+from typing import Any
 from urllib.parse import urlparse
 
 _ID_LIKE = re.compile(
@@ -33,7 +34,7 @@ _ID_LIKE = re.compile(
 class PageTemplate:
     template_id: str
     label: str
-    page_urls: List[str] = field(default_factory=list)
+    page_urls: list[str] = field(default_factory=list)
 
 
 def _is_dynamic_segment(segment: str, is_last: bool, depth: int) -> bool:
@@ -61,7 +62,7 @@ def dom_fingerprint(graph: Any) -> frozenset:
     """CSS classes appearing on >= 2 elements -- "template/component"
     classes, filtering out one-off content classes that wouldn't recur
     across pages sharing the same template."""
-    class_counts: Dict[str, int] = {}
+    class_counts: dict[str, int] = {}
     for node in graph.nodes:
         for cls in node.classes:
             class_counts[cls] = class_counts.get(cls, 0) + 1
@@ -86,17 +87,17 @@ def _label_for(template_key: str) -> str:
     return segments[0].replace("-", " ").replace("_", " ").title()
 
 
-def detect_templates(pages: Sequence[Any], similarity_threshold: float = 0.6) -> List[PageTemplate]:
+def detect_templates(pages: Sequence[Any], similarity_threshold: float = 0.6) -> list[PageTemplate]:
     """`pages` is whatever `discovery.crawl_site()` returns (real
     `_core.Page` objects, or anything duck-typing `.url`/`.graph.nodes`).
     Returns templates ordered largest-first.
     """
-    groups: Dict[str, List[Any]] = {}
+    groups: dict[str, list[Any]] = {}
     for page in pages:
         groups.setdefault(url_template(page.url), []).append(page)
 
     fingerprints = {key: dom_fingerprint(group[0].graph) for key, group in groups.items()}
-    merged_into: Dict[str, str] = {key: key for key in groups}
+    merged_into: dict[str, str] = {key: key for key in groups}
     keys = list(groups.keys())
     for i in range(len(keys)):
         for j in range(i + 1, len(keys)):
@@ -105,16 +106,20 @@ def detect_templates(pages: Sequence[Any], similarity_threshold: float = 0.6) ->
                 continue
             if _jaccard(fingerprints[a], fingerprints[b]) >= similarity_threshold:
                 target, source = merged_into[a], merged_into[b]
-                for key in merged_into:
-                    if merged_into[key] == source:
+                for key, current in merged_into.items():
+                    if current == source:
                         merged_into[key] = target
 
-    final_groups: Dict[str, List[Any]] = {}
+    final_groups: dict[str, list[Any]] = {}
     for key, group in groups.items():
         final_groups.setdefault(merged_into[key], []).extend(group)
 
     ordered = sorted(final_groups.items(), key=lambda kv: -len(kv[1]))
     return [
-        PageTemplate(template_id=f"template_{i + 1}", label=_label_for(key), page_urls=[p.url for p in group])
+        PageTemplate(
+            template_id=f"template_{i + 1}",
+            label=_label_for(key),
+            page_urls=[p.url for p in group],
+        )
         for i, (key, group) in enumerate(ordered)
     ]

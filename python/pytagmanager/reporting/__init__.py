@@ -3,10 +3,10 @@ from pytagmanager.reporting.summary import HealthSummary, compute_health_summary
 from pytagmanager.reporting.terminal import diagnose_journeys, render_terminal_report
 
 __all__ = [
-    "render_terminal_report",
-    "diagnose_journeys",
-    "build_json_report",
     "JSON_SCHEMA_VERSION",
     "HealthSummary",
+    "build_json_report",
     "compute_health_summary",
+    "diagnose_journeys",
+    "render_terminal_report",
 ]

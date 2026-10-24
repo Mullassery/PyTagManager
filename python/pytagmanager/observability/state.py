@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pytagmanager.observability.events import is_sensitive_key, redact_payload
 
@@ -42,7 +42,7 @@ class StorageEntry:
     key: str
     value_type: str  # "string" | "json_object" | "json_array" | "number" | "boolean" | "empty"
     length: int
-    value: Optional[Any] = None  # populated only when values were captured
+    value: Any | None = None  # populated only when values were captured
 
 
 @dataclass(frozen=True)
@@ -55,10 +55,10 @@ class RuntimeStateSnapshot:
     page_url: str
     timestamp: float
     label: str
-    cookies: Dict[str, StorageEntry] = field(default_factory=dict)
-    local_storage: Dict[str, StorageEntry] = field(default_factory=dict)
-    session_storage: Dict[str, StorageEntry] = field(default_factory=dict)
-    data_layer: List[Dict[str, Any]] = field(default_factory=list)
+    cookies: dict[str, StorageEntry] = field(default_factory=dict)
+    local_storage: dict[str, StorageEntry] = field(default_factory=dict)
+    session_storage: dict[str, StorageEntry] = field(default_factory=dict)
+    data_layer: list[dict[str, Any]] = field(default_factory=list)
     data_layer_truncated: bool = False
 
     @classmethod
@@ -66,11 +66,11 @@ class RuntimeStateSnapshot:
         cls,
         js_state: dict,
         *,
-        cookies: List[dict],
+        cookies: list[dict],
         page_url: str,
         timestamp: float,
         label: str,
-    ) -> "RuntimeStateSnapshot":
+    ) -> RuntimeStateSnapshot:
         """`js_state` is `window.__ptm.captureState(...)`'s return value
         (localStorage/sessionStorage/dataLayer); `cookies` is Playwright's
         `BrowserContext.cookies()` list (name/value/httpOnly/secure/...).
@@ -108,14 +108,14 @@ def _classify_raw_value(raw: str) -> tuple:
     return "string", len(raw)
 
 
-def _redact_value_if_sensitive(key: str, value: Optional[Any]) -> Optional[Any]:
+def _redact_value_if_sensitive(key: str, value: Any | None) -> Any | None:
     if value is not None and is_sensitive_key(key):
         return _REDACTED
     return value
 
 
-def _entries_from_js(raw_entries: dict) -> Dict[str, StorageEntry]:
-    entries: Dict[str, StorageEntry] = {}
+def _entries_from_js(raw_entries: dict) -> dict[str, StorageEntry]:
+    entries: dict[str, StorageEntry] = {}
     for key, meta in (raw_entries or {}).items():
         value = meta.get("value")
         entries[key] = StorageEntry(
@@ -127,8 +127,8 @@ def _entries_from_js(raw_entries: dict) -> Dict[str, StorageEntry]:
     return entries
 
 
-def _entries_from_cookie_list(cookies: List[dict]) -> Dict[str, StorageEntry]:
-    entries: Dict[str, StorageEntry] = {}
+def _entries_from_cookie_list(cookies: list[dict]) -> dict[str, StorageEntry]:
+    entries: dict[str, StorageEntry] = {}
     for cookie in cookies or []:
         key = cookie.get("name", "")
         raw_value = cookie.get("value")
@@ -157,19 +157,19 @@ class StateDiff:
 
     before_label: str
     after_label: str
-    selector: Optional[str] = None
+    selector: str | None = None
     before_timestamp: float = 0.0
     after_timestamp: float = 0.0
-    cookies_added: List[str] = field(default_factory=list)
-    cookies_removed: List[str] = field(default_factory=list)
-    cookies_modified: List[str] = field(default_factory=list)
-    local_storage_added: List[str] = field(default_factory=list)
-    local_storage_removed: List[str] = field(default_factory=list)
-    local_storage_modified: List[str] = field(default_factory=list)
-    session_storage_added: List[str] = field(default_factory=list)
-    session_storage_removed: List[str] = field(default_factory=list)
-    session_storage_modified: List[str] = field(default_factory=list)
-    new_data_layer_events: List[str] = field(default_factory=list)
+    cookies_added: list[str] = field(default_factory=list)
+    cookies_removed: list[str] = field(default_factory=list)
+    cookies_modified: list[str] = field(default_factory=list)
+    local_storage_added: list[str] = field(default_factory=list)
+    local_storage_removed: list[str] = field(default_factory=list)
+    local_storage_modified: list[str] = field(default_factory=list)
+    session_storage_added: list[str] = field(default_factory=list)
+    session_storage_removed: list[str] = field(default_factory=list)
+    session_storage_modified: list[str] = field(default_factory=list)
+    new_data_layer_events: list[str] = field(default_factory=list)
 
     @property
     def is_empty(self) -> bool:
@@ -187,7 +187,7 @@ class StateDiff:
         )
 
 
-def _diff_entries(before: Dict[str, StorageEntry], after: Dict[str, StorageEntry]):
+def _diff_entries(before: dict[str, StorageEntry], after: dict[str, StorageEntry]):
     added = sorted(set(after) - set(before))
     removed = sorted(set(before) - set(after))
     modified = sorted(
@@ -199,7 +199,7 @@ def _diff_entries(before: Dict[str, StorageEntry], after: Dict[str, StorageEntry
     return added, removed, modified
 
 
-def _new_data_layer_event_names(before_items: List[dict], after_items: List[dict]) -> List[str]:
+def _new_data_layer_event_names(before_items: list[dict], after_items: list[dict]) -> list[str]:
     def _fingerprint(item: Any) -> str:
         return json.dumps(item, sort_keys=True, default=str)
 
@@ -212,7 +212,9 @@ def _new_data_layer_event_names(before_items: List[dict], after_items: List[dict
 
 
 def diff_state_snapshots(
-    before: RuntimeStateSnapshot, after: RuntimeStateSnapshot, selector: Optional[str] = None
+    before: RuntimeStateSnapshot,
+    after: RuntimeStateSnapshot,
+    selector: str | None = None,
 ) -> StateDiff:
     cookies_added, cookies_removed, cookies_modified = _diff_entries(before.cookies, after.cookies)
     ls_added, ls_removed, ls_modified = _diff_entries(before.local_storage, after.local_storage)

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from pytagmanager.control._sentinels import MISSING
 from pytagmanager.control.conditions import resolve_path
@@ -66,7 +67,9 @@ def _type_matches(value: Any, value_type: str) -> bool:
 def _directly_sensitive_ref(variable: Variable) -> bool:
     if variable.sensitive:
         return True
-    if variable.source in {"data_layer", "event", "consent"} and isinstance(variable.source_ref, str):
+    if variable.source in {"data_layer", "event", "consent"} and isinstance(
+        variable.source_ref, str
+    ):
         return is_sensitive_key(variable.source_ref.rsplit(".", 1)[-1])
     if variable.source == "dom":
         if isinstance(variable.source_ref, str):

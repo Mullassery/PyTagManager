@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import hashlib
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 CATEGORIES = ("necessary", "preferences", "analytics", "advertising", "other")
@@ -45,7 +45,7 @@ class CmpEvidence:
     page_url: str = ""
     timestamp: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "kind": self.kind,
             "summary": self.summary,
@@ -62,13 +62,13 @@ class CmpDetection:
     vendor: str
     adapter_contract_version: str
     confidence: str
-    evidence: Tuple[CmpEvidence, ...] = ()
-    capabilities: Tuple[str, ...] = ()
-    accept_selectors: Tuple[str, ...] = ()
-    reject_selectors: Tuple[str, ...] = ()
-    notes: Tuple[str, ...] = ()
+    evidence: tuple[CmpEvidence, ...] = ()
+    capabilities: tuple[str, ...] = ()
+    accept_selectors: tuple[str, ...] = ()
+    reject_selectors: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "adapter_id": self.adapter_id,
             "vendor": self.vendor,
@@ -84,17 +84,17 @@ class CmpDetection:
 
 @dataclass(frozen=True)
 class ConsentState:
-    sources: Tuple[str, ...] = ()
-    categories: Dict[str, Optional[bool]] = field(default_factory=dict)
-    google_mode: Dict[str, str] = field(default_factory=dict)
-    tcf: Dict[str, Any] = field(default_factory=dict)
-    gpp: Dict[str, Any] = field(default_factory=dict)
-    vendor_state: Dict[str, Any] = field(default_factory=dict)
+    sources: tuple[str, ...] = ()
+    categories: dict[str, bool | None] = field(default_factory=dict)
+    google_mode: dict[str, str] = field(default_factory=dict)
+    tcf: dict[str, Any] = field(default_factory=dict)
+    gpp: dict[str, Any] = field(default_factory=dict)
+    vendor_state: dict[str, Any] = field(default_factory=dict)
     confidence: str = "unverified"
     timestamp: float = 0.0
-    evidence: Tuple[CmpEvidence, ...] = ()
+    evidence: tuple[CmpEvidence, ...] = ()
 
-    def category(self, name: str) -> Optional[bool]:
+    def category(self, name: str) -> bool | None:
         return self.categories.get(name)
 
     def is_granted(self, name: str) -> bool:
@@ -110,7 +110,7 @@ class ConsentState:
     def has_categories(self) -> bool:
         return any(value is not None for value in self.categories.values())
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "sources": list(self.sources),
             "categories": dict(self.categories),
@@ -139,7 +139,7 @@ class RequestObservation:
     def is_tracking(self) -> bool:
         return self.category in TRACKING_CATEGORIES
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "url": sanitize_url(self.url),
             "method": self.method,
@@ -163,7 +163,7 @@ class CookieMetadata:
     expires: float = 0.0
     cmp_related: bool = False
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "name": self.name,
             "domain": self.domain,
@@ -187,7 +187,7 @@ class ConsentLifecycle:
     started_at: float = 0.0
     completed_at: float = 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "requested_action": self.requested_action,
             "authorized": self.authorized,
@@ -217,7 +217,7 @@ class CmpFinding:
     remediation: str
     component: str
     detection_method: str
-    evidence: Tuple[CmpEvidence, ...] = ()
+    evidence: tuple[CmpEvidence, ...] = ()
     timestamp: float = 0.0
     source: str = "pytagmanager"
 
@@ -234,10 +234,10 @@ class CmpFinding:
         remediation: str,
         component: str,
         detection_method: str,
-        evidence: Tuple[CmpEvidence, ...] = (),
+        evidence: tuple[CmpEvidence, ...] = (),
         subject: str = "",
         timestamp: float = 0.0,
-    ) -> "CmpFinding":
+    ) -> CmpFinding:
         if severity not in SEVERITIES:
             raise ValueError(f"unknown severity: {severity}")
         if confidence not in CONFIDENCE_LEVELS:
@@ -257,7 +257,7 @@ class CmpFinding:
             timestamp=timestamp,
         )
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "finding_id": self.finding_id,
             "rule_id": self.rule_id,
@@ -275,7 +275,7 @@ class CmpFinding:
         }
 
 
-def dedupe_findings(findings: Tuple[CmpFinding, ...]) -> Tuple[CmpFinding, ...]:
+def dedupe_findings(findings: tuple[CmpFinding, ...]) -> tuple[CmpFinding, ...]:
     """Merge findings with the same stable id, keeping the strongest claim.
 
     Evidence from every occurrence is preserved. Severity/confidence use the
@@ -290,8 +290,8 @@ def dedupe_findings(findings: Tuple[CmpFinding, ...]) -> Tuple[CmpFinding, ...]:
             item.finding_id,
         ),
     )
-    merged: Dict[str, CmpFinding] = {}
-    evidence: Dict[str, list] = {}
+    merged: dict[str, CmpFinding] = {}
+    evidence: dict[str, list] = {}
     for finding in ordered:
         if finding.finding_id not in merged:
             merged[finding.finding_id] = finding
@@ -326,22 +326,22 @@ class CmpAuditReport:
     url: str
     generated_at: float
     mode: str
-    detections: Tuple[CmpDetection, ...] = ()
+    detections: tuple[CmpDetection, ...] = ()
     consent_initial: ConsentState = field(default_factory=ConsentState)
-    consent_after_action: Optional[ConsentState] = None
-    consent_after_reload: Optional[ConsentState] = None
+    consent_after_action: ConsentState | None = None
+    consent_after_reload: ConsentState | None = None
     lifecycle: ConsentLifecycle = field(default_factory=ConsentLifecycle)
-    cookies: Tuple[CookieMetadata, ...] = ()
-    requests: Tuple[RequestObservation, ...] = ()
-    findings: Tuple[CmpFinding, ...] = ()
-    limitations: Tuple[str, ...] = ()
+    cookies: tuple[CookieMetadata, ...] = ()
+    requests: tuple[RequestObservation, ...] = ()
+    findings: tuple[CmpFinding, ...] = ()
+    limitations: tuple[str, ...] = ()
     schema_version: int = 1
 
     @property
-    def tracking_requests(self) -> Tuple[RequestObservation, ...]:
+    def tracking_requests(self) -> tuple[RequestObservation, ...]:
         return tuple(item for item in self.requests if item.is_tracking)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
             "url": sanitize_url(self.url),
@@ -350,8 +350,12 @@ class CmpAuditReport:
             "detections": [item.to_dict() for item in self.detections],
             "consent": {
                 "initial": self.consent_initial.to_dict(),
-                "after_action": self.consent_after_action.to_dict() if self.consent_after_action else None,
-                "after_reload": self.consent_after_reload.to_dict() if self.consent_after_reload else None,
+                "after_action": self.consent_after_action.to_dict()
+                if self.consent_after_action
+                else None,
+                "after_reload": self.consent_after_reload.to_dict()
+                if self.consent_after_reload
+                else None,
             },
             "lifecycle": self.lifecycle.to_dict(),
             "cookies": [item.to_dict() for item in self.cookies],

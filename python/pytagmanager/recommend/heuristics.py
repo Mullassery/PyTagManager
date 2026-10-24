@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from pytagmanager._core import SemanticGraph, SemanticNode
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 # (keyword, business_objective, event_category), checked in order -- first
 # match wins. Order matters: more specific phrases are listed before the
 # generic terms they contain (e.g. "sign up" before a bare "sign").
-_CTA_KEYWORDS: List[Tuple[str, str, str]] = [
+_CTA_KEYWORDS: list[tuple[str, str, str]] = [
     ("add to cart", "Purchase Intent", "ecommerce"),
     ("buy now", "Purchase Intent", "ecommerce"),
     ("checkout", "Purchase Intent", "ecommerce"),
@@ -73,10 +73,20 @@ _CTA_TAGS = {"a", "button"}
 # component (e.g. a <div role="tab">) is just as real an interaction
 # target as a native <button>, and modern component libraries (menus,
 # tabs, accordions) very often aren't <button>/<a> at all.
-_INTERACTIVE_ROLES = {"button", "tab", "menuitem", "menu", "link", "checkbox", "radio", "switch", "option"}
+_INTERACTIVE_ROLES = {
+    "button",
+    "tab",
+    "menuitem",
+    "menu",
+    "link",
+    "checkbox",
+    "radio",
+    "switch",
+    "option",
+}
 
 
-def _classify(node: SemanticNode) -> Optional[Tuple[str, str, str, List[str]]]:
+def _classify(node: SemanticNode) -> tuple[str, str, str, list[str]] | None:
     """Return (matched_keyword, business_objective, event_category, signals)
     for the first keyword that matches any text/attribute source on `node`,
     or None if nothing matched."""
@@ -87,13 +97,19 @@ def _classify(node: SemanticNode) -> Optional[Tuple[str, str, str, List[str]]]:
         "aria_label": (node.aria_label or "").lower(),
     }
     for keyword, objective, category in _CTA_KEYWORDS:
-        signals = [f"{source} contains '{keyword}'" for source, value in haystacks.items() if keyword in value]
+        signals = [
+            f"{source} contains '{keyword}'"
+            for source, value in haystacks.items()
+            if keyword in value
+        ]
         if signals:
             return keyword, objective, category, signals
     return None
 
 
-def classify_node_keywords(node: SemanticNode) -> Optional[Tuple[str, str, str, List[str]]]:
+def classify_node_keywords(
+    node: SemanticNode,
+) -> tuple[str, str, str, list[str]] | None:
     """Public wrapper around the deterministic keyword classifier used by
     `recommend_for_graph`. Exposed so other callers needing a
     single-element (rather than whole-graph) deterministic classification
@@ -107,7 +123,7 @@ def classify_node_keywords(node: SemanticNode) -> Optional[Tuple[str, str, str, 
     return _classify(node)
 
 
-def _selector_fallbacks(node: SemanticNode) -> List[str]:
+def _selector_fallbacks(node: SemanticNode) -> list[str]:
     fallbacks = []
     if node.stable_selector:
         fallbacks.append(node.stable_selector)
@@ -131,8 +147,8 @@ def _event_name(objective: str) -> str:
 
 
 def recommend_for_graph(
-    graph: SemanticGraph, classifier: Optional["IntentClassifier"] = None
-) -> List[TrackingRecommendation]:
+    graph: SemanticGraph, classifier: IntentClassifier | None = None
+) -> list[TrackingRecommendation]:
     """Tracking recommendations for a page's semantic DOM graph.
 
     By default this uses v1's deterministic keyword matching against text/
@@ -142,7 +158,7 @@ def recommend_for_graph(
     with the same output shape (event, business objective, confidence,
     rationale) either way.
     """
-    recommendations: List[TrackingRecommendation] = []
+    recommendations: list[TrackingRecommendation] = []
     context = None
     if classifier is not None:
         from pytagmanager.intent.base import PageContext
@@ -182,7 +198,8 @@ def recommend_for_graph(
                     event_category=category,
                     business_objective=objective,
                     confidence=_confidence(node, len(signals)),
-                    rationale=f"Matched CTA keyword '{keyword}' on <{node.tag}>; signals: " + ", ".join(signals),
+                    rationale=f"Matched CTA keyword '{keyword}' on <{node.tag}>; signals: "
+                    + ", ".join(signals),
                     page_url=graph.url,
                 )
             )

@@ -23,7 +23,10 @@ def test_explicit_environment_run_count_is_overridden_by_actual_runs(fixture_ser
     # about how many runs actually happened.
     environment = TestEnvironmentConfig(run_count=99)
     baseline = measure_page_performance(
-        f"{fixture_server}/{_HEAVY_PAGE}", runs=2, headless=True, environment=environment
+        f"{fixture_server}/{_HEAVY_PAGE}",
+        runs=2,
+        headless=True,
+        environment=environment,
     )
     assert baseline.run_count == 2
     assert baseline.environment.run_count == 2
@@ -36,7 +39,10 @@ def test_cpu_throttling_measurably_increases_busy_wait_duration(fixture_server):
     # honestly record the rate that was requested.
     environment = TestEnvironmentConfig(cpu_throttling_rate=4.0, run_count=1)
     baseline = measure_page_performance(
-        f"{fixture_server}/{_HEAVY_PAGE}", runs=1, headless=True, environment=environment
+        f"{fixture_server}/{_HEAVY_PAGE}",
+        runs=1,
+        headless=True,
+        environment=environment,
     )
     assert baseline.run_count == 1
     assert baseline.environment.cpu_throttling_rate == 4.0

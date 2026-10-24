@@ -11,8 +11,10 @@ def render_sdr_report(validation: SdrValidation) -> str:
         "=" * 13,
         "",
         f"SDR: {validation.schema_name}",
-        f"Alignment score: {validation.alignment_score:.1%} "
-        f"({validation.checks_passed}/{validation.checks_total} checks passed)",
+        (
+            f"Alignment score: {validation.alignment_score:.1%} "
+            f"({validation.checks_passed}/{validation.checks_total} checks passed)"
+        ),
         "",
     ]
     for event in validation.events:

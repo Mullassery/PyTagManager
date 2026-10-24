@@ -32,11 +32,11 @@ from __future__ import annotations
 
 import html
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
 from urllib.parse import urlparse
 
-from pytagmanager.diagnostics.trace import InteractionTrace, InteractionTraceStep
+from pytagmanager.diagnostics.trace import InteractionTrace
 from pytagmanager.tagexec.duplicates import DuplicateFinding
 from pytagmanager.tagexec.server_side import ServerSideIndicator
 from pytagmanager.tagexec.static_scan import StaticScanResult
@@ -46,7 +46,13 @@ EVIDENCE_INFERRED = "Inferred"
 EVIDENCE_SUSPECTED = "Suspected"
 EVIDENCE_UNKNOWN = "Unknown"
 EVIDENCE_NOT_OBSERVED = "Not observed"
-EVIDENCE_LEVELS = (EVIDENCE_OBSERVED, EVIDENCE_INFERRED, EVIDENCE_SUSPECTED, EVIDENCE_UNKNOWN, EVIDENCE_NOT_OBSERVED)
+EVIDENCE_LEVELS = (
+    EVIDENCE_OBSERVED,
+    EVIDENCE_INFERRED,
+    EVIDENCE_SUSPECTED,
+    EVIDENCE_UNKNOWN,
+    EVIDENCE_NOT_OBSERVED,
+)
 
 NODE_GTM_CONTAINER = "gtm_container"
 NODE_VENDOR_SCRIPT = "vendor_script"
@@ -73,7 +79,7 @@ class GraphNode:
     kind: str
     label: str
     page_url: str
-    metadata: Dict[str, object] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -86,16 +92,16 @@ class GraphEdge:
 
 @dataclass(frozen=True)
 class TagExecutionGraph:
-    nodes: Tuple[GraphNode, ...] = field(default_factory=tuple)
-    edges: Tuple[GraphEdge, ...] = field(default_factory=tuple)
+    nodes: tuple[GraphNode, ...] = field(default_factory=tuple)
+    edges: tuple[GraphEdge, ...] = field(default_factory=tuple)
 
-    def node(self, node_id: str) -> Optional[GraphNode]:
+    def node(self, node_id: str) -> GraphNode | None:
         return next((n for n in self.nodes if n.node_id == node_id), None)
 
-    def outgoing(self, node_id: str) -> List[GraphEdge]:
+    def outgoing(self, node_id: str) -> list[GraphEdge]:
         return [e for e in self.edges if e.source_id == node_id]
 
-    def incoming(self, node_id: str) -> List[GraphEdge]:
+    def incoming(self, node_id: str) -> list[GraphEdge]:
         return [e for e in self.edges if e.target_id == node_id]
 
 
@@ -105,28 +111,41 @@ def _hostname(url: str) -> str:
 
 class _GraphBuilder:
     def __init__(self) -> None:
-        self._nodes: Dict[str, GraphNode] = {}
-        self._edges: List[GraphEdge] = []
+        self._nodes: dict[str, GraphNode] = {}
+        self._edges: list[GraphEdge] = []
 
-    def add_node(self, node_id: str, kind: str, label: str, page_url: str, **metadata: object) -> str:
+    def add_node(
+        self, node_id: str, kind: str, label: str, page_url: str, **metadata: object
+    ) -> str:
         if node_id not in self._nodes:
-            self._nodes[node_id] = GraphNode(node_id=node_id, kind=kind, label=label, page_url=page_url, metadata=dict(metadata))
+            self._nodes[node_id] = GraphNode(
+                node_id=node_id,
+                kind=kind,
+                label=label,
+                page_url=page_url,
+                metadata=dict(metadata),
+            )
         return node_id
 
     def add_edge(self, source_id: str, target_id: str, evidence: str, label: str) -> None:
         key = (source_id, target_id, label)
         if any((e.source_id, e.target_id, e.label) == key for e in self._edges):
             return  # dedupe identical repeated edges (e.g. the same container seen on multiple pages)
-        self._edges.append(GraphEdge(source_id=source_id, target_id=target_id, evidence=evidence, label=label))
+        self._edges.append(
+            GraphEdge(source_id=source_id, target_id=target_id, evidence=evidence, label=label)
+        )
 
-    def find_node_id(self, kind: str, label: str) -> Optional[str]:
+    def find_node_id(self, kind: str, label: str) -> str | None:
         """First node matching (kind, label) -- used to resolve a
         `DuplicateCandidate.involved` name (a plain container ID or vendor
         name, not a full node_id) back to its graph node. Picks the first
         match when a vendor name has more than one distinct evidence
         string on the page; a genuine ambiguity this heuristic doesn't try
         to resolve further."""
-        return next((n.node_id for n in self._nodes.values() if n.kind == kind and n.label == label), None)
+        return next(
+            (n.node_id for n in self._nodes.values() if n.kind == kind and n.label == label),
+            None,
+        )
 
     def build(self) -> TagExecutionGraph:
         return TagExecutionGraph(nodes=tuple(self._nodes.values()), edges=tuple(self._edges))
@@ -143,33 +162,54 @@ def _add_static_scan_nodes(builder: _GraphBuilder, scan: StaticScanResult) -> No
         )
     for vendor in scan.vendors:
         node_id = f"vendor:{vendor.vendor}:{vendor.evidence}"
-        builder.add_node(node_id, NODE_VENDOR_SCRIPT, vendor.vendor, scan.page_url, category=vendor.category, evidence=vendor.evidence)
+        builder.add_node(
+            node_id,
+            NODE_VENDOR_SCRIPT,
+            vendor.vendor,
+            scan.page_url,
+            category=vendor.category,
+            evidence=vendor.evidence,
+        )
 
 
-def _add_trace_chain(builder: _GraphBuilder, trace: InteractionTrace) -> Dict[int, str]:
+def _add_trace_chain(builder: _GraphBuilder, trace: InteractionTrace) -> dict[int, str]:
     """One node per observed step, chained in temporal order with
     `Observed` edges -- every step in an `InteractionTrace` is a real,
     captured `TrackingEvent`, so this is the one part of the graph that's
     never hedged. Returns step-index -> node_id for endpoint linking."""
-    node_ids: Dict[int, str] = {}
-    previous_id: Optional[str] = None
+    node_ids: dict[int, str] = {}
+    previous_id: str | None = None
     for index, step in enumerate(trace.steps):
         kind = _STAGE_TO_NODE_KIND.get(step.stage, "other")
         node_id = f"trace:{trace.journey_id}:step:{index}"
         label = step.event_name or step.event_type
-        builder.add_node(node_id, kind, label, trace.page_url, event_type=step.event_type, timestamp=step.timestamp)
+        builder.add_node(
+            node_id,
+            kind,
+            label,
+            trace.page_url,
+            event_type=step.event_type,
+            timestamp=step.timestamp,
+        )
         node_ids[index] = node_id
         if previous_id is not None:
-            builder.add_edge(previous_id, node_id, EVIDENCE_OBSERVED, f"{trace.business_event}: next observed step")
+            builder.add_edge(
+                previous_id,
+                node_id,
+                EVIDENCE_OBSERVED,
+                f"{trace.business_event}: next observed step",
+            )
         previous_id = node_id
     return node_ids
 
 
-def _add_endpoint_nodes(builder: _GraphBuilder, trace: InteractionTrace, step_node_ids: Dict[int, str]) -> Dict[str, str]:
+def _add_endpoint_nodes(
+    builder: _GraphBuilder, trace: InteractionTrace, step_node_ids: dict[int, str]
+) -> dict[str, str]:
     """Endpoint nodes (one per distinct hostname) linked from the network
     step(s) that hit them -- `Observed`, since the request itself was
     captured. Returns hostname -> endpoint node_id for server-side linking."""
-    endpoint_ids: Dict[str, str] = {}
+    endpoint_ids: dict[str, str] = {}
     for index, step in enumerate(trace.steps):
         if step.event_type != "network_request" or not isinstance(step.payload, dict):
             continue
@@ -185,7 +225,9 @@ def _add_endpoint_nodes(builder: _GraphBuilder, trace: InteractionTrace, step_no
 
 
 def _add_server_side_edges(
-    builder: _GraphBuilder, indicator: ServerSideIndicator, endpoint_ids_by_page: Dict[str, Dict[str, str]]
+    builder: _GraphBuilder,
+    indicator: ServerSideIndicator,
+    endpoint_ids_by_page: dict[str, dict[str, str]],
 ) -> None:
     endpoint_ids = endpoint_ids_by_page.get(indicator.page_url, {})
     evidence = EVIDENCE_INFERRED if indicator.confidence == "Likely" else EVIDENCE_SUSPECTED
@@ -196,7 +238,12 @@ def _add_server_side_edges(
         if source_id is None:
             return
         relay_id = f"relay:{indicator.page_url}:{indicator.business_event}"
-        builder.add_node(relay_id, NODE_SUSPECTED_VENDOR_RELAY, "possible vendor relay", indicator.page_url)
+        builder.add_node(
+            relay_id,
+            NODE_SUSPECTED_VENDOR_RELAY,
+            "possible vendor relay",
+            indicator.page_url,
+        )
         builder.add_edge(source_id, relay_id, evidence, indicator.message)
 
     elif indicator.kind == "fanout_to_multiple_destinations":
@@ -245,7 +292,7 @@ def build_tag_execution_graph(
     for scan in scans:
         _add_static_scan_nodes(builder, scan)
 
-    endpoint_ids_by_page: Dict[str, Dict[str, str]] = {}
+    endpoint_ids_by_page: dict[str, dict[str, str]] = {}
     for trace in traces:
         step_node_ids = _add_trace_chain(builder, trace)
         endpoint_ids = _add_endpoint_nodes(builder, trace, step_node_ids)
@@ -266,11 +313,22 @@ def build_graph_json(graph: TagExecutionGraph) -> dict:
     stronger than what produced them."""
     return {
         "nodes": [
-            {"id": n.node_id, "kind": n.kind, "label": n.label, "page_url": n.page_url, "metadata": n.metadata}
+            {
+                "id": n.node_id,
+                "kind": n.kind,
+                "label": n.label,
+                "page_url": n.page_url,
+                "metadata": n.metadata,
+            }
             for n in graph.nodes
         ],
         "edges": [
-            {"source": e.source_id, "target": e.target_id, "evidence": e.evidence, "label": e.label}
+            {
+                "source": e.source_id,
+                "target": e.target_id,
+                "evidence": e.evidence,
+                "label": e.label,
+            }
             for e in graph.edges
         ],
     }
@@ -305,15 +363,26 @@ def build_graph_html(graph: TagExecutionGraph) -> str:
     """
     nodes = list(graph.nodes)
     width = max(360, 180 + 220 * max(1, len({n.kind for n in nodes})))
-    height = max(240, 120 + 70 * max(1, max((sum(1 for n in nodes if n.kind == k) for k in {n.kind for n in nodes}), default=1)))
+    height = max(
+        240,
+        120
+        + 70
+        * max(
+            1,
+            max(
+                (sum(1 for n in nodes if n.kind == k) for k in {n.kind for n in nodes}),
+                default=1,
+            ),
+        ),
+    )
 
     kinds = sorted({n.kind for n in nodes})
-    positions: Dict[str, Tuple[float, float]] = {}
+    positions: dict[str, tuple[float, float]] = {}
     for col, kind in enumerate(kinds):
         for row, node in enumerate(n for n in nodes if n.kind == kind):
             positions[node.node_id] = (140 + col * 220, 80 + row * 70)
 
-    parts: List[str] = []
+    parts: list[str] = []
     for edge in graph.edges:
         if edge.source_id not in positions or edge.target_id not in positions:
             continue
@@ -324,7 +393,7 @@ def build_graph_html(graph: TagExecutionGraph) -> str:
         parts.append(
             f'<line class="edge" data-source="{html.escape(edge.source_id)}" '
             f'data-target="{html.escape(edge.target_id)}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}"'
-            f'{dash_attr}><title>{html.escape(edge.evidence)}: {html.escape(edge.label)}</title></line>'
+            f"{dash_attr}><title>{html.escape(edge.evidence)}: {html.escape(edge.label)}</title></line>"
         )
     for node in nodes:
         if node.node_id not in positions:
@@ -334,15 +403,15 @@ def build_graph_html(graph: TagExecutionGraph) -> str:
         parts.append(
             f'<g class="node" data-id="{html.escape(node.node_id)}">'
             f'<circle cx="{x}" cy="{y}" r="10" fill="{color}"><title>'
-            f'{html.escape(node.kind)}: {html.escape(node.label)}\n{html.escape(node.page_url)}</title></circle>'
+            f"{html.escape(node.kind)}: {html.escape(node.label)}\n{html.escape(node.page_url)}</title></circle>"
             f'<text x="{x + 16}" y="{y + 4}">{html.escape(node.label)}</text></g>'
         )
 
     legend = "".join(
-        f'<span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" '
-        f'stroke="#333" stroke-width="1.5"'
+        '<span class="legend-item"><svg width="24" height="8"><line x1="0" y1="4" x2="24" y2="4" '
+        'stroke="#333" stroke-width="1.5"'
         + (f' stroke-dasharray="{_EVIDENCE_DASH[e]}"' if _EVIDENCE_DASH.get(e) else "")
-        + f'/></svg>{html.escape(e)}</span>'
+        + f"/></svg>{html.escape(e)}</span>"
         for e in EVIDENCE_LEVELS
     )
 
@@ -411,4 +480,3 @@ def build_graph_html(graph: TagExecutionGraph) -> str:
 </body>
 </html>
 """
-

@@ -3,7 +3,6 @@ from __future__ import annotations
 import os
 
 import pytest
-
 from pytagmanager.control.errors import SecretError, ValidationError
 from pytagmanager.control.secrets import (
     SecretRef,
@@ -31,9 +30,7 @@ def test_invalid_secret_references_are_rejected(value):
 
 
 def test_environment_secret_resolution_uses_the_supplied_environment():
-    assert (
-        resolve_secret_ref("env:TOKEN", environ={"TOKEN": "s3cr3t"}) == "s3cr3t"
-    )
+    assert resolve_secret_ref("env:TOKEN", environ={"TOKEN": "s3cr3t"}) == "s3cr3t"
     with pytest.raises(SecretError):
         resolve_secret_ref("env:TOKEN", environ={})
     with pytest.raises(SecretError):

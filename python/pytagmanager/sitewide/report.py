@@ -6,19 +6,23 @@ observed journeys -- no invented metrics.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
-from pytagmanager.sitewide.aggregation import SiteHealthReport, TemplateConsistencyReport, TemplateHealth
+from pytagmanager.sitewide.aggregation import (
+    SiteHealthReport,
+    TemplateConsistencyReport,
+    TemplateHealth,
+)
 from pytagmanager.sitewide.anomalies import Anomaly
 from pytagmanager.sitewide.event_map import RuntimeEventMapRow
-from pytagmanager.sitewide.interaction_consistency import BusinessActionConsistencyReport
+from pytagmanager.sitewide.interaction_consistency import (
+    BusinessActionConsistencyReport,
+)
 
 
-def _pct(value: Optional[float]) -> str:
+def _pct(value: float | None) -> str:
     return f"{value:.1%}" if value is not None else "N/A"
 
 
-def _status_icon(value: Optional[float], warn_below: float = 1.0, fail_below: float = 0.5) -> str:
+def _status_icon(value: float | None, warn_below: float = 1.0, fail_below: float = 0.5) -> str:
     if value is None:
         return "—"  # em dash: no data
     if value >= warn_below:
@@ -30,10 +34,10 @@ def _status_icon(value: Optional[float], warn_below: float = 1.0, fail_below: fl
 
 def render_site_health_report(
     site_health: SiteHealthReport,
-    consistency_reports: List[TemplateConsistencyReport],
-    anomalies: Optional[List[Anomaly]] = None,
-    business_action_reports: Optional[List[BusinessActionConsistencyReport]] = None,
-    event_map: Optional[List[RuntimeEventMapRow]] = None,
+    consistency_reports: list[TemplateConsistencyReport],
+    anomalies: list[Anomaly] | None = None,
+    business_action_reports: list[BusinessActionConsistencyReport] | None = None,
+    event_map: list[RuntimeEventMapRow] | None = None,
 ) -> str:
     anomalies = anomalies or []
     business_action_reports = business_action_reports or []
@@ -128,10 +132,10 @@ def _matrix_row(template_health: TemplateHealth) -> str:
 
 def build_site_health_json(
     site_health: SiteHealthReport,
-    consistency_reports: List[TemplateConsistencyReport],
-    anomalies: Optional[List[Anomaly]] = None,
-    business_action_reports: Optional[List[BusinessActionConsistencyReport]] = None,
-    event_map: Optional[List[RuntimeEventMapRow]] = None,
+    consistency_reports: list[TemplateConsistencyReport],
+    anomalies: list[Anomaly] | None = None,
+    business_action_reports: list[BusinessActionConsistencyReport] | None = None,
+    event_map: list[RuntimeEventMapRow] | None = None,
 ) -> dict:
     anomalies = anomalies or []
     business_action_reports = business_action_reports or []

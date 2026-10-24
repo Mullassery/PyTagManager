@@ -33,7 +33,9 @@ def test_crawl_site_rendered_builds_graph_from_rendered_html(fixture_server, mon
     assert page.interactions == ()
 
 
-def test_crawl_site_rendered_with_all_optional_observations_enabled(fixture_server, monkeypatch, tmp_path):
+def test_crawl_site_rendered_with_all_optional_observations_enabled(
+    fixture_server, monkeypatch, tmp_path
+):
     url = f"{fixture_server}/spa_client_rendered.html"
     monkeypatch.setattr(
         "pytagmanager.discovery.crawl.crawl_site",

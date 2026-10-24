@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from pytagmanager.export._taxonomy import canonical_event
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -54,7 +53,7 @@ def _schema_uri(event_key: str) -> str:
     return f"iglu:{_IGLU_VENDOR}/{event_key}/jsonschema/{_SCHEMA_VERSION}"
 
 
-def build_snowplow_schemas(recommendations: List[TrackingRecommendation]) -> dict:
+def build_snowplow_schemas(recommendations: list[TrackingRecommendation]) -> dict:
     """Build `{"schemas": {event_key: <self-describing schema>}, "events": [<tracker payload>]}`.
 
     `schemas` is de-duplicated per canonical event key (Snowplow schemas are
@@ -89,6 +88,6 @@ def build_snowplow_schemas(recommendations: List[TrackingRecommendation]) -> dic
     return {"schemas": schemas, "events": events}
 
 
-def export_snowplow_json(recommendations: List[TrackingRecommendation], path: str) -> None:
+def export_snowplow_json(recommendations: list[TrackingRecommendation], path: str) -> None:
     doc = build_snowplow_schemas(recommendations)
     Path(path).write_text(json.dumps(doc, indent=2))

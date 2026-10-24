@@ -5,7 +5,6 @@ from dataclasses import replace
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager import cli
 from pytagmanager.control import ConfigPayload, Destination, Tag, Trigger
 from pytagmanager.control.diff import diff_payloads
@@ -119,7 +118,10 @@ def test_activation_is_idempotent_and_guards_stale_state(service):
     second = service.create_revision("GTM-ABC1234", _valid_payload())
     service.create_environment("GTM-ABC1234", "Staging")
     activated = service.activate_environment(
-        "GTM-ABC1234", "staging", config_version=first.config_version, expected_current=None
+        "GTM-ABC1234",
+        "staging",
+        config_version=first.config_version,
+        expected_current=None,
     )
     assert activated.changed
     noop = service.activate_environment(
@@ -149,10 +151,16 @@ def test_rollback_uses_previous_revision_and_can_toggle(service):
         service.rollback_environment("GTM-ABC1234", "Production", allow_protected=True)
 
     service.activate_environment(
-        "GTM-ABC1234", "Production", config_version=first.config_version, allow_protected=True
+        "GTM-ABC1234",
+        "Production",
+        config_version=first.config_version,
+        allow_protected=True,
     )
     service.activate_environment(
-        "GTM-ABC1234", "Production", config_version=second.config_version, allow_protected=True
+        "GTM-ABC1234",
+        "Production",
+        config_version=second.config_version,
+        allow_protected=True,
     )
     rolled = service.rollback_environment(
         "GTM-ABC1234", "Production", allow_protected=True, rolled_back_by="bob"
@@ -225,17 +233,29 @@ def test_export_import_remaps_active_and_previous_revisions(service, tmp_path):
     second = service.create_revision("GTM-ABC1234", _valid_payload())
     service.create_environment("GTM-ABC1234", "Production", protected=True)
     service.activate_environment(
-        "GTM-ABC1234", "Production", config_version=first.config_version, allow_protected=True
+        "GTM-ABC1234",
+        "Production",
+        config_version=first.config_version,
+        allow_protected=True,
     )
     service.activate_environment(
-        "GTM-ABC1234", "Production", config_version=second.config_version, allow_protected=True
+        "GTM-ABC1234",
+        "Production",
+        config_version=second.config_version,
+        allow_protected=True,
     )
     document = service.export_container("GTM-ABC1234")
     other = ControlPlaneService(FileStore(tmp_path / "other"))
     other.import_container(document, as_container_id="GTM-COPY123")
     imported = other.get_environment("GTM-COPY123", "Production")
-    assert imported.current_config_version not in {first.config_version, second.config_version}
-    assert imported.previous_config_version not in {first.config_version, second.config_version}
+    assert imported.current_config_version not in {
+        first.config_version,
+        second.config_version,
+    }
+    assert imported.previous_config_version not in {
+        first.config_version,
+        second.config_version,
+    }
     assert other.get_revision("GTM-COPY123", imported.current_config_version)
     assert other.get_revision("GTM-COPY123", imported.previous_config_version)
 
@@ -250,7 +270,15 @@ def test_cli_environment_lifecycle_diff_and_audit(tmp_path):
 
     created = runner.invoke(
         cli.main,
-        ["environment", "create", "GTM-ABC1234", "--name", "Production", "--protected", *base],
+        [
+            "environment",
+            "create",
+            "GTM-ABC1234",
+            "--name",
+            "Production",
+            "--protected",
+            *base,
+        ],
     )
     assert created.exit_code == 0, created.output
 

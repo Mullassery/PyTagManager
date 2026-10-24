@@ -49,7 +49,9 @@ def test_full_chain_journey_has_full_coverage():
 
 
 def test_partial_chain_journey_has_partial_coverage():
-    journey = _journey("add_to_cart", [_event("click"), _event("datalayer_push", source="datalayer")])
+    journey = _journey(
+        "add_to_cart", [_event("click"), _event("datalayer_push", source="datalayer")]
+    )
 
     row = build_runtime_event_map([journey])[0]
 
@@ -62,7 +64,11 @@ def test_partial_chain_journey_has_partial_coverage():
 def test_groups_by_business_event_across_multiple_journeys():
     healthy = _journey(
         "add_to_cart",
-        [_event("click"), _event("datalayer_push", source="datalayer"), _event("network_request", source="network")],
+        [
+            _event("click"),
+            _event("datalayer_push", source="datalayer"),
+            _event("network_request", source="network"),
+        ],
     )
     silent = _journey("add_to_cart", [_event("click")])
 

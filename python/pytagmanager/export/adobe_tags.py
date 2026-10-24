@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from pytagmanager.export._taxonomy import canonical_event
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -42,7 +41,7 @@ def _rule_name(rec: TrackingRecommendation) -> str:
     return f"{canonical_event(rec)} - {rec.trigger_type} - {rec.selector}"
 
 
-def build_adobe_launch_rules(recommendations: List[TrackingRecommendation]) -> dict:
+def build_adobe_launch_rules(recommendations: list[TrackingRecommendation]) -> dict:
     """Build `{"rules": [<Launch rule component>, ...]}`. Each rule's
     `actions[0]` is a `customCode` action containing a
     `_satellite.track(...)` call stub naming the canonical event and
@@ -91,6 +90,6 @@ def build_adobe_launch_rules(recommendations: List[TrackingRecommendation]) -> d
     return {"rules": rules}
 
 
-def export_adobe_tags_json(recommendations: List[TrackingRecommendation], path: str) -> None:
+def export_adobe_tags_json(recommendations: list[TrackingRecommendation], path: str) -> None:
     doc = build_adobe_launch_rules(recommendations)
     Path(path).write_text(json.dumps(doc, indent=2))

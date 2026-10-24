@@ -105,7 +105,9 @@ def test_unrecognized_vendor_produces_no_detection():
 
 def test_detect_delayed_containers_finds_new_container_in_later_snapshot():
     baseline = scan_html("<html><body>no gtm yet</body></html>", "https://example.com/")
-    later = scan_html(f"<html><head>{_RENDERED_GTM_SCRIPT_TAG}</head></html>", "https://example.com/")
+    later = scan_html(
+        f"<html><head>{_RENDERED_GTM_SCRIPT_TAG}</head></html>", "https://example.com/"
+    )
 
     delayed = detect_delayed_containers(baseline, later)
     assert delayed == ("GTM-ABC1234",)

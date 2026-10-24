@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import List, Sequence
+from collections.abc import Sequence
 
 from pytagmanager.testintel.candidates import TestCandidate
 from pytagmanager.testintel.playwright_export import (
@@ -15,13 +15,16 @@ from pytagmanager.testintel.playwright_export import (
 JSON_SCHEMA_VERSION = 1
 
 
-def render_test_candidates(candidates: Sequence[TestCandidate]) -> List[str]:
+def render_test_candidates(candidates: Sequence[TestCandidate]) -> list[str]:
     """Rendered as a list of lines (not a full report string), matching
     `tagexec.report`'s convention -- callers splice this into their own
     larger report alongside diagnostics/traces/tag-execution sections."""
     if not candidates:
         return []
-    lines = ["TEST CANDIDATES (discovery, not verified -- review before formalizing)", "-" * 71]
+    lines = [
+        "TEST CANDIDATES (discovery, not verified -- review before formalizing)",
+        "-" * 71,
+    ]
     for candidate in candidates:
         lines.append(f"  [{candidate.category}/{candidate.severity}] {candidate.name}")
         lines.append(f"    Observed: {candidate.observed}")
@@ -33,7 +36,9 @@ def render_test_candidates(candidates: Sequence[TestCandidate]) -> List[str]:
     return lines
 
 
-def build_test_candidates_json(candidates: Sequence[TestCandidate], include_playwright_draft: bool = True) -> List[dict]:
+def build_test_candidates_json(
+    candidates: Sequence[TestCandidate], include_playwright_draft: bool = True
+) -> list[dict]:
     result = []
     for candidate in candidates:
         entry = {

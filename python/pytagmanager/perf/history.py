@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import datetime
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
 
 from pytagmanager.perf.measure import PerformanceBaseline
 
@@ -33,14 +33,16 @@ DEFAULT_TBT_REGRESSION_THRESHOLD_MS = 100.0
 class PerformanceHistoryEntry:
     timestamp: str
     url: str
-    median_lcp_ms: Optional[float]
-    median_tbt_ms: Optional[float]
-    median_cls: Optional[float]
-    median_inp_ms: Optional[float]
-    script_urls: Tuple[str, ...] = field(default_factory=tuple)
+    median_lcp_ms: float | None
+    median_tbt_ms: float | None
+    median_cls: float | None
+    median_inp_ms: float | None
+    script_urls: tuple[str, ...] = field(default_factory=tuple)
 
     @classmethod
-    def from_baseline(cls, baseline: PerformanceBaseline, script_urls: Sequence[str] = ()) -> "PerformanceHistoryEntry":
+    def from_baseline(
+        cls, baseline: PerformanceBaseline, script_urls: Sequence[str] = ()
+    ) -> PerformanceHistoryEntry:
         return cls(
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             url=baseline.url,
@@ -52,7 +54,7 @@ class PerformanceHistoryEntry:
         )
 
     @classmethod
-    def from_dict(cls, data: dict) -> "PerformanceHistoryEntry":
+    def from_dict(cls, data: dict) -> PerformanceHistoryEntry:
         return cls(
             timestamp=data["timestamp"],
             url=data["url"],
@@ -70,10 +72,10 @@ class PerformanceRegressionAlert:
     metric: str
     previous_value: float
     current_value: float
-    new_scripts: Tuple[str, ...] = field(default_factory=tuple)
+    new_scripts: tuple[str, ...] = field(default_factory=tuple)
 
 
-def load_performance_history(path: str) -> List[PerformanceHistoryEntry]:
+def load_performance_history(path: str) -> list[PerformanceHistoryEntry]:
     file_path = Path(path)
     if not file_path.exists():
         return []
@@ -85,7 +87,13 @@ def append_performance_history_entry(path: str, entry: PerformanceHistoryEntry) 
     entries = load_performance_history(path)
     entries.append(entry)
     Path(path).write_text(
-        json.dumps({"format_version": PERF_HISTORY_FORMAT_VERSION, "entries": [asdict(e) for e in entries]}, indent=2)
+        json.dumps(
+            {
+                "format_version": PERF_HISTORY_FORMAT_VERSION,
+                "entries": [asdict(e) for e in entries],
+            },
+            indent=2,
+        )
     )
 
 
@@ -95,7 +103,7 @@ def detect_performance_regression(
     *,
     lcp_threshold_ms: float = DEFAULT_LCP_REGRESSION_THRESHOLD_MS,
     tbt_threshold_ms: float = DEFAULT_TBT_REGRESSION_THRESHOLD_MS,
-) -> List[PerformanceRegressionAlert]:
+) -> list[PerformanceRegressionAlert]:
     """Compares `latest` against the immediately preceding entry in
     `history` (which should not yet include `latest` -- call this before
     `append_performance_history_entry`, same calling convention as
@@ -108,7 +116,10 @@ def detect_performance_regression(
     new_scripts = tuple(sorted(set(latest.script_urls) - set(previous.script_urls)))
 
     alerts = []
-    for metric, threshold in (("median_lcp_ms", lcp_threshold_ms), ("median_tbt_ms", tbt_threshold_ms)):
+    for metric, threshold in (
+        ("median_lcp_ms", lcp_threshold_ms),
+        ("median_tbt_ms", tbt_threshold_ms),
+    ):
         prev_val = getattr(previous, metric)
         cur_val = getattr(latest, metric)
         if prev_val is None or cur_val is None:
@@ -119,12 +130,14 @@ def detect_performance_regression(
         message = f"{metric} regressed by {delta:.1f} vs. the previous run ({prev_val:.1f} -> {cur_val:.1f})."
         if new_scripts:
             shown = ", ".join(new_scripts[:3]) + ("..." if len(new_scripts) > 3 else "")
-            message += (
-                f" Correlated with {len(new_scripts)} newly-introduced script(s) (not proven causal): {shown}."
-            )
+            message += f" Correlated with {len(new_scripts)} newly-introduced script(s) (not proven causal): {shown}."
         alerts.append(
             PerformanceRegressionAlert(
-                message=message, metric=metric, previous_value=prev_val, current_value=cur_val, new_scripts=new_scripts
+                message=message,
+                metric=metric,
+                previous_value=prev_val,
+                current_value=cur_val,
+                new_scripts=new_scripts,
             )
         )
     return alerts

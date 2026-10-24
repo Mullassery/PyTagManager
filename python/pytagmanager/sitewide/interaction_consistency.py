@@ -20,7 +20,6 @@ a naming inconsistency.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
 
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -46,10 +45,10 @@ class BusinessActionImplementation:
 @dataclass(frozen=True)
 class BusinessActionConsistencyReport:
     business_objective: str
-    implementations: Tuple[BusinessActionImplementation, ...] = field(default_factory=tuple)
+    implementations: tuple[BusinessActionImplementation, ...] = field(default_factory=tuple)
 
     @property
-    def distinct_event_names(self) -> List[str]:
+    def distinct_event_names(self) -> list[str]:
         names = {impl.observed_event_name for impl in self.implementations if impl.fired}
         return sorted(names)
 
@@ -75,9 +74,9 @@ class BusinessActionConsistencyReport:
 
 
 def analyze_business_action_consistency(
-    recs_by_page: Dict[str, List[TrackingRecommendation]],
-    journeys: List[TrackingJourney],
-) -> List[BusinessActionConsistencyReport]:
+    recs_by_page: dict[str, list[TrackingRecommendation]],
+    journeys: list[TrackingJourney],
+) -> list[BusinessActionConsistencyReport]:
     """`recs_by_page` is page_url -> the static `TrackingRecommendation`s
     detected for it (what `diagnose`'s crawl loop already builds per page);
     `journeys` is every `TrackingJourney` observed across the whole crawl.
@@ -92,7 +91,7 @@ def analyze_business_action_consistency(
     are returned -- one implementation has nothing to be inconsistent
     *with*.
     """
-    journey_by_page_selector: Dict[Tuple[str, str], TrackingJourney] = {}
+    journey_by_page_selector: dict[tuple[str, str], TrackingJourney] = {}
     for journey in journeys:
         if not journey.observations:
             continue
@@ -101,7 +100,7 @@ def analyze_business_action_consistency(
         if selector:
             journey_by_page_selector[(page_url, selector)] = journey
 
-    grouped: Dict[str, List[BusinessActionImplementation]] = {}
+    grouped: dict[str, list[BusinessActionImplementation]] = {}
     for page_url, recs in recs_by_page.items():
         for rec in recs:
             journey = journey_by_page_selector.get((page_url, rec.selector))
@@ -116,7 +115,9 @@ def analyze_business_action_consistency(
             )
 
     return [
-        BusinessActionConsistencyReport(business_objective=objective, implementations=tuple(implementations))
+        BusinessActionConsistencyReport(
+            business_objective=objective, implementations=tuple(implementations)
+        )
         for objective, implementations in sorted(grouped.items())
         if len(implementations) > 1
     ]

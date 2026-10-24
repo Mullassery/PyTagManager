@@ -7,7 +7,6 @@ import http.server
 import threading
 
 import pytest
-
 from pytagmanager.sitewide.notify import WebhookNotifier
 
 

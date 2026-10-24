@@ -7,7 +7,7 @@ hand-authored expectation file.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -18,7 +18,7 @@ class GtmTrigger:
     # The literal dataLayer event name this trigger matches (extracted from
     # a CUSTOM_EVENT trigger's customEventFilter), or None for trigger types
     # that don't gate on one (e.g. a plain CLICK trigger).
-    event_name: Optional[str] = None
+    event_name: str | None = None
 
 
 @dataclass(frozen=True)
@@ -26,8 +26,8 @@ class GtmTag:
     tag_id: str
     name: str
     type: str
-    firing_trigger_ids: List[str] = field(default_factory=list)
-    parameters: Dict[str, Any] = field(default_factory=dict)
+    firing_trigger_ids: list[str] = field(default_factory=list)
+    parameters: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

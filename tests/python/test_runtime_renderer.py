@@ -26,7 +26,10 @@ def test_render_page_returns_post_js_html_console_and_network(fixture_server):
     # runs -- its presence in `result.html` proves this is the live DOM,
     # not the raw HTTP response body (which only has the empty `#app` div).
     assert '<button id="cta">Add to Cart</button>' in result.html
-    assert any(req.url.startswith("https://www.googletagmanager.com/gtag/js") for req in result.network_requests)
+    assert any(
+        req.url.startswith("https://www.googletagmanager.com/gtag/js")
+        for req in result.network_requests
+    )
 
 
 def test_static_crawl_finds_nothing_but_rendered_crawl_finds_the_cta(fixture_server):
@@ -35,7 +38,9 @@ def test_static_crawl_finds_nothing_but_rendered_crawl_finds_the_cta(fixture_ser
 
     static_graph = _core.parse_html(raw_html, url)
     static_recs = recommend_for_graph(static_graph)
-    assert static_recs == [], "raw pre-render HTML has no CTA text; a static parse should recommend nothing"
+    assert static_recs == [], (
+        "raw pre-render HTML has no CTA text; a static parse should recommend nothing"
+    )
 
     rendered = render_page(url)
     rendered_graph = _core.parse_html(rendered.html, rendered.url)

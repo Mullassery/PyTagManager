@@ -20,8 +20,8 @@ narrower, exploratory question.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence, Tuple
 
 _MUTATION_COUNTER_JS = """() => {
     window.__ptm_mutation_count = 0;
@@ -38,8 +38,8 @@ class InteractionObservation:
     selector: str
     action: str
     mutation_count: int
-    network_requests_fired: Tuple[str, ...]
-    error: Optional[str]
+    network_requests_fired: tuple[str, ...]
+    error: str | None
 
 
 def simulate_interactions(
@@ -52,7 +52,7 @@ def simulate_interactions(
     browser_name: str = "chromium",
     wait_ms: int = 500,
     timeout_ms: int = 5000,
-) -> Tuple[InteractionObservation, ...]:
+) -> tuple[InteractionObservation, ...]:
     """For each of the first `top_n` (deduplicated, order-preserving)
     `selectors`, load `url` fresh, perform `action` on that selector, and
     report the DOM mutations and new network requests observed in the
@@ -72,13 +72,13 @@ def simulate_interactions(
             "`pip install pytagmanager[diagnostics]` and run `playwright install chromium` once."
         ) from exc
 
-    deduped: List[str] = []
+    deduped: list[str] = []
     for selector in selectors:
         if selector not in deduped:
             deduped.append(selector)
     targets = deduped[:top_n]
 
-    observations: List[InteractionObservation] = []
+    observations: list[InteractionObservation] = []
 
     with sync_playwright() as playwright:
         browser_type = getattr(playwright, browser_name)
@@ -88,12 +88,14 @@ def simulate_interactions(
                 context = browser.new_context()
                 try:
                     page = context.new_page()
-                    requests: List[str] = []
-                    page.on("request", lambda request: requests.append(request.url))
+                    requests: list[str] = []
+                    page.on(
+                        "request", lambda request, requests=requests: requests.append(request.url)
+                    )
                     page.goto(url, wait_until="networkidle")
                     page.evaluate(_MUTATION_COUNTER_JS)
                     baseline_request_count = len(requests)
-                    error: Optional[str] = None
+                    error: str | None = None
                     try:
                         locator = page.locator(selector).first
                         if action == "click":

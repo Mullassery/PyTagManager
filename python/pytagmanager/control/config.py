@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import copy
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any
 
 from pytagmanager.control.checksums import canonical_json
 from pytagmanager.control.conditions import validate_condition
@@ -76,7 +77,13 @@ def _int(value: Any, field: str) -> int:
     return value
 
 
-def _keys(value: Mapping[str, Any], expected: set[str], field: str, *, required: set[str] | None = None) -> None:
+def _keys(
+    value: Mapping[str, Any],
+    expected: set[str],
+    field: str,
+    *,
+    required: set[str] | None = None,
+) -> None:
     unknown = sorted(set(value) - expected)
     missing = sorted((required or set()) - set(value))
     if unknown:
@@ -166,7 +173,7 @@ class Tag:
         adapter_version: str = "1",
         compatibility: Mapping[str, Any] | None = None,
         source_evidence: Mapping[str, Any] | None = None,
-    ) -> "Tag":
+    ) -> Tag:
         return cls(
             tag_id=new_id(),
             name=validate_name(name),
@@ -184,7 +191,9 @@ class Tag:
                 "tag.compatibility",
             ),
             source_evidence=(
-                None if source_evidence is None else _mapping(source_evidence, "tag.source_evidence")
+                None
+                if source_evidence is None
+                else _mapping(source_evidence, "tag.source_evidence")
             ),
         )
 
@@ -208,7 +217,7 @@ class Tag:
         }
 
     @classmethod
-    def from_dict(cls, value: Any) -> "Tag":
+    def from_dict(cls, value: Any) -> Tag:
         data = _mapping(value, "tag")
         expected = {
             "tag_id",
@@ -270,7 +279,7 @@ class Trigger:
         conditions: Mapping[str, Any] | None = None,
         priority: int = 0,
         enabled: bool = True,
-    ) -> "Trigger":
+    ) -> Trigger:
         trigger_type = _string(type, "trigger.type")
         if trigger_type not in TRIGGER_TYPES:
             raise ValidationError(f"unsupported trigger type: {trigger_type!r}")
@@ -294,7 +303,7 @@ class Trigger:
         }
 
     @classmethod
-    def from_dict(cls, value: Any) -> "Trigger":
+    def from_dict(cls, value: Any) -> Trigger:
         data = _mapping(value, "trigger")
         expected = {"trigger_id", "name", "type", "conditions", "priority", "enabled"}
         _keys(data, expected, "trigger", required={"trigger_id", "name", "type"})
@@ -372,7 +381,7 @@ class Variable:
         default: Any = None,
         sensitive: bool = False,
         enabled: bool = True,
-    ) -> "Variable":
+    ) -> Variable:
         variable_type = _string(type, "variable.type")
         if variable_type not in VARIABLE_TYPES:
             raise ValidationError(f"unsupported variable type: {variable_type!r}")
@@ -406,7 +415,7 @@ class Variable:
         }
 
     @classmethod
-    def from_dict(cls, value: Any) -> "Variable":
+    def from_dict(cls, value: Any) -> Variable:
         data = _mapping(value, "variable")
         expected = {
             "variable_id",
@@ -418,7 +427,12 @@ class Variable:
             "sensitive",
             "enabled",
         }
-        _keys(data, expected, "variable", required={"variable_id", "name", "type", "source"})
+        _keys(
+            data,
+            expected,
+            "variable",
+            required={"variable_id", "name", "type", "source"},
+        )
         variable_type = _string(data["type"], "variable.type")
         if variable_type not in VARIABLE_TYPES:
             raise ValidationError(f"unsupported variable type: {variable_type!r}")
@@ -461,7 +475,7 @@ class Destination:
         config: Mapping[str, Any] | None = None,
         secret_refs: Mapping[str, str] | None = None,
         enabled: bool = True,
-    ) -> "Destination":
+    ) -> Destination:
         refs = {
             _string(key, "destination.secret_refs key"): str(SecretRef.parse(raw))
             for key, raw in (secret_refs or {}).items()
@@ -486,9 +500,16 @@ class Destination:
         }
 
     @classmethod
-    def from_dict(cls, value: Any) -> "Destination":
+    def from_dict(cls, value: Any) -> Destination:
         data = _mapping(value, "destination")
-        expected = {"destination_id", "name", "kind", "config", "secret_refs", "enabled"}
+        expected = {
+            "destination_id",
+            "name",
+            "kind",
+            "config",
+            "secret_refs",
+            "enabled",
+        }
         _keys(data, expected, "destination", required={"destination_id", "name", "kind"})
         raw_refs = data.get("secret_refs", {})
         if not isinstance(raw_refs, Mapping):
@@ -517,21 +538,17 @@ class ConfigPayload:
     destinations: tuple[Destination, ...] = ()
 
     @classmethod
-    def empty(cls) -> "ConfigPayload":
+    def empty(cls) -> ConfigPayload:
         return cls()
 
     @classmethod
-    def from_dict(cls, value: Any) -> "ConfigPayload":
+    def from_dict(cls, value: Any) -> ConfigPayload:
         data = _mapping(value, "payload")
         _keys(data, set(PAYLOAD_KEYS), "payload")
         return cls(
             tags=_mapping_tuple(data.get("tags", ()), "payload.tags", Tag),
-            triggers=_mapping_tuple(
-                data.get("triggers", ()), "payload.triggers", Trigger
-            ),
-            variables=_mapping_tuple(
-                data.get("variables", ()), "payload.variables", Variable
-            ),
+            triggers=_mapping_tuple(data.get("triggers", ()), "payload.triggers", Trigger),
+            variables=_mapping_tuple(data.get("variables", ()), "payload.variables", Variable),
             destinations=_mapping_tuple(
                 data.get("destinations", ()), "payload.destinations", Destination
             ),

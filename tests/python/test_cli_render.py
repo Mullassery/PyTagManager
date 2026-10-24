@@ -8,11 +8,12 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from click.testing import CliRunner
-
 from pytagmanager.cli import main
 
 
-def test_crawl_render_flag_finds_recommendation_static_crawl_would_miss(fixture_server, monkeypatch):
+def test_crawl_render_flag_finds_recommendation_static_crawl_would_miss(
+    fixture_server, monkeypatch
+):
     url = f"{fixture_server}/spa_client_rendered.html"
     monkeypatch.setattr(
         "pytagmanager.discovery.crawl.crawl_site",

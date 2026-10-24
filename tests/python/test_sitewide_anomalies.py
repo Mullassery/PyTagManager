@@ -14,7 +14,12 @@ def _journey(business_event, page_url, network_params=None):
                 source="network",
                 event_type="network_request",
                 page_url=page_url,
-                payload={"url": "https://www.googletagmanager.com/gtm.js" if "id" in network_params else "https://www.google-analytics.com/g/collect", "params": network_params},
+                payload={
+                    "url": "https://www.googletagmanager.com/gtm.js"
+                    if "id" in network_params
+                    else "https://www.google-analytics.com/g/collect",
+                    "params": network_params,
+                },
             )
         )
     return TrackingJourney(
@@ -60,7 +65,11 @@ def test_detects_ga4_measurement_id_drift():
     }
 
     anomalies = detect_template_anomalies(template, journeys_by_page)
-    drift = [a for a in anomalies if a.kind == "config_drift" and a.details["label"] == "GA4 measurement ID"]
+    drift = [
+        a
+        for a in anomalies
+        if a.kind == "config_drift" and a.details["label"] == "GA4 measurement ID"
+    ]
     assert len(drift) == 1
     assert drift[0].page_url == "https://example.com/c"
     assert drift[0].details["expected"] == "G-AAAA"
@@ -70,13 +79,21 @@ def test_detects_gtm_container_drift():
     pages = ["https://example.com/a", "https://example.com/b", "https://example.com/c"]
     template = PageTemplate(template_id="t1", label="Cart", page_urls=pages)
     journeys_by_page = {
-        "https://example.com/a": [_journey("purchase", pages[0], network_params={"id": "GTM-AAAA"})],
-        "https://example.com/b": [_journey("purchase", pages[1], network_params={"id": "GTM-AAAA"})],
-        "https://example.com/c": [_journey("purchase", pages[2], network_params={"id": "GTM-ZZZZ"})],
+        "https://example.com/a": [
+            _journey("purchase", pages[0], network_params={"id": "GTM-AAAA"})
+        ],
+        "https://example.com/b": [
+            _journey("purchase", pages[1], network_params={"id": "GTM-AAAA"})
+        ],
+        "https://example.com/c": [
+            _journey("purchase", pages[2], network_params={"id": "GTM-ZZZZ"})
+        ],
     }
 
     anomalies = detect_template_anomalies(template, journeys_by_page)
-    drift = [a for a in anomalies if a.kind == "config_drift" and a.details["label"] == "GTM container"]
+    drift = [
+        a for a in anomalies if a.kind == "config_drift" and a.details["label"] == "GTM container"
+    ]
     assert len(drift) == 1
     assert drift[0].page_url == "https://example.com/c"
 

@@ -12,7 +12,6 @@ import json
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager import cli
 
 
@@ -61,7 +60,13 @@ def _page_with_cta(url="https://example.com/"):
     return FakePage(
         url,
         200,
-        [FakeNode("button", text="Add to cart", stable_selector='[data-testid="add-to-cart"]')],
+        [
+            FakeNode(
+                "button",
+                text="Add to cart",
+                stable_selector='[data-testid="add-to-cart"]',
+            )
+        ],
     )
 
 
@@ -151,7 +156,15 @@ def test_crawl_passes_options_through_to_crawl_site(monkeypatch, runner):
 
     result = runner.invoke(
         cli.main,
-        ["crawl", "https://example.com", "--max-pages", "5", "--concurrency", "2", "--no-robots"],
+        [
+            "crawl",
+            "https://example.com",
+            "--max-pages",
+            "5",
+            "--concurrency",
+            "2",
+            "--no-robots",
+        ],
     )
 
     assert result.exit_code == 0
@@ -168,10 +181,9 @@ def test_crawl_defaults_respect_robots_true(monkeypatch, runner):
     monkeypatch.setattr(
         cli,
         "crawl_site",
-        lambda url, max_pages, concurrency, respect_robots, **_kwargs: captured.update(
-            respect_robots=respect_robots
-        )
-        or [],
+        lambda url, max_pages, concurrency, respect_robots, **_kwargs: (
+            captured.update(respect_robots=respect_robots) or []
+        ),
     )
 
     result = runner.invoke(cli.main, ["crawl", "https://example.com"])
@@ -183,7 +195,15 @@ def test_crawl_defaults_respect_robots_true(monkeypatch, runner):
 def test_crawl_passes_rate_limit_and_headers_through_to_crawl_site(monkeypatch, runner):
     captured = {}
 
-    def fake_crawl_site(url, max_pages, concurrency, respect_robots, rate_limit=None, headers=None, **_kwargs):
+    def fake_crawl_site(
+        url,
+        max_pages,
+        concurrency,
+        respect_robots,
+        rate_limit=None,
+        headers=None,
+        **_kwargs,
+    ):
         captured["rate_limit"] = rate_limit
         captured["headers"] = headers
         return []
@@ -206,7 +226,10 @@ def test_crawl_passes_rate_limit_and_headers_through_to_crawl_site(monkeypatch, 
 
     assert result.exit_code == 0
     assert captured["rate_limit"] == 5.0
-    assert captured["headers"] == [("Cookie", "session=abc123"), ("X-Api-Key", "secret")]
+    assert captured["headers"] == [
+        ("Cookie", "session=abc123"),
+        ("X-Api-Key", "secret"),
+    ]
 
 
 def test_crawl_rejects_malformed_header(monkeypatch, runner):
@@ -254,7 +277,9 @@ def test_crawl_rejects_unsupported_export_format(monkeypatch, runner):
         ("adobe_tags", "Adobe Tags (Launch) rules"),
     ],
 )
-def test_crawl_export_writes_file_for_every_supported_format(monkeypatch, runner, tmp_path, export_format, expected_label):
+def test_crawl_export_writes_file_for_every_supported_format(
+    monkeypatch, runner, tmp_path, export_format, expected_label
+):
     """Every format registered in EXPORTERS is reachable and writable from
     the CLI, not just GTM."""
     monkeypatch.setattr(cli, "crawl_site", lambda *a, **k: [_page_with_cta()])
@@ -262,7 +287,14 @@ def test_crawl_export_writes_file_for_every_supported_format(monkeypatch, runner
 
     result = runner.invoke(
         cli.main,
-        ["crawl", "https://example.com", "--export", export_format, "-o", str(out_path)],
+        [
+            "crawl",
+            "https://example.com",
+            "--export",
+            export_format,
+            "-o",
+            str(out_path),
+        ],
     )
 
     assert result.exit_code == 0
@@ -298,8 +330,15 @@ def test_diff_command_reports_added_page(monkeypatch, runner, tmp_path):
     old_snapshot_path = tmp_path / "old.json"
     new_snapshot_path = tmp_path / "new.json"
 
-    monkeypatch.setattr(cli, "crawl_site", lambda *a, **k: [_page_with_no_recommendations("https://example.com/")])
-    runner.invoke(cli.main, ["crawl", "https://example.com", "--save-snapshot", str(old_snapshot_path)])
+    monkeypatch.setattr(
+        cli,
+        "crawl_site",
+        lambda *a, **k: [_page_with_no_recommendations("https://example.com/")],
+    )
+    runner.invoke(
+        cli.main,
+        ["crawl", "https://example.com", "--save-snapshot", str(old_snapshot_path)],
+    )
 
     monkeypatch.setattr(
         cli,
@@ -309,7 +348,10 @@ def test_diff_command_reports_added_page(monkeypatch, runner, tmp_path):
             _page_with_cta("https://example.com/new-page"),
         ],
     )
-    runner.invoke(cli.main, ["crawl", "https://example.com", "--save-snapshot", str(new_snapshot_path)])
+    runner.invoke(
+        cli.main,
+        ["crawl", "https://example.com", "--save-snapshot", str(new_snapshot_path)],
+    )
 
     result = runner.invoke(cli.main, ["diff", str(old_snapshot_path), str(new_snapshot_path)])
 
@@ -320,9 +362,14 @@ def test_diff_command_reports_added_page(monkeypatch, runner, tmp_path):
 
 def test_crawl_truncates_recommendation_list_beyond_twenty(monkeypatch, runner):
     nodes = [
-        FakeNode("button", text="add to cart", stable_selector=f'[data-testid="cta-{i}"]') for i in range(25)
+        FakeNode("button", text="add to cart", stable_selector=f'[data-testid="cta-{i}"]')
+        for i in range(25)
     ]
-    monkeypatch.setattr(cli, "crawl_site", lambda *a, **k: [FakePage("https://example.com/", 200, nodes)])
+    monkeypatch.setattr(
+        cli,
+        "crawl_site",
+        lambda *a, **k: [FakePage("https://example.com/", 200, nodes)],
+    )
 
     result = runner.invoke(cli.main, ["crawl", "https://example.com"])
 
@@ -351,7 +398,16 @@ def test_crawl_intent_ollama_constructs_classifier_and_passes_it_to_recommend(mo
 
     result = runner.invoke(
         cli.main,
-        ["crawl", "https://example.com", "--intent", "ollama", "--ollama-model", "llama3", "--ollama-url", "http://localhost:9999"],
+        [
+            "crawl",
+            "https://example.com",
+            "--intent",
+            "ollama",
+            "--ollama-model",
+            "llama3",
+            "--ollama-url",
+            "http://localhost:9999",
+        ],
     )
 
     assert result.exit_code == 0

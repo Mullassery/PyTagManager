@@ -11,7 +11,7 @@ request, or GA4 rejected a malformed hit).
 
 from __future__ import annotations
 
-from typing import Any, List, Optional
+from typing import Any
 
 from pytagmanager.analytics_api.models import Ga4CustomDimension, Ga4EventDefinition
 
@@ -24,19 +24,28 @@ class Ga4ApiClient:
         self._data = data_service
 
     @classmethod
-    def from_service_account(cls, key_path: str, scopes: Optional[List[str]] = None) -> "Ga4ApiClient":
+    def from_service_account(cls, key_path: str, scopes: list[str] | None = None) -> Ga4ApiClient:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
         credentials = service_account.Credentials.from_service_account_file(
             key_path, scopes=scopes or [GA4_READONLY_SCOPE]
         )
-        admin_service = build("analyticsadmin", "v1beta", credentials=credentials, cache_discovery=False)
-        data_service = build("analyticsdata", "v1beta", credentials=credentials, cache_discovery=False)
+        admin_service = build(
+            "analyticsadmin", "v1beta", credentials=credentials, cache_discovery=False
+        )
+        data_service = build(
+            "analyticsdata", "v1beta", credentials=credentials, cache_discovery=False
+        )
         return cls(admin_service, data_service)
 
-    def list_custom_dimensions(self, property_id: str) -> List[Ga4CustomDimension]:
-        response = self._admin.properties().customDimensions().list(parent=f"properties/{property_id}").execute()
+    def list_custom_dimensions(self, property_id: str) -> list[Ga4CustomDimension]:
+        response = (
+            self._admin.properties()
+            .customDimensions()
+            .list(parent=f"properties/{property_id}")
+            .execute()
+        )
         return [
             Ga4CustomDimension(
                 parameter_name=item.get("parameterName", ""),
@@ -46,11 +55,19 @@ class Ga4ApiClient:
             for item in response.get("customDimensions", [])
         ]
 
-    def list_conversion_events(self, property_id: str) -> List[Ga4EventDefinition]:
-        response = self._admin.properties().conversionEvents().list(parent=f"properties/{property_id}").execute()
-        return [Ga4EventDefinition(event_name=item.get("eventName", "")) for item in response.get("conversionEvents", [])]
+    def list_conversion_events(self, property_id: str) -> list[Ga4EventDefinition]:
+        response = (
+            self._admin.properties()
+            .conversionEvents()
+            .list(parent=f"properties/{property_id}")
+            .execute()
+        )
+        return [
+            Ga4EventDefinition(event_name=item.get("eventName", ""))
+            for item in response.get("conversionEvents", [])
+        ]
 
-    def was_event_ingested_realtime(self, property_id: str, event_name: str) -> Optional[bool]:
+    def was_event_ingested_realtime(self, property_id: str, event_name: str) -> bool | None:
         """Returns True/False when the realtime report can answer the
         question, or None when the API call itself failed/was unavailable --
         diagnostics must not treat "couldn't check" as "confirmed missing",
@@ -65,7 +82,10 @@ class Ga4ApiClient:
                         "dimensions": [{"name": "eventName"}],
                         "metrics": [{"name": "eventCount"}],
                         "dimensionFilter": {
-                            "filter": {"fieldName": "eventName", "stringFilter": {"value": event_name}}
+                            "filter": {
+                                "fieldName": "eventName",
+                                "stringFilter": {"value": event_name},
+                            }
                         },
                     },
                 )

@@ -5,9 +5,9 @@ from __future__ import annotations
 import os
 import re
 import stat
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
 from pytagmanager.control.errors import SecretError, ValidationError
 
@@ -21,7 +21,7 @@ class SecretRef:
     target: str
 
     @classmethod
-    def parse(cls, value: str) -> "SecretRef":
+    def parse(cls, value: str) -> SecretRef:
         if not isinstance(value, str):
             raise SecretError(f"secret reference must be a string, got {type(value).__name__}")
         match = _REF_RE.fullmatch(value)

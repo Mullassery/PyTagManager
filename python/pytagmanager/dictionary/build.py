@@ -24,11 +24,16 @@ schema location the way an object key is.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 from pytagmanager.observability.state import RuntimeStateSnapshot
 
-SOURCES = ("datalayer_event", "datalayer_field", "cookie", "local_storage", "session_storage")
+SOURCES = (
+    "datalayer_event",
+    "datalayer_field",
+    "cookie",
+    "local_storage",
+    "session_storage",
+)
 
 
 @dataclass(frozen=True)
@@ -39,23 +44,23 @@ class DictionaryVariable:
 
     source: str  # one of SOURCES
     path: str
-    value_types: Tuple[str, ...]  # sorted, deduped, observed types
-    pages_present: Tuple[str, ...]  # page URLs where observed (deduped, sorted)
+    value_types: tuple[str, ...]  # sorted, deduped, observed types
+    pages_present: tuple[str, ...]  # page URLs where observed (deduped, sorted)
     pages_total: int  # distinct pages considered across the whole run
     first_observed: float
     last_observed: float
-    value_type_counts: Tuple[Tuple[str, int], ...] = ()  # (type, observation_count), sorted by type
+    value_type_counts: tuple[tuple[str, int], ...] = ()  # (type, observation_count), sorted by type
 
     @property
     def observed_count(self) -> int:
         return len(self.pages_present)
 
     @property
-    def presence_ratio(self) -> Optional[float]:
+    def presence_ratio(self) -> float | None:
         return self.observed_count / self.pages_total if self.pages_total else None
 
     @property
-    def value_type_distribution(self) -> Dict[str, float]:
+    def value_type_distribution(self) -> dict[str, float]:
         """Per-type share of observations, e.g. {"string": 0.96, "number": 0.04}
         -- the basis for dictionary/schema_drift.py's value-distribution-shift
         detection. Empty when there are no recorded observations (e.g. a
@@ -68,10 +73,10 @@ class DictionaryVariable:
 
 @dataclass(frozen=True)
 class DataDictionary:
-    variables: Tuple[DictionaryVariable, ...] = field(default_factory=tuple)
+    variables: tuple[DictionaryVariable, ...] = field(default_factory=tuple)
     pages_total: int = 0
 
-    def by_source(self, source: str) -> List[DictionaryVariable]:
+    def by_source(self, source: str) -> list[DictionaryVariable]:
         return [v for v in self.variables if v.source == source]
 
 
@@ -97,7 +102,7 @@ def _flatten_datalayer_fields(
     obj: dict,
     page_url: str,
     timestamp: float,
-    accumulators: "Dict[Tuple[str, str], _Accumulator]",
+    accumulators: dict[tuple[str, str], _Accumulator],
     depth: int = 0,
 ) -> None:
     """Record `obj`'s keys as dot-joined fields under `prefix`, recursing
@@ -114,14 +119,20 @@ def _flatten_datalayer_fields(
 
 
 class _Accumulator:
-    __slots__ = ("value_types", "value_type_counts", "pages", "first_observed", "last_observed")
+    __slots__ = (
+        "first_observed",
+        "last_observed",
+        "pages",
+        "value_type_counts",
+        "value_types",
+    )
 
     def __init__(self) -> None:
         self.value_types: set = set()
-        self.value_type_counts: Dict[str, int] = {}
+        self.value_type_counts: dict[str, int] = {}
         self.pages: set = set()
-        self.first_observed: Optional[float] = None
-        self.last_observed: Optional[float] = None
+        self.first_observed: float | None = None
+        self.last_observed: float | None = None
 
     def record(self, page_url: str, value_type: str, timestamp: float) -> None:
         self.value_types.add(value_type)
@@ -133,12 +144,12 @@ class _Accumulator:
             self.last_observed = timestamp
 
 
-def build_data_dictionary(snapshots: List[RuntimeStateSnapshot]) -> DataDictionary:
+def build_data_dictionary(snapshots: list[RuntimeStateSnapshot]) -> DataDictionary:
     """`snapshots` may include multiple snapshots per page (e.g. `page_load`
     plus each interaction's before/after) -- `pages_total` dedupes by
     `page_url`, so passing every snapshot from a `--site-wide` run's
     `ObservationSession`s is correct, not double-counting."""
-    accumulators: Dict[Tuple[str, str], _Accumulator] = {}
+    accumulators: dict[tuple[str, str], _Accumulator] = {}
     pages_seen: set = set()
 
     for snapshot in snapshots:

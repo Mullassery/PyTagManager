@@ -7,7 +7,7 @@ Diagnosis on a TrackingJourney without a circular import.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 # Ordered worst-to-best only in the sense that reporting sorts critical
 # journeys first; "healthy" is not a failure severity at all.
@@ -26,11 +26,11 @@ class Diagnosis:
     root_cause: str  # short machine-readable slug, e.g. "gtm_trigger_mismatch"
     message: str  # one plain-language sentence explaining the failure
     rule_name: str
-    details: Dict[str, Any] = field(default_factory=dict)
+    details: dict[str, Any] = field(default_factory=dict)
     confidence: str = "Needs investigation"  # one of CONFIDENCE_LEVELS
 
     @classmethod
-    def healthy(cls) -> "Diagnosis":
+    def healthy(cls) -> Diagnosis:
         return cls(
             severity="healthy",
             root_cause="none",

@@ -9,7 +9,8 @@ comparison otherwise (``True`` is not equal to ``1``).
 from __future__ import annotations
 
 import copy
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from pytagmanager.control._sentinels import MISSING
 from pytagmanager.control.checksums import canonical_json
@@ -22,7 +23,17 @@ MAX_PATH_LENGTH = 256
 ALLOWED_NAMESPACES = frozenset({"event", "page", "dom", "data_layer", "consent", "variables"})
 _LOGICAL_OPS = frozenset({"all", "any", "not"})
 _COMPARISON_OPS = frozenset(
-    {"equals", "contains", "starts_with", "matches_glob", "gt", "gte", "lt", "lte", "in"}
+    {
+        "equals",
+        "contains",
+        "starts_with",
+        "matches_glob",
+        "gt",
+        "gte",
+        "lt",
+        "lte",
+        "in",
+    }
 )
 _STRING_OPS = frozenset({"starts_with", "matches_glob"})
 _NUMERIC_OPS = frozenset({"gt", "gte", "lt", "lte"})
@@ -30,7 +41,9 @@ _NUMERIC_OPS = frozenset({"gt", "gte", "lt", "lte"})
 
 def _validate_path(path: Any) -> str:
     if not isinstance(path, str) or not path or len(path) > MAX_PATH_LENGTH:
-        raise ValidationError(f"condition path must be a non-empty string up to {MAX_PATH_LENGTH} characters")
+        raise ValidationError(
+            f"condition path must be a non-empty string up to {MAX_PATH_LENGTH} characters"
+        )
     parts = path.split(".")
     if any(not part or "__" in part for part in parts):
         raise ValidationError(f"condition path is malformed: {path!r}")
@@ -57,9 +70,8 @@ def _validate_value(value: Any, op: str) -> Any:
     canonical_json(value)
     if op in _STRING_OPS and not isinstance(value, str):
         raise ValidationError(f"condition '{op}' requires a string value")
-    if op in _NUMERIC_OPS:
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValidationError(f"condition '{op}' requires a numeric value")
+    if op in _NUMERIC_OPS and (isinstance(value, bool) or not isinstance(value, (int, float))):
+        raise ValidationError(f"condition '{op}' requires a numeric value")
     if op == "in" and not isinstance(value, (list, tuple)):
         raise ValidationError("condition 'in' requires a list value")
     if op == "contains" and not isinstance(value, (str, list, tuple)):
@@ -153,7 +165,8 @@ def pattern_matches(pattern: str, value: str) -> bool:
 
     while value_index < len(value_chars):
         if pattern_index < len(pattern_chars) and (
-            pattern_chars[pattern_index] == "?" or pattern_chars[pattern_index] == value_chars[value_index]
+            pattern_chars[pattern_index] == "?"
+            or pattern_chars[pattern_index] == value_chars[value_index]
         ):
             pattern_index += 1
             value_index += 1
@@ -204,7 +217,11 @@ def evaluate_condition(condition: Mapping[str, Any], context: Mapping[str, Any])
     if op == "starts_with":
         return isinstance(actual, str) and isinstance(expected, str) and actual.startswith(expected)
     if op == "matches_glob":
-        return isinstance(actual, str) and isinstance(expected, str) and pattern_matches(expected, actual)
+        return (
+            isinstance(actual, str)
+            and isinstance(expected, str)
+            and pattern_matches(expected, actual)
+        )
     if op in _NUMERIC_OPS:
         if actual is MISSING or not _number(actual) or not _number(expected):
             return False

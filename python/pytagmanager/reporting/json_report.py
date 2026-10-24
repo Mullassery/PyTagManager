@@ -5,8 +5,6 @@ without silently breaking consumers pinned to an earlier shape.
 
 from __future__ import annotations
 
-from typing import List, Optional
-
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.diagnostics.models import Diagnosis
 from pytagmanager.observability.state import StateDiff
@@ -17,10 +15,10 @@ JSON_SCHEMA_VERSION = 1
 
 
 def build_json_report(
-    journeys: List[TrackingJourney],
-    untested: Optional[List[TrackingRecommendation]] = None,
-    extra_findings: Optional[List[Diagnosis]] = None,
-    state_diffs: Optional[List[StateDiff]] = None,
+    journeys: list[TrackingJourney],
+    untested: list[TrackingRecommendation] | None = None,
+    extra_findings: list[Diagnosis] | None = None,
+    state_diffs: list[StateDiff] | None = None,
 ) -> dict:
     untested = untested or []
     extra_findings = extra_findings or []
@@ -53,7 +51,12 @@ def build_json_report(
             for journey in journeys
         ],
         "untested_candidates": [
-            {"event_name": rec.event_name, "selector": rec.selector, "page_url": rec.page_url} for rec in untested
+            {
+                "event_name": rec.event_name,
+                "selector": rec.selector,
+                "page_url": rec.page_url,
+            }
+            for rec in untested
         ],
         "additional_findings": [
             {

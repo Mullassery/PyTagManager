@@ -15,7 +15,9 @@ def _recommendations():
 
 def _by_event(recs, event_name):
     matches = [r for r in recs if r.event_name == event_name]
-    assert matches, f"expected a recommendation for event '{event_name}', got {[r.event_name for r in recs]}"
+    assert matches, (
+        f"expected a recommendation for event '{event_name}', got {[r.event_name for r in recs]}"
+    )
     return matches[0]
 
 
@@ -103,7 +105,9 @@ def test_new_keyword_categories_are_classified():
     for text, expected_objective in cases.items():
         recs = _recs_for_html(f"<button>{text}</button>")
         assert len(recs) == 1, f"expected exactly one recommendation for {text!r}, got {recs}"
-        assert recs[0].business_objective == expected_objective, f"{text!r} -> {recs[0].business_objective}"
+        assert recs[0].business_objective == expected_objective, (
+            f"{text!r} -> {recs[0].business_objective}"
+        )
 
 
 def test_plain_div_without_interactive_role_is_not_classified():
@@ -131,7 +135,9 @@ class _FakeClassifier:
     def classify(self, node, context):
         self.calls.append((node, context))
         return IntentResult(
-            business_objective=self.objective, confidence=self.confidence, rationale=self.rationale
+            business_objective=self.objective,
+            confidence=self.confidence,
+            rationale=self.rationale,
         )
 
 
@@ -143,13 +149,15 @@ def test_recommend_for_graph_uses_classifier_when_provided():
     recs = recommend_for_graph(graph, classifier=classifier)
 
     assert classifier.calls, "classifier.classify should be called for interactive elements"
-    assert any(r.business_objective == "Purchase Intent" and r.rationale == "fake rationale" for r in recs)
+    assert any(
+        r.business_objective == "Purchase Intent" and r.rationale == "fake rationale" for r in recs
+    )
     assert all(context.url == graph.url for _node, context in classifier.calls)
 
 
 def test_recommend_for_graph_skips_none_objective_from_classifier():
     recs = _recs_for_html_with_classifier(
-        '<button>Add to cart</button>', _FakeClassifier(objective="None")
+        "<button>Add to cart</button>", _FakeClassifier(objective="None")
     )
     assert recs == []
 

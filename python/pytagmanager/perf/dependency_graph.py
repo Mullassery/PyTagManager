@@ -19,7 +19,6 @@ document as their real root -- not a fabricated intermediate node.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, FrozenSet, List, Set, Tuple
 
 from pytagmanager.perf.scripts import ScriptInventory
 
@@ -38,22 +37,22 @@ class DependencyEdge:
 @dataclass(frozen=True)
 class ScriptDependencyGraph:
     page_url: str
-    edges: Tuple[DependencyEdge, ...] = field(default_factory=tuple)
+    edges: tuple[DependencyEdge, ...] = field(default_factory=tuple)
 
-    def children_of(self, url: str) -> Tuple[str, ...]:
+    def children_of(self, url: str) -> tuple[str, ...]:
         return tuple(sorted({e.child_url for e in self.edges if e.parent_url == url}))
 
-    def downstream_of(self, url: str) -> FrozenSet[str]:
+    def downstream_of(self, url: str) -> frozenset[str]:
         """Transitive closure: every script that would stop loading if
         `url` were blocked -- direct children plus their children,
         recursively. This is the data an isolation experiment needs to
         avoid double-counting or missing downstream savings when it
         blocks one script."""
-        children_by_parent: Dict[str, List[str]] = {}
+        children_by_parent: dict[str, list[str]] = {}
         for edge in self.edges:
             children_by_parent.setdefault(edge.parent_url, []).append(edge.child_url)
 
-        visited: Set[str] = set()
+        visited: set[str] = set()
         frontier = list(children_by_parent.get(url, []))
         while frontier:
             child = frontier.pop()
@@ -73,5 +72,7 @@ def build_dependency_graph(inventory: ScriptInventory) -> ScriptDependencyGraph:
             parent, relationship = inventory.page_url, RELATIONSHIP_LOADED_BY_PARSER
         else:
             parent, relationship = inventory.page_url, RELATIONSHIP_LOADED_BY_OTHER
-        edges.append(DependencyEdge(parent_url=parent, child_url=script.url, relationship=relationship))
+        edges.append(
+            DependencyEdge(parent_url=parent, child_url=script.url, relationship=relationship)
+        )
     return ScriptDependencyGraph(page_url=inventory.page_url, edges=tuple(edges))

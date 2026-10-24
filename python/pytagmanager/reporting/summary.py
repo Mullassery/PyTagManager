@@ -7,7 +7,6 @@ none are invented placeholders.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional
 
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -28,18 +27,24 @@ class HealthSummary:
 
 
 def compute_health_summary(
-    journeys: List[TrackingJourney],
-    untested: Optional[List[TrackingRecommendation]] = None,
+    journeys: list[TrackingJourney],
+    untested: list[TrackingRecommendation] | None = None,
 ) -> HealthSummary:
     untested = untested or []
-    pages_tested = len({obs.page_url for journey in journeys for obs in journey.observations if obs.page_url})
+    pages_tested = len(
+        {obs.page_url for journey in journeys for obs in journey.observations if obs.page_url}
+    )
     healthy = sum(1 for j in journeys if j.status == "healthy")
     warnings = sum(1 for j in journeys if j.status == "warning")
     critical = sum(1 for j in journeys if j.status == "critical")
     total = len(journeys)
 
-    duplicates = sum(1 for j in journeys if j.diagnosis and j.diagnosis.root_cause in _DUPLICATE_ROOT_CAUSES)
-    missing = sum(1 for j in journeys if j.diagnosis and j.diagnosis.root_cause == "missing_datalayer_event")
+    duplicates = sum(
+        1 for j in journeys if j.diagnosis and j.diagnosis.root_cause in _DUPLICATE_ROOT_CAUSES
+    )
+    missing = sum(
+        1 for j in journeys if j.diagnosis and j.diagnosis.root_cause == "missing_datalayer_event"
+    )
 
     tested_count = total
     coverage_denominator = tested_count + len(untested)

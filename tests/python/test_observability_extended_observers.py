@@ -6,7 +6,10 @@ and the api_call_without_tracking_event rule they enable.
 from __future__ import annotations
 
 from pytagmanager.correlation.journey import correlate_events
-from pytagmanager.diagnostics.rules import DiagnosticContext, diagnose_journey, primary_diagnosis
+from pytagmanager.diagnostics.rules import (
+    DiagnosticContext,
+    diagnose_journey,
+)
 from pytagmanager.observability.events import redact_payload
 from pytagmanager.observability.scenario import ActionStep, Expectation, Scenario
 from pytagmanager.observability.session import ObservationSession
@@ -63,7 +66,10 @@ def test_fetch_call_with_tracking_produces_no_api_gap_diagnosis(fixture_server):
 
 
 def test_console_error_observed_as_js_error(fixture_server):
-    scenario = Scenario(name="console", steps=[ActionStep(action="click", selector='[data-testid="throw-console-error"]')])
+    scenario = Scenario(
+        name="console",
+        steps=[ActionStep(action="click", selector='[data-testid="throw-console-error"]')],
+    )
     with ObservationSession(headless=True) as session:
         session.load(f"{fixture_server}/{_PAGE}")
         session.run_scenario(scenario)
@@ -151,7 +157,9 @@ def test_mutation_dedup_resets_after_spa_route_change(fixture_server):
         events = session.events
 
     dynamic_button_insertions = [
-        e for e in events if e.event_type == "dom_insert" and e.selector == '[data-testid="dynamic-button"]'
+        e
+        for e in events
+        if e.event_type == "dom_insert" and e.selector == '[data-testid="dynamic-button"]'
     ]
     # Without the SPA-navigation dedup reset, the second insertion (after
     # the route change) would be silently suppressed as "already seen".

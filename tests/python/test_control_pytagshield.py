@@ -5,7 +5,6 @@ import json
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager import cli
 from pytagmanager.control import (
     ConfigPayload,
@@ -15,8 +14,8 @@ from pytagmanager.control import (
     project_to_pytagshield,
     validate_with_pytagshield,
 )
-from pytagmanager.control.store import FileStore
 from pytagmanager.control.service import ControlPlaneService
+from pytagmanager.control.store import FileStore
 
 
 def _payload(*, purposes=("analytics",), kind="ga4", trigger_condition=None, tag_count=1):
@@ -100,8 +99,18 @@ def test_same_destination_gets_purpose_specific_aliases():
 
 
 def test_duplicate_destination_names_are_disambiguated():
-    first = Destination.create(name="GA4", kind="ga4", config={"measurement_id": "G-1"}, secret_refs={"api_secret": "env:S"})
-    second = Destination.create(name="GA4", kind="ga4", config={"measurement_id": "G-2"}, secret_refs={"api_secret": "env:S"})
+    first = Destination.create(
+        name="GA4",
+        kind="ga4",
+        config={"measurement_id": "G-1"},
+        secret_refs={"api_secret": "env:S"},
+    )
+    second = Destination.create(
+        name="GA4",
+        kind="ga4",
+        config={"measurement_id": "G-2"},
+        secret_refs={"api_secret": "env:S"},
+    )
     trigger = Trigger.create(
         name="event",
         type="custom_event",
@@ -126,9 +135,7 @@ def test_duplicate_destination_names_are_disambiguated():
 
 
 def test_page_view_trigger_projects_without_name_condition():
-    destination = Destination.create(
-        name="log", kind="log"
-    )
+    destination = Destination.create(name="log", kind="log")
     trigger = Trigger.create(name="Page view", type="page_view")
     tag = Tag.create(
         name="Page view",
@@ -150,7 +157,10 @@ def test_page_view_trigger_projects_without_name_condition():
     "condition",
     [
         {"op": "equals", "path": "data_layer.plan", "value": "pro"},
-        {"op": "not", "conditions": [{"op": "equals", "path": "event.name", "value": "x"}]},
+        {
+            "op": "not",
+            "conditions": [{"op": "equals", "path": "event.name", "value": "x"}],
+        },
         {"op": "exists", "path": "event.name"},
     ],
 )
@@ -185,7 +195,9 @@ def test_unsupported_destination_kind_is_an_error():
 
 def test_webhook_requires_post():
     destination = Destination.create(
-        name="hook", kind="http_webhook", config={"url": "https://example.com", "method": "PUT"}
+        name="hook",
+        kind="http_webhook",
+        config={"url": "https://example.com", "method": "PUT"},
     )
     trigger = Trigger.create(
         name="event",
@@ -338,9 +350,7 @@ def test_cli_fails_closed_when_secret_is_missing(tmp_path):
     ],
 )
 def test_destination_settings_projection(kind, config, secret_refs, expected_type, expected_block):
-    destination = Destination.create(
-        name="dest", kind=kind, config=config, secret_refs=secret_refs
-    )
+    destination = Destination.create(name="dest", kind=kind, config=config, secret_refs=secret_refs)
     trigger = Trigger.create(
         name="event",
         type="custom_event",

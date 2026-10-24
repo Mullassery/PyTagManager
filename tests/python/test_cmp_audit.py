@@ -71,13 +71,28 @@ def _signals(html: str, *, cookies=(), globals_present=(), network=()):
     "adapter_id,markup",
     [
         ("cookiebot", '<script src="https://consent.cookiebot.com/uc.js"></script>'),
-        ("onetrust", '<script src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js"></script>'),
-        ("usercentrics", '<script src="https://app.usercentrics.eu/browser-ui/latest/loader.js"></script>'),
+        (
+            "onetrust",
+            '<script src="https://cdn.cookielaw.org/scripttemplates/otSDKStub.js"></script>',
+        ),
+        (
+            "usercentrics",
+            '<script src="https://app.usercentrics.eu/browser-ui/latest/loader.js"></script>',
+        ),
         ("didomi", '<script src="https://sdk.privacy-center.org/loader.js"></script>'),
-        ("quantcast", '<script src="https://quantcast.mgr.consensu.org/choice/x/choice.js"></script>'),
-        ("trustarc", '<script src="https://consent.trustarc.com/notice?domain=x"></script>'),
+        (
+            "quantcast",
+            '<script src="https://quantcast.mgr.consensu.org/choice/x/choice.js"></script>',
+        ),
+        (
+            "trustarc",
+            '<script src="https://consent.trustarc.com/notice?domain=x"></script>',
+        ),
         ("osano", '<script src="https://cmp.osano.com/abc/osano.js"></script>'),
-        ("google-funding-choices", '<script src="https://fundingchoicesmessages.google.com/i/x"></script>'),
+        (
+            "google-funding-choices",
+            '<script src="https://fundingchoicesmessages.google.com/i/x"></script>',
+        ),
     ],
 )
 def test_known_cmp_script_signatures_are_detected(adapter_id, markup):
@@ -100,7 +115,9 @@ def test_cmp_global_and_cookie_evidence_are_retained():
 
 
 def test_unknown_markup_is_not_misclassified_as_a_cmp():
-    detections = detect_adapters(_signals("<html><body><button>Accept cookies</button></body></html>"))
+    detections = detect_adapters(
+        _signals("<html><body><button>Accept cookies</button></body></html>")
+    )
     assert detections == ()
 
 
@@ -149,13 +166,17 @@ def test_google_consent_mode_default_and_update_are_merged_without_claiming_more
 
 def test_google_mode_mixed_advertising_signals_are_left_unknown():
     categories = google_categories_from_mode(
-        {"ad_storage": "granted", "ad_user_data": "denied", "ad_personalization": "denied"}
+        {
+            "ad_storage": "granted",
+            "ad_user_data": "denied",
+            "ad_personalization": "denied",
+        }
     )
     assert categories["advertising"] is None
 
 
 def test_cookie_presence_is_not_decoded_into_granted_categories():
-    detection = CmpDetection(
+    CmpDetection(
         adapter_id="cookiebot",
         vendor="Cookiebot",
         adapter_contract_version="1",
@@ -165,7 +186,13 @@ def test_cookie_presence_is_not_decoded_into_granted_categories():
         [
             ConsentState(
                 sources=("cookie_presence",),
-                categories={"necessary": None, "preferences": None, "analytics": None, "advertising": None, "other": None},
+                categories={
+                    "necessary": None,
+                    "preferences": None,
+                    "analytics": None,
+                    "advertising": None,
+                    "other": None,
+                },
                 confidence="unverified",
             )
         ]
@@ -175,7 +202,13 @@ def test_cookie_presence_is_not_decoded_into_granted_categories():
 
 
 def _state(**categories):
-    base = {"necessary": True, "preferences": None, "analytics": None, "advertising": None, "other": None}
+    base = {
+        "necessary": True,
+        "preferences": None,
+        "analytics": None,
+        "advertising": None,
+        "other": None,
+    }
     base.update(categories)
     return ConsentState(
         sources=("google_consent_mode",),
@@ -185,7 +218,11 @@ def _state(**categories):
     )
 
 
-def _request(category="analytics", phase="initial", url="https://www.google-analytics.com/g/collect?en=page_view"):
+def _request(
+    category="analytics",
+    phase="initial",
+    url="https://www.google-analytics.com/g/collect?en=page_view",
+):
     return RequestObservation(
         url=url,
         method="GET",
@@ -212,7 +249,9 @@ def test_denied_consent_plus_pre_consent_request_is_high_confidence():
         requests=(_request(),),
         cookies=(),
     )
-    finding = next(item for item in findings if item.rule_id == "cmp.tracking_before_consent.analytics")
+    finding = next(
+        item for item in findings if item.rule_id == "cmp.tracking_before_consent.analytics"
+    )
     assert finding.severity == "high"
     assert finding.confidence == "high-confidence"
 
@@ -228,7 +267,9 @@ def test_unknown_consent_state_makes_pre_consent_request_a_lead_not_a_verdict():
         requests=(_request(),),
         cookies=(),
     )
-    finding = next(item for item in findings if item.rule_id == "cmp.tracking_before_consent.analytics")
+    finding = next(
+        item for item in findings if item.rule_id == "cmp.tracking_before_consent.analytics"
+    )
     assert finding.severity == "medium"
     assert finding.confidence == "suspected"
 
@@ -307,7 +348,10 @@ def test_findings_are_deduped_by_stable_id_and_keep_evidence():
         after_action_state=None,
         after_reload_state=None,
         lifecycle=ConsentLifecycle(),
-        requests=(request, _request(url="https://www.google-analytics.com/g/collect?en=scroll")),
+        requests=(
+            request,
+            _request(url="https://www.google-analytics.com/g/collect?en=scroll"),
+        ),
         cookies=(),
     )
     assert len(findings_b) <= len(findings_a) + 1
@@ -318,12 +362,18 @@ def test_findings_are_deduped_by_stable_id_and_keep_evidence():
 def test_script_assets_are_not_misreported_as_collection_requests():
     assert _classify_request("https://www.google-analytics.com/analytics.js", "script") == "other"
     assert _classify_request("https://connect.facebook.net/en_US/fbevents.js", "script") == "other"
-    assert _classify_request("https://www.google-analytics.com/g/collect?en=page_view", "fetch") == "analytics"
+    assert (
+        _classify_request("https://www.google-analytics.com/g/collect?en=page_view", "fetch")
+        == "analytics"
+    )
     assert _classify_request("https://www.facebook.com/tr?id=1", "image") == "advertising"
 
 
 def test_urls_are_sanitized_before_evidence_serialization():
-    assert sanitize_url("https://example.test/path?token=secret&email=x#frag") == "https://example.test/path"
+    assert (
+        sanitize_url("https://example.test/path?token=secret&email=x#frag")
+        == "https://example.test/path"
+    )
 
 
 def test_unknown_cmp_cookie_is_reported_as_an_observation_not_a_violation():
@@ -337,7 +387,9 @@ def test_unknown_cmp_cookie_is_reported_as_an_observation_not_a_violation():
         requests=(),
         cookies=(CookieMetadata(name="OptanonConsent", domain="example.test"),),
     )
-    finding = next(item for item in findings if item.rule_id == "cmp.consent_cookie_without_detection")
+    finding = next(
+        item for item in findings if item.rule_id == "cmp.consent_cookie_without_detection"
+    )
     assert finding.severity == "informational"
     assert finding.confidence == "suspected"
 
@@ -370,7 +422,9 @@ def test_consent_action_requires_explicit_authorization_before_any_browser_launc
         CmpAuditRunner().run("http://127.0.0.1:9/never-loaded", consent_action="accept")
 
 
-def test_authorized_accept_updates_state_without_fabricating_post_reject_tracking(cmp_fixture_server):
+def test_authorized_accept_updates_state_without_fabricating_post_reject_tracking(
+    cmp_fixture_server,
+):
     report = CmpAuditRunner(CmpAuditOptions(wait_seconds=0.2)).run(
         f"{cmp_fixture_server}/cookiebot.html",
         consent_action="accept",
@@ -395,9 +449,7 @@ def test_authorized_reject_detects_post_reject_collection(cmp_fixture_server):
 
 
 def test_reload_persistence_is_checked_not_assumed(cmp_fixture_server):
-    report = CmpAuditRunner(
-        CmpAuditOptions(wait_seconds=0.2, reload_after_consent=True)
-    ).run(
+    report = CmpAuditRunner(CmpAuditOptions(wait_seconds=0.2, reload_after_consent=True)).run(
         f"{cmp_fixture_server}/cookiebot.html",
         consent_action="accept",
         authorize_consent_interaction=True,
@@ -408,7 +460,9 @@ def test_reload_persistence_is_checked_not_assumed(cmp_fixture_server):
     assert "cmp.consent_not_persisted" in _finding_ids(report.findings)
 
 
-def test_no_cmp_fixture_is_reported_as_limited_evidence_not_a_violation(cmp_fixture_server):
+def test_no_cmp_fixture_is_reported_as_limited_evidence_not_a_violation(
+    cmp_fixture_server,
+):
     report = CmpAuditRunner(CmpAuditOptions(wait_seconds=0.1)).run(
         f"{cmp_fixture_server}/no_cmp.html"
     )
@@ -452,9 +506,7 @@ def test_declarative_custom_adapter_is_loaded_and_detected(tmp_path):
 
 
 def test_custom_adapter_file_cannot_shadow_builtin_ids(tmp_path):
-    path = _write_adapter_file(
-        tmp_path / "adapter.json", [_custom_adapter_payload("cookiebot")]
-    )
+    path = _write_adapter_file(tmp_path / "adapter.json", [_custom_adapter_payload("cookiebot")])
     with pytest.raises(AdapterFileError, match="reserved or already loaded"):
         load_adapter_file(path)
 
@@ -488,15 +540,16 @@ def test_didomi_reader_normalizes_purpose_and_vendor_ids():
                 "disabled": ["personalization-purpose"],
             }
         },
-        "vendors": {
-            "global": {"enabled": ["google-analytics"], "disabled": ["ad-vendor"]}
-        },
+        "vendors": {"global": {"enabled": ["google-analytics"], "disabled": ["ad-vendor"]}},
     }
     state = DidomiAdapter().read_consent(_FakeSession(payload), timestamp=7.0)
     assert state is not None
     assert state.sources == ("didomi_state",)
     assert state.vendor_state["api"] == "didomi"
-    assert state.vendor_state["purposes_enabled"] == ["analytics-purpose", "ads-purpose"]
+    assert state.vendor_state["purposes_enabled"] == [
+        "analytics-purpose",
+        "ads-purpose",
+    ]
     assert state.vendor_state["vendors_disabled"] == ["ad-vendor"]
     assert state.categories["analytics"] is None
     assert state.categories["necessary"] is True
@@ -504,9 +557,7 @@ def test_didomi_reader_normalizes_purpose_and_vendor_ids():
 
 
 def test_onetrust_reader_keeps_active_groups_without_mapping_categories():
-    state = OneTrustAdapter().read_consent(
-        _FakeSession(",C0001, C0002,C0004,"), timestamp=8.0
-    )
+    state = OneTrustAdapter().read_consent(_FakeSession(",C0001, C0002,C0004,"), timestamp=8.0)
     assert state is not None
     assert state.sources == ("onetrust_groups",)
     assert state.vendor_state == {
@@ -581,9 +632,20 @@ def test_tcf_reader_normalizes_data_without_the_tc_string():
         "eventStatus": "tcloaded",
         "cmpStatus": "loaded",
         "tcString": "SECRET-TCF",
-        "purpose": {"consents": {"2": True, "3": True, "4": True, "7": True,
-                                 "8": False, "9": False, "10": False,
-                                 "5": True, "6": True, "11": True}},
+        "purpose": {
+            "consents": {
+                "2": True,
+                "3": True,
+                "4": True,
+                "7": True,
+                "8": False,
+                "9": False,
+                "10": False,
+                "5": True,
+                "6": True,
+                "11": True,
+            }
+        },
         "legitimateInterests": {"consents": {"2": False}},
         "specialFeatures": {"optins": {"1": True}},
     }
@@ -617,7 +679,9 @@ def test_gpp_reader_normalizes_metadata_without_the_gpp_string():
     assert "SECTION-SECRET" not in serialized
 
 
-def test_browser_collects_tcf_and_gpp_without_serializing_consent_strings(cmp_fixture_server):
+def test_browser_collects_tcf_and_gpp_without_serializing_consent_strings(
+    cmp_fixture_server,
+):
     report = CmpAuditRunner(CmpAuditOptions(wait_seconds=0.1)).run(
         f"{cmp_fixture_server}/tcf_gpp.html"
     )
@@ -677,7 +741,13 @@ def test_cli_rejects_invalid_adapter_file_without_launching_browser(tmp_path):
     path.write_text('{"schema_version": 1, "adapters": [{"adapter_id": "x"}]}')
     result = CliRunner().invoke(
         main,
-        ["cmp", "audit", "http://127.0.0.1:9/never-loaded", "--adapter-file", str(path)],
+        [
+            "cmp",
+            "audit",
+            "http://127.0.0.1:9/never-loaded",
+            "--adapter-file",
+            str(path),
+        ],
     )
     assert result.exit_code == 2
     assert "vendor" in result.output.lower()
@@ -686,7 +756,13 @@ def test_cli_rejects_invalid_adapter_file_without_launching_browser(tmp_path):
 def test_cli_refuses_consent_action_without_authorization():
     result = CliRunner().invoke(
         main,
-        ["cmp", "audit", "http://127.0.0.1:9/never-loaded", "--consent-action", "accept"],
+        [
+            "cmp",
+            "audit",
+            "http://127.0.0.1:9/never-loaded",
+            "--consent-action",
+            "accept",
+        ],
     )
     assert result.exit_code == 2
     assert "explicit authorization" in result.output.lower()

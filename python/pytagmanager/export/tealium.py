@@ -13,13 +13,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from pytagmanager.export._taxonomy import canonical_event
 from pytagmanager.recommend.models import TrackingRecommendation
 
 
-def build_tealium_profile(recommendations: List[TrackingRecommendation]) -> dict:
+def build_tealium_profile(recommendations: list[TrackingRecommendation]) -> dict:
     """Build `{"udo_events": [...], "load_rules": [...]}`.
 
     Each `udo_events` entry is a `utag.link()` call payload: `tealium_event`
@@ -54,7 +53,11 @@ def build_tealium_profile(recommendations: List[TrackingRecommendation]) -> dict
                 "id": f"lr_{i}",
                 "name": f"{event_name} - {rec.trigger_type}",
                 "conditions": [
-                    {"variable": "tealium_event", "operator": "equals", "value": event_name},
+                    {
+                        "variable": "tealium_event",
+                        "operator": "equals",
+                        "value": event_name,
+                    },
                 ],
             }
         )
@@ -62,6 +65,6 @@ def build_tealium_profile(recommendations: List[TrackingRecommendation]) -> dict
     return {"udo_events": udo_events, "load_rules": load_rules}
 
 
-def export_tealium_json(recommendations: List[TrackingRecommendation], path: str) -> None:
+def export_tealium_json(recommendations: list[TrackingRecommendation], path: str) -> None:
     profile = build_tealium_profile(recommendations)
     Path(path).write_text(json.dumps(profile, indent=2))

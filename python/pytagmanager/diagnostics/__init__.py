@@ -8,11 +8,11 @@ from pytagmanager.diagnostics.rules import (
 )
 
 __all__ = [
-    "Diagnosis",
     "CONFIDENCE_LEVELS",
+    "Diagnosis",
     "DiagnosticContext",
     "diagnose_journey",
-    "primary_diagnosis",
-    "find_untested_recommendations",
     "find_duplicate_purchases",
+    "find_untested_recommendations",
+    "primary_diagnosis",
 ]

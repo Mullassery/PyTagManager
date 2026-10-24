@@ -11,7 +11,8 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 CONTRACT_VERSION = 1
@@ -219,7 +220,9 @@ def _finding_id(finding: Mapping[str, Any], source: str) -> str:
         "event": _safe_text(finding.get("event") or finding.get("event_name"), 200),
         "root_cause": _safe_text(finding.get("root_cause"), 200),
         "message": _safe_text(finding.get("message"), 500),
-        "page_url": _safe_url(finding.get("page_url") or details.get("page_url") or details.get("url")),
+        "page_url": _safe_url(
+            finding.get("page_url") or details.get("page_url") or details.get("url")
+        ),
         "selector": _safe_text(details.get("selector"), 300),
         "tag_id": _safe_text(details.get("tag_id") or details.get("tagId"), 200),
         "container_id": _safe_text(details.get("container_id") or details.get("containerId"), 200),
@@ -267,7 +270,8 @@ def diagnosis_to_finding_record(
         "confidence": confidence,
         "message": message,
         "recommendation": _safe_text(
-            finding.get("recommendation") or recommendation_for_root_cause(root_cause), 1000
+            finding.get("recommendation") or recommendation_for_root_cause(root_cause),
+            1000,
         ),
         "sourceEvent": event,
         "source": source,

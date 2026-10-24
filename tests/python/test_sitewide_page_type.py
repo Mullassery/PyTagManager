@@ -10,7 +10,6 @@ import urllib.error
 import urllib.request
 
 import pytest
-
 from pytagmanager import _core
 from pytagmanager.sitewide.page_type import (
     DEFAULT_OLLAMA_BASE_URL,
@@ -135,6 +134,8 @@ def test_assign_semantic_labels_relabels_by_majority_vote():
 
 
 def test_assign_semantic_labels_keeps_original_label_when_no_graph_available():
-    template = PageTemplate(template_id="t1", label="Products", page_urls=["https://example.com/products/1"])
+    template = PageTemplate(
+        template_id="t1", label="Products", page_urls=["https://example.com/products/1"]
+    )
     relabeled = assign_semantic_labels([template], {}, HeuristicPageTypeClassifier())
     assert relabeled[0].label == "Products"

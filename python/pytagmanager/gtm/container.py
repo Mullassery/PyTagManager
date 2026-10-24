@@ -10,14 +10,14 @@ from __future__ import annotations
 import copy
 import json
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from pytagmanager.control.config import ConfigPayload, Tag, Trigger, Variable
 from pytagmanager.control.errors import ValidationError
-from pytagmanager.control.ids import new_id, utc_now
+from pytagmanager.control.ids import utc_now
 
 _REF_RE = re.compile(r"\{\{\s*([^{}]+?)\s*\}\}")
 _PATH_RE = re.compile(r"^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$")
@@ -90,8 +90,7 @@ def _load_yaml(text: str) -> Any:
         import yaml
     except ImportError as exc:  # pragma: no cover - environment dependent
         raise ValidationError(
-            "YAML input requires the optional PyYAML dependency "
-            "(install pytagmanager[diagnostics])"
+            "YAML input requires the optional PyYAML dependency (install pytagmanager[diagnostics])"
         ) from exc
     try:
         return yaml.safe_load(text)
@@ -134,7 +133,9 @@ def _yaml_dump(document: Mapping[str, Any]) -> str:
     return yaml.safe_dump(dict(document), sort_keys=False, allow_unicode=True)
 
 
-def write_container(document: Mapping[str, Any], path: str | Path, *, format: str | None = None) -> Path:
+def write_container(
+    document: Mapping[str, Any], path: str | Path, *, format: str | None = None
+) -> Path:
     target = Path(path)
     selected = (format or target.suffix.lstrip(".") or "json").lower()
     if selected not in {"json", "yaml", "yml"}:
@@ -228,9 +229,7 @@ def analyze_container(document: Mapping[str, Any]) -> list[GtmFinding]:
         for item in _items(version, "builtInVariable")
         if isinstance(item.get("type"), str)
     }
-    variable_names = {
-        str(item.get("name")) for item in variables if item.get("name") is not None
-    }
+    variable_names = {str(item.get("name")) for item in variables if item.get("name") is not None}
     known_refs = {name.replace("_", " ") for name in variable_names} | _BUILTIN_VARIABLES | builtins
     findings: list[GtmFinding] = []
 
@@ -273,7 +272,7 @@ def analyze_container(document: Mapping[str, Any]) -> list[GtmFinding]:
                 )
             )
 
-    tags_by_id = {str(tag.get("tagId")): tag for tag in tags if tag.get("tagId") is not None}
+    {str(tag.get("tagId")): tag for tag in tags if tag.get("tagId") is not None}
     trigger_ids = {str(trigger.get("triggerId")) for trigger in triggers}
     tags_using_trigger: dict[str, list[str]] = {}
     ga4_event_owners: dict[tuple[str, str], list[str]] = {}
@@ -362,7 +361,11 @@ def analyze_container(document: Mapping[str, Any]) -> list[GtmFinding]:
             elif isinstance(event_name, str):
                 key = (str(event_name), str(firing))
                 ga4_event_owners.setdefault(key, []).append(tag_id)
-        measurement = params.get("measurementId") or params.get("measurementIdOverride") or params.get("tagId")
+        measurement = (
+            params.get("measurementId")
+            or params.get("measurementIdOverride")
+            or params.get("tagId")
+        )
         if isinstance(measurement, str) and _GA_MEASUREMENT_RE.fullmatch(measurement):
             measurements.setdefault(measurement, []).append(tag_id)
 
@@ -382,7 +385,7 @@ def analyze_container(document: Mapping[str, Any]) -> list[GtmFinding]:
                 )
             )
 
-    for (event_name, firing), owners in ga4_event_owners.items():
+    for (event_name, _firing), owners in ga4_event_owners.items():
         if len(owners) > 1:
             findings.append(
                 GtmFinding(
@@ -477,7 +480,10 @@ def gtm_to_payload(document: Mapping[str, Any]) -> tuple[ConfigPayload, list[str
         if gtm_type.upper() not in _TRIGGER_MAP:
             warnings.append(f"trigger {raw.get('name')!r} type {gtm_type!r} mapped to custom_event")
         conditions = _event_trigger_conditions(raw)
-        if not conditions["conditions"] and gtm_type.upper() not in {"PAGEVIEW", "CUSTOM_EVENT"}:
+        if not conditions["conditions"] and gtm_type.upper() not in {
+            "PAGEVIEW",
+            "CUSTOM_EVENT",
+        }:
             warnings.append(
                 f"trigger {raw.get('name')!r} conditions are not fully representable; raw GTM data is retained"
             )
@@ -534,8 +540,10 @@ def gtm_to_payload(document: Mapping[str, Any]) -> tuple[ConfigPayload, list[str
 
 
 def payload_to_gtm(payload: ConfigPayload) -> dict[str, Any]:
-    trigger_ids = {trigger.trigger_id: str(index) for index, trigger in enumerate(payload.triggers, 1)}
-    variable_ids = {variable.variable_id: str(index) for index, variable in enumerate(payload.variables, 1)}
+    trigger_ids = {
+        trigger.trigger_id: str(index) for index, trigger in enumerate(payload.triggers, 1)
+    }
+    {variable.variable_id: str(index) for index, variable in enumerate(payload.variables, 1)}
     tags = []
     for index, tag in enumerate(payload.tags, 1):
         tags.append(
@@ -546,7 +554,9 @@ def payload_to_gtm(payload: ConfigPayload) -> dict[str, Any]:
                 "name": tag.name,
                 "type": _TAG_REVERSE.get(tag.type, tag.type),
                 "parameter": _param_list(tag.parameters),
-                "firingTriggerId": [trigger_ids[item] for item in tag.trigger_ids if item in trigger_ids],
+                "firingTriggerId": [
+                    trigger_ids[item] for item in tag.trigger_ids if item in trigger_ids
+                ],
                 "firingRuleId": [],
                 "blockingTriggerId": [],
                 "tagFiringOption": "oncePerEvent",
@@ -573,7 +583,10 @@ def payload_to_gtm(payload: ConfigPayload) -> dict[str, Any]:
                             "type": "EQUALS",
                             "parameter": [
                                 {"key": "arg0", "value": "{{_event}}"},
-                                {"key": "arg1", "value": str(condition.get("value", ""))},
+                                {
+                                    "key": "arg1",
+                                    "value": str(condition.get("value", "")),
+                                },
                             ],
                         }
                     )
@@ -592,7 +605,12 @@ def payload_to_gtm(payload: ConfigPayload) -> dict[str, Any]:
             ]
         elif variable.source == "static":
             raw_type = "c"
-            params = [{"key": "value", "value": str(variable.default if variable.default is not None else "")}]
+            params = [
+                {
+                    "key": "value",
+                    "value": str(variable.default if variable.default is not None else ""),
+                }
+            ]
         elif variable.source in {"page_url", "page_path", "page_title", "referrer"}:
             raw_type = "u"
             params = []

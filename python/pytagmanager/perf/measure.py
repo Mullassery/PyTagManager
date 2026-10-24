@@ -29,29 +29,29 @@ inputs to every run, not because throttling makes them so.
 from __future__ import annotations
 
 import statistics
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
 
 _PERF_AGENT_JS_PATH = Path(__file__).parent / "perf_agent.js"
 
 
 @dataclass(frozen=True)
 class PerformanceSnapshot:
-    lcp_ms: Optional[float]
-    lcp_url: Optional[str]
+    lcp_ms: float | None
+    lcp_url: str | None
     cls: float
-    fcp_ms: Optional[float]
+    fcp_ms: float | None
     tbt_ms: float
-    inp_ms: Optional[float]
-    dom_content_loaded_ms: Optional[float]
-    load_event_ms: Optional[float]
+    inp_ms: float | None
+    dom_content_loaded_ms: float | None
+    load_event_ms: float | None
     transfer_bytes: float
     request_count: int
     long_task_count: int
 
     @classmethod
-    def from_raw(cls, raw: dict) -> "PerformanceSnapshot":
+    def from_raw(cls, raw: dict) -> PerformanceSnapshot:
         return cls(
             lcp_ms=raw.get("lcpMs"),
             lcp_url=raw.get("lcpUrl"),
@@ -67,7 +67,7 @@ class PerformanceSnapshot:
         )
 
 
-def _median(values: Sequence[Optional[float]]) -> Optional[float]:
+def _median(values: Sequence[float | None]) -> float | None:
     present = [v for v in values if v is not None]
     return statistics.median(present) if present else None
 
@@ -81,46 +81,48 @@ class TestEnvironmentConfig:
     viewport_width: int = 1280
     viewport_height: int = 720
     run_count: int = 3
-    cpu_throttling_rate: Optional[float] = None  # e.g. 4.0 == CPU is 4x slower; None == no throttling applied
+    cpu_throttling_rate: float | None = (
+        None  # e.g. 4.0 == CPU is 4x slower; None == no throttling applied
+    )
     notes: str = ""
 
 
 @dataclass(frozen=True)
 class PerformanceBaseline:
     url: str
-    runs: Tuple[PerformanceSnapshot, ...] = field(default_factory=tuple)
-    environment: Optional[TestEnvironmentConfig] = None
+    runs: tuple[PerformanceSnapshot, ...] = field(default_factory=tuple)
+    environment: TestEnvironmentConfig | None = None
 
     @property
     def run_count(self) -> int:
         return len(self.runs)
 
     @property
-    def median_lcp_ms(self) -> Optional[float]:
+    def median_lcp_ms(self) -> float | None:
         return _median([r.lcp_ms for r in self.runs])
 
     @property
-    def median_cls(self) -> Optional[float]:
+    def median_cls(self) -> float | None:
         return _median([r.cls for r in self.runs])
 
     @property
-    def median_fcp_ms(self) -> Optional[float]:
+    def median_fcp_ms(self) -> float | None:
         return _median([r.fcp_ms for r in self.runs])
 
     @property
-    def median_tbt_ms(self) -> Optional[float]:
+    def median_tbt_ms(self) -> float | None:
         return _median([r.tbt_ms for r in self.runs])
 
     @property
-    def median_inp_ms(self) -> Optional[float]:
+    def median_inp_ms(self) -> float | None:
         return _median([r.inp_ms for r in self.runs])
 
     @property
-    def median_request_count(self) -> Optional[float]:
+    def median_request_count(self) -> float | None:
         return _median([float(r.request_count) for r in self.runs])
 
     @property
-    def median_transfer_bytes(self) -> Optional[float]:
+    def median_transfer_bytes(self) -> float | None:
         return _median([r.transfer_bytes for r in self.runs])
 
 
@@ -142,8 +144,8 @@ def measure_page_performance(
     headless: bool = True,
     browser_name: str = "chromium",
     wait_ms: int = 500,
-    block_url_patterns: Optional[Sequence[str]] = None,
-    environment: Optional[TestEnvironmentConfig] = None,
+    block_url_patterns: Sequence[str] | None = None,
+    environment: TestEnvironmentConfig | None = None,
 ) -> PerformanceBaseline:
     """Loads `url` in `runs` fresh browser contexts (never reusing state
     across runs), capturing one `PerformanceSnapshot` per run.
@@ -169,7 +171,9 @@ def measure_page_performance(
             "`pip install pytagmanager[diagnostics]` and run `playwright install chromium` once."
         ) from exc
 
-    environment = environment or TestEnvironmentConfig(browser_name=browser_name, headless=headless, run_count=runs)
+    environment = environment or TestEnvironmentConfig(
+        browser_name=browser_name, headless=headless, run_count=runs
+    )
     if environment.run_count != runs:
         # `runs` (the loop bound actually used below) is always
         # authoritative -- never let the persisted environment claim a
@@ -177,7 +181,7 @@ def measure_page_performance(
         environment = replace(environment, run_count=runs)
 
     perf_agent_js = _PERF_AGENT_JS_PATH.read_text()
-    snapshots: List[PerformanceSnapshot] = []
+    snapshots: list[PerformanceSnapshot] = []
 
     with sync_playwright() as playwright:
         browser_type = getattr(playwright, environment.browser_name)
@@ -185,7 +189,10 @@ def measure_page_performance(
         try:
             for _ in range(runs):
                 context = browser.new_context(
-                    viewport={"width": environment.viewport_width, "height": environment.viewport_height}
+                    viewport={
+                        "width": environment.viewport_width,
+                        "height": environment.viewport_height,
+                    }
                 )
                 try:
                     for pattern in block_url_patterns or ():
@@ -193,7 +200,10 @@ def measure_page_performance(
                     page = context.new_page()
                     if environment.cpu_throttling_rate is not None:
                         cdp = context.new_cdp_session(page)
-                        cdp.send("Emulation.setCPUThrottlingRate", {"rate": environment.cpu_throttling_rate})
+                        cdp.send(
+                            "Emulation.setCPUThrottlingRate",
+                            {"rate": environment.cpu_throttling_rate},
+                        )
                     page.add_init_script(perf_agent_js)
                     page.goto(url, wait_until="networkidle")
                     snapshots.append(capture_performance_snapshot(page, wait_ms=wait_ms))

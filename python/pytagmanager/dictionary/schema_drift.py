@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import difflib
 from dataclasses import dataclass, field
-from typing import Dict, List, Tuple
 
 from pytagmanager.dictionary.build import DataDictionary, DictionaryVariable
 from pytagmanager.dictionary.gtm_usage import GtmUsageIndex
@@ -45,12 +44,15 @@ _TYPE_SHARE_SHIFT_THRESHOLD = 0.05
 class TypeDistributionShift:
     source: str
     path: str
-    old_distribution: Dict[str, float]
-    new_distribution: Dict[str, float]
+    old_distribution: dict[str, float]
+    new_distribution: dict[str, float]
 
     def render(self) -> str:
         types = sorted(set(self.old_distribution) | set(self.new_distribution))
-        parts = [f"{t}: {self.old_distribution.get(t, 0.0):.0%} -> {self.new_distribution.get(t, 0.0):.0%}" for t in types]
+        parts = [
+            f"{t}: {self.old_distribution.get(t, 0.0):.0%} -> {self.new_distribution.get(t, 0.0):.0%}"
+            for t in types
+        ]
         return f"{self.path} ({self.source}): " + ", ".join(parts)
 
 
@@ -68,15 +70,18 @@ class PossibleRename:
 
 @dataclass(frozen=True)
 class DictionaryDrift:
-    added_variables: List[DictionaryVariable] = field(default_factory=list)
-    removed_variables: List[DictionaryVariable] = field(default_factory=list)
-    type_distribution_shifts: List[TypeDistributionShift] = field(default_factory=list)
-    possible_renames: List[PossibleRename] = field(default_factory=list)
+    added_variables: list[DictionaryVariable] = field(default_factory=list)
+    removed_variables: list[DictionaryVariable] = field(default_factory=list)
+    type_distribution_shifts: list[TypeDistributionShift] = field(default_factory=list)
+    possible_renames: list[PossibleRename] = field(default_factory=list)
 
     @property
     def has_changes(self) -> bool:
         return bool(
-            self.added_variables or self.removed_variables or self.type_distribution_shifts or self.possible_renames
+            self.added_variables
+            or self.removed_variables
+            or self.type_distribution_shifts
+            or self.possible_renames
         )
 
 
@@ -88,38 +93,50 @@ def _event_prefix(path: str) -> str:
     return path.split(".", 1)[0]
 
 
-def _type_shift(old: DictionaryVariable, new: DictionaryVariable) -> "TypeDistributionShift | None":
+def _type_shift(old: DictionaryVariable, new: DictionaryVariable) -> TypeDistributionShift | None:
     old_dist = old.value_type_distribution
     new_dist = new.value_type_distribution
     if not old_dist or not new_dist:
         return None
     types = set(old_dist) | set(new_dist)
-    shifted = any(abs(old_dist.get(t, 0.0) - new_dist.get(t, 0.0)) >= _TYPE_SHARE_SHIFT_THRESHOLD for t in types)
+    shifted = any(
+        abs(old_dist.get(t, 0.0) - new_dist.get(t, 0.0)) >= _TYPE_SHARE_SHIFT_THRESHOLD
+        for t in types
+    )
     if not shifted:
         return None
-    return TypeDistributionShift(source=new.source, path=new.path, old_distribution=old_dist, new_distribution=new_dist)
+    return TypeDistributionShift(
+        source=new.source,
+        path=new.path,
+        old_distribution=old_dist,
+        new_distribution=new_dist,
+    )
 
 
 def _possible_renames(
-    removed: List[DictionaryVariable], added: List[DictionaryVariable]
-) -> List[PossibleRename]:
+    removed: list[DictionaryVariable], added: list[DictionaryVariable]
+) -> list[PossibleRename]:
     """Only compares datalayer_field variables within the same event
     namespace (the part of the path before the first '.') -- a cookie
     disappearing and a localStorage key appearing is never a "rename"."""
     removed_fields = [v for v in removed if v.source == "datalayer_field"]
     added_fields = [v for v in added if v.source == "datalayer_field"]
-    matches: List[PossibleRename] = []
+    matches: list[PossibleRename] = []
     claimed_new: set = set()
 
     for old_var in removed_fields:
-        best: "Tuple[float, DictionaryVariable] | None" = None
+        best: tuple[float, DictionaryVariable] | None = None
         for new_var in added_fields:
             if new_var.path in claimed_new:
                 continue
             if _event_prefix(old_var.path) != _event_prefix(new_var.path):
                 continue
-            same_types = set(old_var.value_types) == set(new_var.value_types) and bool(old_var.value_types)
-            similarity = difflib.SequenceMatcher(None, _leaf_name(old_var.path), _leaf_name(new_var.path)).ratio()
+            same_types = set(old_var.value_types) == set(new_var.value_types) and bool(
+                old_var.value_types
+            )
+            similarity = difflib.SequenceMatcher(
+                None, _leaf_name(old_var.path), _leaf_name(new_var.path)
+            ).ratio()
             score = similarity + (0.2 if same_types else 0.0)
             if similarity < _RENAME_SIMILARITY_THRESHOLD and not same_types:
                 continue
@@ -169,9 +186,7 @@ def diff_dictionaries(old: DataDictionary, new: DataDictionary) -> DictionaryDri
     )
 
 
-def render_drift_report(
-    drift: DictionaryDrift, gtm_usage: "GtmUsageIndex | None" = None
-) -> str:
+def render_drift_report(drift: DictionaryDrift, gtm_usage: GtmUsageIndex | None = None) -> str:
     lines = ["PyTagManager Data Dictionary Schema Drift", "=" * 42, ""]
 
     if drift.possible_renames:
@@ -184,7 +199,9 @@ def render_drift_report(
     }
 
     remaining_added = [v for v in drift.added_variables if (v.source, v.path) not in renamed_paths]
-    remaining_removed = [v for v in drift.removed_variables if (v.source, v.path) not in renamed_paths]
+    remaining_removed = [
+        v for v in drift.removed_variables if (v.source, v.path) not in renamed_paths
+    ]
 
     if remaining_added:
         lines.append(f"Added ({len(remaining_added)}):")
@@ -213,12 +230,12 @@ def render_drift_report(
     return "\n".join(lines)
 
 
-def build_drift_json(
-    drift: DictionaryDrift, gtm_usage: "GtmUsageIndex | None" = None
-) -> dict:
+def build_drift_json(drift: DictionaryDrift, gtm_usage: GtmUsageIndex | None = None) -> dict:
     result = {
         "added_variables": [{"source": v.source, "path": v.path} for v in drift.added_variables],
-        "removed_variables": [{"source": v.source, "path": v.path} for v in drift.removed_variables],
+        "removed_variables": [
+            {"source": v.source, "path": v.path} for v in drift.removed_variables
+        ],
         "type_distribution_shifts": [
             {
                 "source": s.source,

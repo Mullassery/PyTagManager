@@ -10,16 +10,29 @@ from pytagmanager.perf.test_candidates import (
     generate_performance_budget_candidates,
     generate_performance_regression_candidates,
 )
-from pytagmanager.testintel.candidates import CATEGORY_REGRESSION, CATEGORY_TIMING, SEVERITY_CONFIRMED_DEFECT
+from pytagmanager.testintel.candidates import (
+    CATEGORY_REGRESSION,
+    CATEGORY_TIMING,
+    SEVERITY_CONFIRMED_DEFECT,
+)
 
 _URL = "https://shop.example.com/"
 
 
 def _snap(**overrides):
-    defaults = dict(
-        lcp_ms=1000.0, lcp_url=None, cls=0.0, fcp_ms=500.0, tbt_ms=100.0, inp_ms=None,
-        dom_content_loaded_ms=900.0, load_event_ms=1200.0, transfer_bytes=0.0, request_count=0, long_task_count=0,
-    )
+    defaults = {
+        "lcp_ms": 1000.0,
+        "lcp_url": None,
+        "cls": 0.0,
+        "fcp_ms": 500.0,
+        "tbt_ms": 100.0,
+        "inp_ms": None,
+        "dom_content_loaded_ms": 900.0,
+        "load_event_ms": 1200.0,
+        "transfer_bytes": 0.0,
+        "request_count": 0,
+        "long_task_count": 0,
+    }
     defaults.update(overrides)
     return PerformanceSnapshot(**defaults)
 
@@ -52,7 +65,9 @@ def test_result_within_budget_produces_no_candidate():
 
 
 def test_result_with_no_delta_produces_no_candidate():
-    result = IsolationExperimentResult(target_description="script X", blocked_urls=(), baseline=None, experiment=None)
+    result = IsolationExperimentResult(
+        target_description="script X", blocked_urls=(), baseline=None, experiment=None
+    )
     assert generate_performance_budget_candidates([result]) == []
 
 

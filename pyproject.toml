@@ -24,6 +24,16 @@ diagnostics = [
     "google-auth-oauthlib>=1.1",
 ]
 
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
+# Broad exception handling is deliberate in best-effort diagnostics/adapters;
+# these rules are reviewed case-by-case rather than mechanically enforced.
+ignore = ["E501", "BLE001", "TRY004", "S110"]
+
 [tool.maturin]
 python-source = "python"
 module-name = "pytagmanager._core"

@@ -5,7 +5,6 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager import cli
 from pytagmanager.control import (
     ConfigPayload,
@@ -15,7 +14,7 @@ from pytagmanager.control import (
     Tag,
     Trigger,
 )
-from pytagmanager.control.errors import ConflictError, ValidationError
+from pytagmanager.control.errors import ValidationError
 from pytagmanager.distribution import (
     FilesystemCDN,
     build_published_config,
@@ -54,12 +53,8 @@ def active_container(tmp_path):
     first = service.create_revision("GTM-ABC1234")
     second = service.create_revision("GTM-ABC1234", _payload())
     service.create_environment("GTM-ABC1234", "Production")
-    service.activate_environment(
-        "GTM-ABC1234", "Production", config_version=first.config_version
-    )
-    service.activate_environment(
-        "GTM-ABC1234", "Production", config_version=second.config_version
-    )
+    service.activate_environment("GTM-ABC1234", "Production", config_version=first.config_version)
+    service.activate_environment("GTM-ABC1234", "Production", config_version=second.config_version)
     return service, first, second, tmp_path / "cdn"
 
 
@@ -96,11 +91,7 @@ def test_bundled_web_sdk_matches_source():
 
 def test_default_publisher_uses_bundled_web_sdk():
     publisher = FilesystemCDN(Path("unused"))
-    expected = (
-        Path(publisher_module.__file__).resolve().parent
-        / "assets"
-        / "pytagmanager.js"
-    )
+    expected = Path(publisher_module.__file__).resolve().parent / "assets" / "pytagmanager.js"
     assert publisher.sdk_asset == expected
     assert expected.is_file()
 
@@ -176,9 +167,7 @@ def test_publish_requires_active_revision(tmp_path):
     service.create_container("GTM-NOACTIVE")
     service.create_environment("GTM-NOACTIVE", "Production")
     with pytest.raises(ValidationError, match="no active configuration"):
-        FilesystemCDN(tmp_path / "cdn").publish_environment(
-            service, "GTM-NOACTIVE", "Production"
-        )
+        FilesystemCDN(tmp_path / "cdn").publish_environment(service, "GTM-NOACTIVE", "Production")
 
 
 def test_cli_publish_verify_status_and_rollback(active_container):
@@ -204,15 +193,23 @@ def test_cli_publish_verify_status_and_rollback(active_container):
     result = json.loads(published.output)
     assert result["config_version"] == second.config_version
 
-    verified = runner.invoke(
-        cli.main, ["cdn", "verify", "--root", str(root), "--json"]
-    )
+    verified = runner.invoke(cli.main, ["cdn", "verify", "--root", str(root), "--json"])
     assert verified.exit_code == 0, verified.output
     assert json.loads(verified.output)["valid"] is True
 
     status = runner.invoke(
         cli.main,
-        ["cdn", "status", "GTM-ABC1234", "Production", "--home", home, "--root", str(root), "--json"],
+        [
+            "cdn",
+            "status",
+            "GTM-ABC1234",
+            "Production",
+            "--home",
+            home,
+            "--root",
+            str(root),
+            "--json",
+        ],
     )
     assert status.exit_code == 0, status.output
     assert json.loads(status.output)["current_config_version"] == second.config_version

@@ -9,12 +9,11 @@ from __future__ import annotations
 
 import json
 import stat
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager.audit.lighthouse import (
     LighthouseRunner,
     LighthouseUnavailable,

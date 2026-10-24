@@ -4,7 +4,12 @@ from pytagmanager.observability.events import TrackingEvent
 
 def _event(t, source, event_type, event_name="", selector=None, payload=None):
     return TrackingEvent.create(
-        timestamp=t, source=source, event_type=event_type, event_name=event_name, selector=selector, payload=payload
+        timestamp=t,
+        source=source,
+        event_type=event_type,
+        event_name=event_name,
+        selector=selector,
+        payload=payload,
     )
 
 
@@ -72,4 +77,8 @@ def test_correlate_events_handles_simultaneous_anchors_with_identical_timestamps
     for journey in journeys:
         assert journey.observations, f"journey {journey.business_event} lost its own anchor event"
         assert journey.stage_present("interaction")
-    assert [j.business_event for j in journeys] == ["scroll_depth:25", "scroll_depth:50", "scroll_depth:75"]
+    assert [j.business_event for j in journeys] == [
+        "scroll_depth:25",
+        "scroll_depth:50",
+        "scroll_depth:75",
+    ]

@@ -13,23 +13,38 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from pytagmanager.export._taxonomy import canonical_event
 from pytagmanager.recommend.models import TrackingRecommendation
 
 # canonical event key -> (RudderStack event name, JSON-Schema properties, required list).
 _RUDDERSTACK_EVENT_SPECS = {
-    "add_to_cart": ("Product Added", {"product_id": {"type": "string"}}, ["product_id"]),
+    "add_to_cart": (
+        "Product Added",
+        {"product_id": {"type": "string"}},
+        ["product_id"],
+    ),
     "start_trial": ("Trial Started", {"plan": {"type": "string"}}, []),
     "subscribe": ("Subscription Started", {"plan": {"type": "string"}}, []),
     "generate_lead": ("Lead Generated", {"lead_source": {"type": "string"}}, []),
     "login": ("Signed In", {"method": {"type": "string"}}, []),
     "content_engagement": ("Content Viewed", {"content_type": {"type": "string"}}, []),
     "search": ("Products Searched", {"query": {"type": "string"}}, []),
-    "remove_from_cart": ("Product Removed", {"product_id": {"type": "string"}}, ["product_id"]),
-    "add_to_wishlist": ("Product Added to Wishlist", {"product_id": {"type": "string"}}, ["product_id"]),
-    "content_discovery": ("Content Discovery Used", {"content_type": {"type": "string"}}, []),
+    "remove_from_cart": (
+        "Product Removed",
+        {"product_id": {"type": "string"}},
+        ["product_id"],
+    ),
+    "add_to_wishlist": (
+        "Product Added to Wishlist",
+        {"product_id": {"type": "string"}},
+        ["product_id"],
+    ),
+    "content_discovery": (
+        "Content Discovery Used",
+        {"content_type": {"type": "string"}},
+        [],
+    ),
     "pagination": ("Pagination Used", {"page_number": {"type": "integer"}}, []),
     "video_engagement": ("Video Started", {"video_title": {"type": "string"}}, []),
     "navigation": ("Navigation Used", {"menu_item": {"type": "string"}}, []),
@@ -38,7 +53,9 @@ _RUDDERSTACK_EVENT_SPECS = {
 _DEFAULT_RUDDERSTACK_EVENT = ("Custom Event Triggered", {}, [])
 
 
-def build_rudderstack_tracking_plan(recommendations: List[TrackingRecommendation]) -> dict:
+def build_rudderstack_tracking_plan(
+    recommendations: list[TrackingRecommendation],
+) -> dict:
     """Build `{"name": ..., "rules": {"events": [...]}}`, RudderStack's
     Tracking Plan resource shape: each event carries `eventType: "track"`
     (interactions PyTagManager recommends -- clicks, form submits -- are all
@@ -84,6 +101,6 @@ def build_rudderstack_tracking_plan(recommendations: List[TrackingRecommendation
     }
 
 
-def export_rudderstack_json(recommendations: List[TrackingRecommendation], path: str) -> None:
+def export_rudderstack_json(recommendations: list[TrackingRecommendation], path: str) -> None:
     plan = build_rudderstack_tracking_plan(recommendations)
     Path(path).write_text(json.dumps(plan, indent=2))

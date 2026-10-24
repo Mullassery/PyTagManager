@@ -16,7 +16,6 @@ import datetime
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from pytagmanager.sitewide.aggregation import SiteHealthReport
 
@@ -29,10 +28,10 @@ class HealthHistoryEntry:
     url: str
     overall_score: int
     pages_scanned: int
-    template_scores: Dict[str, int] = field(default_factory=dict)
+    template_scores: dict[str, int] = field(default_factory=dict)
 
     @classmethod
-    def from_site_health(cls, url: str, site_health: SiteHealthReport) -> "HealthHistoryEntry":
+    def from_site_health(cls, url: str, site_health: SiteHealthReport) -> HealthHistoryEntry:
         return cls(
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             url=url,
@@ -42,7 +41,7 @@ class HealthHistoryEntry:
         )
 
     @classmethod
-    def from_dict(cls, data: dict) -> "HealthHistoryEntry":
+    def from_dict(cls, data: dict) -> HealthHistoryEntry:
         return cls(
             timestamp=data["timestamp"],
             url=data["url"],
@@ -58,10 +57,10 @@ class RegressionAlert:
     previous_score: int
     current_score: int
     site_score_drop: int
-    template_drops: Dict[str, int] = field(default_factory=dict)
+    template_drops: dict[str, int] = field(default_factory=dict)
 
 
-def load_history(path: str) -> List[HealthHistoryEntry]:
+def load_history(path: str) -> list[HealthHistoryEntry]:
     file_path = Path(path)
     if not file_path.exists():
         return []
@@ -74,17 +73,20 @@ def append_history_entry(path: str, entry: HealthHistoryEntry) -> None:
     entries.append(entry)
     Path(path).write_text(
         json.dumps(
-            {"format_version": HISTORY_FORMAT_VERSION, "entries": [asdict(e) for e in entries]},
+            {
+                "format_version": HISTORY_FORMAT_VERSION,
+                "entries": [asdict(e) for e in entries],
+            },
             indent=2,
         )
     )
 
 
 def detect_regression(
-    history: List[HealthHistoryEntry],
+    history: list[HealthHistoryEntry],
     latest: HealthHistoryEntry,
     threshold: int = 5,
-) -> Optional[RegressionAlert]:
+) -> RegressionAlert | None:
     """Compares `latest` against the immediately preceding entry in
     `history` (which should not yet include `latest` itself -- call this
     before `append_history_entry`). Returns None if there's no prior run

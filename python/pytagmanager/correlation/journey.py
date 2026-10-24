@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING
 
 from pytagmanager.observability.events import TrackingEvent
 
@@ -52,15 +52,15 @@ class TrackingJourney:
     business_event: str
     start_time: float
     end_time: float
-    observations: List[TrackingEvent] = field(default_factory=list)
+    observations: list[TrackingEvent] = field(default_factory=list)
     status: str = "unknown"  # healthy | warning | failed | unknown
-    diagnosis: Optional[Diagnosis] = None
+    diagnosis: Diagnosis | None = None
 
     def stage_present(self, stage: str) -> bool:
         return any(_STAGE_BY_EVENT_TYPE.get(o.event_type) == stage for o in self.observations)
 
     @property
-    def anchor_selector(self) -> Optional[str]:
+    def anchor_selector(self) -> str | None:
         """The selector of the interaction that started this journey.
         Stable regardless of what happened downstream -- unlike
         `business_event` (inferred from the *observed* dataLayer/GTM event
@@ -74,10 +74,10 @@ class TrackingJourney:
     def stages(self) -> dict:
         return {stage: self.stage_present(stage) for stage in STAGES}
 
-    def events_of_type(self, event_type: str) -> List[TrackingEvent]:
+    def events_of_type(self, event_type: str) -> list[TrackingEvent]:
         return [o for o in self.observations if o.event_type == event_type]
 
-    def with_diagnosis(self, diagnosis: Diagnosis) -> "TrackingJourney":
+    def with_diagnosis(self, diagnosis: Diagnosis) -> TrackingJourney:
         return replace(self, status=diagnosis.severity, diagnosis=diagnosis)
 
 
@@ -91,27 +91,31 @@ def stage_for_event_type(event_type: str) -> str:
     return _STAGE_BY_EVENT_TYPE.get(event_type, "other")
 
 
-def _infer_business_event(anchor: TrackingEvent, related: List[TrackingEvent]) -> str:
+def _infer_business_event(anchor: TrackingEvent, related: list[TrackingEvent]) -> str:
     for event in related:
         if event.event_type == "datalayer_push" and event.event_name:
             return event.event_name
     for event in related:
-        if event.event_type == "gtm_event" and event.event_name and not event.event_name.startswith("gtm."):
+        if (
+            event.event_type == "gtm_event"
+            and event.event_name
+            and not event.event_name.startswith("gtm.")
+        ):
             return event.event_name
     return f"{anchor.event_type}:{anchor.selector or anchor.event_name or 'unknown'}"
 
 
 def correlate_events(
-    events: List[TrackingEvent],
+    events: list[TrackingEvent],
     window_seconds: float = DEFAULT_CORRELATION_WINDOW_SECONDS,
-) -> List[TrackingJourney]:
+) -> list[TrackingJourney]:
     """Partition `events` (typically `ObservationSession.events`) into one
     TrackingJourney per user interaction, attributing every downstream
     event within `window_seconds` (and before the next interaction) to it.
     """
     ordered = sorted(events, key=lambda e: e.timestamp)
     anchors = [e for e in ordered if e.event_type in _INTERACTION_TYPES]
-    journeys: List[TrackingJourney] = []
+    journeys: list[TrackingJourney] = []
 
     for index, anchor in enumerate(anchors):
         window_end = anchor.timestamp + window_seconds
@@ -122,7 +126,10 @@ def correlate_events(
             event
             for event in ordered
             if event is anchor
-            or (anchor.timestamp <= event.timestamp < boundary and event.event_type not in _INTERACTION_TYPES)
+            or (
+                anchor.timestamp <= event.timestamp < boundary
+                and event.event_type not in _INTERACTION_TYPES
+            )
         ]
 
         journeys.append(

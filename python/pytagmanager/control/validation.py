@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 
 from pytagmanager.control.adapters import AdapterRegistry, default_adapter_registry
 from pytagmanager.control.config import ConfigPayload
@@ -170,9 +171,7 @@ def validate_config_payload(
     for tag in payload.tags:
         missing_triggers = [item for item in tag.trigger_ids if item not in trigger_ids]
         missing_variables = [item for item in tag.variable_ids if item not in variable_ids]
-        missing_destinations = [
-            item for item in tag.destination_ids if item not in destination_ids
-        ]
+        missing_destinations = [item for item in tag.destination_ids if item not in destination_ids]
         for item in missing_triggers:
             errors.append(
                 _issue(
@@ -247,9 +246,7 @@ def validate_config_payload(
             continue
         for issue in adapter.validate_tag(tag, payload.destinations):
             target = errors if issue.severity == "error" else warnings
-            target.append(
-                _issue(issue.severity, issue.code, issue.message, "tag", tag.tag_id)
-            )
+            target.append(_issue(issue.severity, issue.code, issue.message, "tag", tag.tag_id))
         evidence = tag.source_evidence or {}
         evidence_warnings = evidence.get("warnings", ())
         if isinstance(evidence_warnings, (list, tuple)):

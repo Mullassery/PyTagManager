@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 
 from click.testing import CliRunner
-
 from pytagmanager.cli import main
 
 
@@ -28,7 +27,16 @@ journey:
     )
     url = f"{fixture_server}/missing_datalayer.html"
     result = CliRunner().invoke(
-        main, ["diagnose", url, "--scenario", str(scenario_path), "--test-candidates", "--format", "json"]
+        main,
+        [
+            "diagnose",
+            url,
+            "--scenario",
+            str(scenario_path),
+            "--test-candidates",
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -59,7 +67,9 @@ journey:
 """
     )
     url = f"{fixture_server}/missing_datalayer.html"
-    result = CliRunner().invoke(main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "json"])
+    result = CliRunner().invoke(
+        main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "json"]
+    )
 
     assert result.exit_code == 0, result.output
     json_start = result.output.index("{")

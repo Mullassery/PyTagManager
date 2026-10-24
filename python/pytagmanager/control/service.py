@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, replace
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any
 
+from pytagmanager.control.diff import RevisionDiff, diff_revisions
+from pytagmanager.control.draft import draft_payload_from_recommendations
 from pytagmanager.control.errors import (
     ConflictError,
     CorruptStoreError,
@@ -28,8 +31,6 @@ from pytagmanager.control.models import (
     Organization,
     Workspace,
 )
-from pytagmanager.control.diff import RevisionDiff, diff_revisions
-from pytagmanager.control.draft import draft_payload_from_recommendations
 from pytagmanager.control.preview import preview_event
 from pytagmanager.control.pytagshield import PytagshieldExport, project_to_pytagshield
 from pytagmanager.control.schema import (
@@ -39,7 +40,10 @@ from pytagmanager.control.schema import (
     wrap_document,
 )
 from pytagmanager.control.store import FileStore
-from pytagmanager.control.validation import ConfigValidationReport, validate_config_payload
+from pytagmanager.control.validation import (
+    ConfigValidationReport,
+    validate_config_payload,
+)
 
 DEFAULT_ORGANIZATION_NAME = "Default organization"
 DEFAULT_WORKSPACE_NAME = "Default workspace"
@@ -334,8 +338,7 @@ class ControlPlaneService:
                 validate_id(expected_parent, field="expected_parent")
                 if expected_parent != latest_version:
                     raise ConflictError(
-                        f"expected parent {expected_parent} but latest revision is "
-                        f"{latest_version}"
+                        f"expected parent {expected_parent} but latest revision is {latest_version}"
                     )
             revision = ConfigRevision.create(
                 container_id=container.container_id,
@@ -547,9 +550,7 @@ class ControlPlaneService:
                 revision_to = self.store.get_revision(container, to_version)
             if from_version is None:
                 if revision_to.parent_config_version is None:
-                    raise ValidationError(
-                        "revision has no parent; specify --from explicitly"
-                    )
+                    raise ValidationError("revision has no parent; specify --from explicitly")
                 revision_from = self.store.get_revision(
                     container, revision_to.parent_config_version
                 )
@@ -578,8 +579,7 @@ class ControlPlaneService:
         ]
         if not matches:
             raise NotFoundError(
-                f"environment {environment_ref!r} not found in container "
-                f"{container.container_id!r}"
+                f"environment {environment_ref!r} not found in container {container.container_id!r}"
             )
         if len(matches) > 1:
             raise ConflictError(
@@ -605,9 +605,7 @@ class ControlPlaneService:
         org_id: str | None = None,
     ) -> Environment:
         with self.store.lock():
-            _, environment = self._get_environment_locked(
-                container_id, environment_ref, org_id
-            )
+            _, environment = self._get_environment_locked(container_id, environment_ref, org_id)
             return environment
 
     def _validated_revision_locked(
@@ -619,8 +617,7 @@ class ControlPlaneService:
             revision = self.store.get_revision(container, config_version)
         except NotFoundError as exc:
             raise NotFoundError(
-                f"revision {config_version!r} not found for container "
-                f"{container.container_id!r}"
+                f"revision {config_version!r} not found for container {container.container_id!r}"
             ) from exc
         report = validate_config_payload(revision.payload)
         return revision, report
@@ -687,9 +684,7 @@ class ControlPlaneService:
                     "explicit allow_protected is required"
                 )
             if expected_current is not None:
-                expected_current = validate_id(
-                    expected_current, field="expected_current"
-                )
+                expected_current = validate_id(expected_current, field="expected_current")
                 if expected_current != environment.current_config_version:
                     self._record_activation_failure(
                         container,
@@ -715,9 +710,7 @@ class ControlPlaneService:
                     target_version,
                 )
                 messages = "; ".join(issue.message for issue in report.errors)
-                raise ValidationError(
-                    f"revision {target_version!r} failed validation: {messages}"
-                )
+                raise ValidationError(f"revision {target_version!r} failed validation: {messages}")
             if environment.current_config_version == target_version:
                 return ActivationResult(
                     environment=environment,
@@ -802,9 +795,7 @@ class ControlPlaneService:
                     "explicit allow_protected is required"
                 )
             if expected_current is not None:
-                expected_current = validate_id(
-                    expected_current, field="expected_current"
-                )
+                expected_current = validate_id(expected_current, field="expected_current")
                 if expected_current != environment.current_config_version:
                     self._record_activation_failure(
                         container,
@@ -830,9 +821,7 @@ class ControlPlaneService:
                     target_version,
                 )
                 messages = "; ".join(issue.message for issue in report.errors)
-                raise ValidationError(
-                    f"revision {target_version!r} failed validation: {messages}"
-                )
+                raise ValidationError(f"revision {target_version!r} failed validation: {messages}")
             current_version = environment.current_config_version
             current_revision = (
                 self.store.get_revision(container, current_version)
@@ -919,9 +908,7 @@ class ControlPlaneService:
             return ValidationReport(
                 container_id=container.container_id,
                 revision_count=len(revisions),
-                latest_config_version=(
-                    latest.config_version if latest is not None else None
-                ),
+                latest_config_version=(latest.config_version if latest is not None else None),
                 latest_checksum=latest.checksum if latest is not None else None,
                 payload_objects=latest.payload.object_count() if latest is not None else 0,
                 schema_version=CURRENT_SCHEMA_VERSION,
@@ -937,9 +924,7 @@ class ControlPlaneService:
         with self.store.lock():
             container = self._get_container_locked(container_id, org_id)
             revisions = self.store.list_revisions(container)
-            environments = (
-                self.store.list_environments(container) if include_environments else []
-            )
+            environments = self.store.list_environments(container) if include_environments else []
             return wrap_document(
                 "container_export",
                 {
@@ -988,9 +973,7 @@ class ControlPlaneService:
                 f"container export contains unknown field(s): {', '.join(unknown)}"
             )
         if missing:
-            raise ValidationError(
-                f"container export is missing field(s): {', '.join(missing)}"
-            )
+            raise ValidationError(f"container export is missing field(s): {', '.join(missing)}")
         source_container = Container.from_dict(data["container"])
         if as_container_id is not None:
             validate_container_id(as_container_id)
@@ -1002,15 +985,12 @@ class ControlPlaneService:
         )
 
         with self.store.lock():
-            target_org_id, target_workspace_id = self._resolve_scope_locked(
-                org_id, workspace_id
-            )
+            target_org_id, target_workspace_id = self._resolve_scope_locked(org_id, workspace_id)
             target_id = as_container_id or source_container.container_id
             if self.store.container_exists(target_org_id, target_id):
                 if as_container_id is not None:
                     raise ConflictError(
-                        f"container ID {target_id!r} already exists in organization "
-                        f"{target_org_id}"
+                        f"container ID {target_id!r} already exists in organization {target_org_id}"
                     )
                 existing = self.store.get_container(target_org_id, target_id)
                 existing_revisions = self.store.list_revisions(existing)
@@ -1156,8 +1136,7 @@ class ControlPlaneService:
                 )
             if environment.name.casefold() in seen_names:
                 raise ValidationError(
-                    f"container export contains duplicate environment name "
-                    f"{environment.name!r}"
+                    f"container export contains duplicate environment name {environment.name!r}"
                 )
             for field, referenced in (
                 ("current_config_version", environment.current_config_version),
@@ -1173,7 +1152,9 @@ class ControlPlaneService:
         return environments
 
     @staticmethod
-    def _revision_fingerprints(revisions: list[ConfigRevision]) -> list[tuple[int, str]]:
+    def _revision_fingerprints(
+        revisions: list[ConfigRevision],
+    ) -> list[tuple[int, str]]:
         return [
             (revision.revision_number, revision.checksum)
             for revision in sorted(revisions, key=lambda item: item.revision_number)

@@ -12,6 +12,10 @@ file is a release-oriented complement to it, not a duplicate.
 
 ## [Unreleased]
 
+### Changed
+- Formatted the Python tree with `ruff format`, cleaned all lint findings, and
+  wired `ruff check` / `ruff format --check` into CI.
+
 ### Added
 - CMP audit reads documented Didomi user status (`getCurrentUserStatus`) and
   preserves purpose/vendor IDs without storing the Didomi consent string or

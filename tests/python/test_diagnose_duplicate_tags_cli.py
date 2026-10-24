@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 
 from click.testing import CliRunner
-
 from pytagmanager.cli import main
 
 
@@ -27,7 +26,15 @@ journey:
     url = f"{fixture_server}/tagexec_duplicate.html"
     result = CliRunner().invoke(
         main,
-        ["diagnose", url, "--scenario", str(scenario_path), "--detect-duplicate-tags", "--format", "json"],
+        [
+            "diagnose",
+            url,
+            "--scenario",
+            str(scenario_path),
+            "--detect-duplicate-tags",
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.output

@@ -45,7 +45,9 @@ class _FakeGtmService:
 def test_find_container_by_public_id():
     service = _FakeGtmService(
         accounts=[{"path": "accounts/1"}],
-        containers_by_account={"accounts/1": [{"path": "accounts/1/containers/2", "publicId": "GTM-ABC123"}]},
+        containers_by_account={
+            "accounts/1": [{"path": "accounts/1/containers/2", "publicId": "GTM-ABC123"}]
+        },
         live_version={},
     )
     client = GtmApiClient(service)
@@ -84,7 +86,9 @@ def test_get_live_container_config_normalizes_trigger_and_tag():
             }
         ],
     }
-    client = GtmApiClient(_FakeGtmService(accounts=[], containers_by_account={}, live_version=live_version))
+    client = GtmApiClient(
+        _FakeGtmService(accounts=[], containers_by_account={}, live_version=live_version)
+    )
 
     config = client.get_live_container_config("accounts/1/containers/2")
 
@@ -135,7 +139,9 @@ class _FakeGa4DataService:
 
 def test_ga4_list_custom_dimensions_and_conversion_events():
     admin = _FakeGa4AdminService(
-        custom_dimensions=[{"parameterName": "plan_tier", "displayName": "Plan Tier", "scope": "EVENT"}],
+        custom_dimensions=[
+            {"parameterName": "plan_tier", "displayName": "Plan Tier", "scope": "EVENT"}
+        ],
         conversion_events=[{"eventName": "purchase"}],
     )
     client = Ga4ApiClient(admin_service=admin, data_service=_FakeGa4DataService({}))
@@ -149,7 +155,10 @@ def test_ga4_list_custom_dimensions_and_conversion_events():
 
 def test_ga4_realtime_ingestion_confirmation():
     data = _FakeGa4DataService(
-        rows_by_event={"add_to_cart": [{"metricValues": [{"value": "3"}]}], "checkout": [{"metricValues": [{"value": "0"}]}]}
+        rows_by_event={
+            "add_to_cart": [{"metricValues": [{"value": "3"}]}],
+            "checkout": [{"metricValues": [{"value": "0"}]}],
+        }
     )
     client = Ga4ApiClient(admin_service=None, data_service=data)
 

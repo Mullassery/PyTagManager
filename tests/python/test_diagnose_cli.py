@@ -6,7 +6,6 @@ single URL, both text and json --format outputs.
 import json
 
 from click.testing import CliRunner
-
 from pytagmanager.cli import main
 
 
@@ -24,7 +23,9 @@ journey:
 """
     )
     url = f"{fixture_server}/healthy_tracking.html"
-    result = CliRunner().invoke(main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "text"])
+    result = CliRunner().invoke(
+        main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "text"]
+    )
 
     assert result.exit_code == 0, result.output
     assert "PyTagManager Tracking Health" in result.output
@@ -45,7 +46,9 @@ journey:
 """
     )
     url = f"{fixture_server}/missing_datalayer.html"
-    result = CliRunner().invoke(main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "json"])
+    result = CliRunner().invoke(
+        main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "json"]
+    )
 
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
@@ -69,7 +72,16 @@ journey:
     )
     url = f"{fixture_server}/healthy_tracking.html"
     result = CliRunner().invoke(
-        main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "json", "--trace"]
+        main,
+        [
+            "diagnose",
+            url,
+            "--scenario",
+            str(scenario_path),
+            "--format",
+            "json",
+            "--trace",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -95,14 +107,18 @@ journey:
 """
     )
     url = f"{fixture_server}/healthy_tracking.html"
-    result = CliRunner().invoke(main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "json"])
+    result = CliRunner().invoke(
+        main, ["diagnose", url, "--scenario", str(scenario_path), "--format", "json"]
+    )
 
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
     assert "interaction_traces" not in report
 
 
-def test_diagnose_track_scroll_depth_flag_is_accepted_and_does_not_break_the_run(fixture_server, tmp_path):
+def test_diagnose_track_scroll_depth_flag_is_accepted_and_does_not_break_the_run(
+    fixture_server, tmp_path
+):
     # ObservationSession-level tests (test_observability_extended_observers.py)
     # already cover the scroll-depth mechanism itself against a real tall
     # page; this is a CLI-plumbing smoke test -- the flag reaches
@@ -122,7 +138,16 @@ journey:
     )
     url = f"{fixture_server}/healthy_tracking.html"
     result = CliRunner().invoke(
-        main, ["diagnose", url, "--scenario", str(scenario_path), "--track-scroll-depth", "--format", "json"]
+        main,
+        [
+            "diagnose",
+            url,
+            "--scenario",
+            str(scenario_path),
+            "--track-scroll-depth",
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.output

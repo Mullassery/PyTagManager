@@ -21,5 +21,6 @@ def test_base_cli_import_does_not_load_optional_dependencies():
         [sys.executable, "-c", code],
         capture_output=True,
         text=True,
+        check=False,
     )
     assert result.returncode == 0, result.stderr

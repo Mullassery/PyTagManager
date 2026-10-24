@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-from typing import List, Sequence, Tuple
+from collections.abc import Sequence
 
 from pytagmanager.tagexec.duplicates import DuplicateFinding
 from pytagmanager.tagexec.server_side import ServerSideIndicator
@@ -14,15 +14,19 @@ JSON_SCHEMA_VERSION = 1
 
 
 def render_static_scan_report(
-    result: StaticScanResult, delayed_container_ids: Tuple[str, ...] = ()
+    result: StaticScanResult, delayed_container_ids: tuple[str, ...] = ()
 ) -> str:
     lines = [f"PyTagManager Tag Execution Static Scan: {result.page_url}", "=" * 40, ""]
 
     if result.gtm_containers:
         lines.append(f"GTM containers ({len(result.gtm_containers)}):")
         for container in result.gtm_containers:
-            delayed_marker = " [delayed-load]" if container.container_id in delayed_container_ids else ""
-            lines.append(f"  - {container.container_id} via {container.load_mechanism}{delayed_marker}")
+            delayed_marker = (
+                " [delayed-load]" if container.container_id in delayed_container_ids else ""
+            )
+            lines.append(
+                f"  - {container.container_id} via {container.load_mechanism}{delayed_marker}"
+            )
         if result.has_multiple_gtm_containers:
             lines.append("  WARNING: multiple distinct GTM containers detected on this page.")
         lines.append("")
@@ -47,7 +51,9 @@ def render_static_scan_report(
     return "\n".join(lines)
 
 
-def build_static_scan_json(result: StaticScanResult, delayed_container_ids: Tuple[str, ...] = ()) -> dict:
+def build_static_scan_json(
+    result: StaticScanResult, delayed_container_ids: tuple[str, ...] = ()
+) -> dict:
     return {
         "schema_version": JSON_SCHEMA_VERSION,
         "page_url": result.page_url,
@@ -61,12 +67,13 @@ def build_static_scan_json(result: StaticScanResult, delayed_container_ids: Tupl
         ],
         "multiple_gtm_containers": result.has_multiple_gtm_containers,
         "vendors": [
-            {"vendor": v.vendor, "category": v.category, "evidence": v.evidence} for v in result.vendors
+            {"vendor": v.vendor, "category": v.category, "evidence": v.evidence}
+            for v in result.vendors
         ],
     }
 
 
-def render_duplicate_findings(findings: Sequence[DuplicateFinding]) -> List[str]:
+def render_duplicate_findings(findings: Sequence[DuplicateFinding]) -> list[str]:
     """Rendered as a list of lines (not a full report string) so callers
     like `pytagmanager diagnose` can splice this section into their own
     larger report alongside diagnostics/traces, mirroring how
@@ -80,7 +87,7 @@ def render_duplicate_findings(findings: Sequence[DuplicateFinding]) -> List[str]
     return lines
 
 
-def build_duplicate_findings_json(findings: Sequence[DuplicateFinding]) -> List[dict]:
+def build_duplicate_findings_json(findings: Sequence[DuplicateFinding]) -> list[dict]:
     return [
         {
             "kind": finding.candidate.kind,
@@ -103,17 +110,24 @@ def build_duplicate_findings_json(findings: Sequence[DuplicateFinding]) -> List[
     ]
 
 
-def render_server_side_indicators(indicators: Sequence[ServerSideIndicator]) -> List[str]:
+def render_server_side_indicators(
+    indicators: Sequence[ServerSideIndicator],
+) -> list[str]:
     if not indicators:
         return []
-    lines = ["SERVER-SIDE TAGGING INDICATORS (hedged -- not confirmed from the browser)", "-" * 71]
+    lines = [
+        "SERVER-SIDE TAGGING INDICATORS (hedged -- not confirmed from the browser)",
+        "-" * 71,
+    ]
     for indicator in indicators:
         lines.append(f"  - [{indicator.confidence}] {indicator.message}")
     lines.append("")
     return lines
 
 
-def build_server_side_indicators_json(indicators: Sequence[ServerSideIndicator]) -> List[dict]:
+def build_server_side_indicators_json(
+    indicators: Sequence[ServerSideIndicator],
+) -> list[dict]:
     return [
         {
             "kind": i.kind,

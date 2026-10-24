@@ -13,8 +13,8 @@ report-building logic, and stays out of this module on purpose.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import List, Sequence, Tuple
 
 from pytagmanager.perf.measure import PerformanceBaseline
 from pytagmanager.perf.tagging_join import TaggingPerformanceTradeoff
@@ -22,13 +22,15 @@ from pytagmanager.perf.tagging_join import TaggingPerformanceTradeoff
 JSON_SCHEMA_VERSION = 1
 
 
-def rank_scripts_by_cost(tradeoffs: Sequence[TaggingPerformanceTradeoff]) -> List[TaggingPerformanceTradeoff]:
+def rank_scripts_by_cost(
+    tradeoffs: Sequence[TaggingPerformanceTradeoff],
+) -> list[TaggingPerformanceTradeoff]:
     """Highest measured TBT cost first. A script with no measured cost
     (never isolation-tested) sorts last, not first or zero -- "untested"
     and "measured zero impact" are different claims, and conflating them
     would misrepresent an untested script as harmless."""
 
-    def sort_key(t: TaggingPerformanceTradeoff) -> Tuple[bool, float]:
+    def sort_key(t: TaggingPerformanceTradeoff) -> tuple[bool, float]:
         return (t.tbt_delta_ms is None, -(t.tbt_delta_ms or 0.0))
 
     return sorted(tradeoffs, key=sort_key)
@@ -37,9 +39,9 @@ def rank_scripts_by_cost(tradeoffs: Sequence[TaggingPerformanceTradeoff]) -> Lis
 @dataclass(frozen=True)
 class TemplatePerformanceSummary:
     template_label: str
-    median_lcp_ms: "float | None"
-    median_tbt_ms: "float | None"
-    top_contributors: Tuple[str, ...] = field(default_factory=tuple)
+    median_lcp_ms: float | None
+    median_tbt_ms: float | None
+    top_contributors: tuple[str, ...] = field(default_factory=tuple)
 
 
 def summarize_template_performance(
@@ -60,7 +62,7 @@ def summarize_template_performance(
 
 def render_performance_report(
     baseline: PerformanceBaseline, tradeoffs: Sequence[TaggingPerformanceTradeoff]
-) -> List[str]:
+) -> list[str]:
     """Rendered as a list of lines, matching `tagexec.report`'s convention
     -- callers splice this into a larger report."""
     lines = [f"PERFORMANCE: {baseline.url}", "-" * (14 + len(baseline.url))]
@@ -74,13 +76,19 @@ def render_performance_report(
         lines.append("")
         lines.append("  Script cost ranking (tagging-relevant scripts, by measured TBT impact):")
         for t in ranked:
-            cost = f"{t.tbt_delta_ms:.1f}ms TBT" if t.tbt_delta_ms is not None else "not isolation-tested"
+            cost = (
+                f"{t.tbt_delta_ms:.1f}ms TBT"
+                if t.tbt_delta_ms is not None
+                else "not isolation-tested"
+            )
             lines.append(f"    - {t.vendor or t.script_url} ({t.category}): {cost}")
     lines.append("")
     return lines
 
 
-def build_performance_report_json(baseline: PerformanceBaseline, tradeoffs: Sequence[TaggingPerformanceTradeoff]) -> dict:
+def build_performance_report_json(
+    baseline: PerformanceBaseline, tradeoffs: Sequence[TaggingPerformanceTradeoff]
+) -> dict:
     return {
         "schema_version": JSON_SCHEMA_VERSION,
         "url": baseline.url,

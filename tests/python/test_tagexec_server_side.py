@@ -50,7 +50,11 @@ def _trace(steps, page_url="https://shop.example.com/product", business_event="a
 
 def test_first_party_ga4_shaped_request_is_flagged():
     trace = _trace(
-        [_network_step("https://shop.example.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart&cid=123")]
+        [
+            _network_step(
+                "https://shop.example.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart&cid=123"
+            )
+        ]
     )
     indicators = detect_first_party_collection_endpoints(trace)
     assert len(indicators) == 1
@@ -61,7 +65,13 @@ def test_first_party_ga4_shaped_request_is_flagged():
 def test_third_party_ga4_request_is_not_flagged_as_first_party():
     # A request straight to Google's own domain is normal client-side GA4,
     # not evidence of a first-party server-side relay.
-    trace = _trace([_network_step("https://www.google-analytics.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart")])
+    trace = _trace(
+        [
+            _network_step(
+                "https://www.google-analytics.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart"
+            )
+        ]
+    )
     assert detect_first_party_collection_endpoints(trace) == []
 
 
@@ -124,7 +134,9 @@ def test_first_party_requests_do_not_count_toward_fanout():
 
 
 def test_analyze_server_side_indicators_across_multiple_traces():
-    trace_a = _trace([_network_step("https://shop.example.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart")])
+    trace_a = _trace(
+        [_network_step("https://shop.example.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart")]
+    )
     trace_b = _trace(
         [
             _network_step("https://connect.facebook.net/tr?ev=Purchase"),
@@ -134,7 +146,10 @@ def test_analyze_server_side_indicators_across_multiple_traces():
     )
     indicators = analyze_server_side_indicators([trace_a, trace_b])
     kinds = {i.kind for i in indicators}
-    assert kinds == {KIND_FIRST_PARTY_COLLECTION_ENDPOINT, KIND_FANOUT_TO_MULTIPLE_DESTINATIONS}
+    assert kinds == {
+        KIND_FIRST_PARTY_COLLECTION_ENDPOINT,
+        KIND_FANOUT_TO_MULTIPLE_DESTINATIONS,
+    }
 
 
 def test_no_indicators_for_a_page_with_no_network_activity():
@@ -152,7 +167,9 @@ def test_confidence_levels_never_include_confirmed():
 
 def test_no_indicator_ever_emits_an_unhedged_claim():
     traces = [
-        _trace([_network_step("https://shop.example.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart")]),
+        _trace(
+            [_network_step("https://shop.example.com/g/collect?v=2&tid=G-ABCDEFG&en=add_to_cart")]
+        ),
         _trace(
             [
                 _network_step("https://connect.facebook.net/tr?ev=Purchase"),

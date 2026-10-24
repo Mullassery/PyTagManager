@@ -19,11 +19,11 @@ accordingly, not a per-request attribution that isn't actually observable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from dataclasses import dataclass
 
 from pytagmanager.diagnostics.trace import InteractionTrace, InteractionTraceStep
-from pytagmanager.tagexec.static_scan import StaticScanResult, VendorDetection
+from pytagmanager.tagexec.static_scan import StaticScanResult
 
 CANDIDATE_MULTIPLE_GTM_CONTAINERS = "multiple_gtm_containers"
 CANDIDATE_GTM_PLUS_HARDCODED_VENDOR = "gtm_plus_hardcoded_vendor"
@@ -41,7 +41,7 @@ _GTM_OVERLAPPING_VENDOR_CATEGORIES = frozenset({"analytics"})
 class DuplicateCandidate:
     kind: str
     description: str
-    involved: Tuple[str, ...]  # GTM container IDs and/or vendor names, human-readable
+    involved: tuple[str, ...]  # GTM container IDs and/or vendor names, human-readable
 
 
 @dataclass(frozen=True)
@@ -49,14 +49,14 @@ class RuntimeDuplicateEvidence:
     journey_id: str
     business_event: str
     request_count: int
-    request_urls: Tuple[str, ...]
+    request_urls: tuple[str, ...]
     payload_similarity: float  # 0.0-1.0, Jaccard similarity of request query params
 
 
 @dataclass(frozen=True)
 class DuplicateFinding:
     candidate: DuplicateCandidate
-    runtime_evidence: Tuple[RuntimeDuplicateEvidence, ...]
+    runtime_evidence: tuple[RuntimeDuplicateEvidence, ...]
     confidence: str = "Highly likely"
 
     @property
@@ -75,8 +75,8 @@ class DuplicateFinding:
         )
 
 
-def find_duplicate_candidates(scan: StaticScanResult) -> List[DuplicateCandidate]:
-    candidates: List[DuplicateCandidate] = []
+def find_duplicate_candidates(scan: StaticScanResult) -> list[DuplicateCandidate]:
+    candidates: list[DuplicateCandidate] = []
 
     if scan.has_multiple_gtm_containers:
         candidates.append(
@@ -133,7 +133,9 @@ def _payload_similarity(a: dict, b: dict) -> float:
     return len(pairs_a & pairs_b) / len(union)
 
 
-def find_runtime_duplicate_evidence(trace: InteractionTrace) -> Optional[RuntimeDuplicateEvidence]:
+def find_runtime_duplicate_evidence(
+    trace: InteractionTrace,
+) -> RuntimeDuplicateEvidence | None:
     """Evidence of duplicate analytics traffic for one interaction: more
     than one network_request step in its trace. `payload_similarity`
     compares the first two such requests' query parameters -- a proxy for
@@ -142,17 +144,23 @@ def find_runtime_duplicate_evidence(trace: InteractionTrace) -> Optional[Runtime
     network_steps = [s for s in trace.steps if s.event_type == "network_request"]
     if len(network_steps) < 2:
         return None
-    similarity = _payload_similarity(_query_params(network_steps[0]), _query_params(network_steps[1]))
+    similarity = _payload_similarity(
+        _query_params(network_steps[0]), _query_params(network_steps[1])
+    )
     return RuntimeDuplicateEvidence(
         journey_id=trace.journey_id,
         business_event=trace.business_event,
         request_count=len(network_steps),
-        request_urls=tuple(s.payload.get("url", "") for s in network_steps if isinstance(s.payload, dict)),
+        request_urls=tuple(
+            s.payload.get("url", "") for s in network_steps if isinstance(s.payload, dict)
+        ),
         payload_similarity=similarity,
     )
 
 
-def analyze_duplicates(scan: StaticScanResult, traces: Sequence[InteractionTrace]) -> List[DuplicateFinding]:
+def analyze_duplicates(
+    scan: StaticScanResult, traces: Sequence[InteractionTrace]
+) -> list[DuplicateFinding]:
     """The only public entry point that produces `DuplicateFinding`s --
     static candidates with no corroborating runtime evidence are silently
     dropped, per this module's docstring. Call `find_duplicate_candidates()`
@@ -162,7 +170,9 @@ def analyze_duplicates(scan: StaticScanResult, traces: Sequence[InteractionTrace
     if not candidates:
         return []
 
-    runtime_evidence = tuple(e for e in (find_runtime_duplicate_evidence(t) for t in traces) if e is not None)
+    runtime_evidence = tuple(
+        e for e in (find_runtime_duplicate_evidence(t) for t in traces) if e is not None
+    )
     if not runtime_evidence:
         return []
 

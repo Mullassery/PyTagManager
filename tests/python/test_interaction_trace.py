@@ -18,9 +18,21 @@ from pytagmanager.observability.events import TrackingEvent
 from pytagmanager.observability.state import StateDiff
 
 
-def _event(event_type, timestamp, source="browser", event_name="", selector=None, page_url="https://example.com/"):
+def _event(
+    event_type,
+    timestamp,
+    source="browser",
+    event_name="",
+    selector=None,
+    page_url="https://example.com/",
+):
     return TrackingEvent.create(
-        source=source, event_type=event_type, event_name=event_name, selector=selector, page_url=page_url, timestamp=timestamp
+        source=source,
+        event_type=event_type,
+        event_name=event_name,
+        selector=selector,
+        page_url=page_url,
+        timestamp=timestamp,
     )
 
 
@@ -40,7 +52,13 @@ def _journey(observations, diagnosis=None):
 def test_trace_orders_steps_by_timestamp_and_labels_stages():
     journey = _journey(
         [
-            _event("datalayer_push", 2.0, source="datalayer", event_name="add_to_cart", selector="#buy"),
+            _event(
+                "datalayer_push",
+                2.0,
+                source="datalayer",
+                event_name="add_to_cart",
+                selector="#buy",
+            ),
             _event("click", 1.0, selector="#buy"),
             _event("network_request", 3.0, source="network"),
         ]
@@ -109,7 +127,10 @@ def test_trace_without_state_diff_has_no_storage_changes():
 
 def test_render_interaction_trace_is_human_readable():
     journey = _journey(
-        [_event("click", 1.0, selector="#buy"), _event("datalayer_push", 1.1, source="datalayer", event_name="add_to_cart")]
+        [
+            _event("click", 1.0, selector="#buy"),
+            _event("datalayer_push", 1.1, source="datalayer", event_name="add_to_cart"),
+        ]
     )
     trace = build_interaction_trace(journey)
     rendered = render_interaction_trace(trace)
@@ -121,7 +142,9 @@ def test_render_interaction_trace_is_human_readable():
 
 def test_build_interaction_trace_json_is_serializable():
     journey = _journey([_event("click", 1.0, selector="#buy")])
-    diff = StateDiff(before_label="before", after_label="after", selector="#buy", cookies_added=["x"])
+    diff = StateDiff(
+        before_label="before", after_label="after", selector="#buy", cookies_added=["x"]
+    )
     trace = build_interaction_trace(journey, state_diff=diff)
 
     payload = build_interaction_trace_json(trace)
@@ -136,7 +159,9 @@ def test_build_interaction_trace_json_is_serializable():
 def test_build_interaction_traces_joins_by_journey_id():
     journey_a = _journey([_event("click", 1.0, selector="#a")])
     journey_b = _journey([_event("click", 2.0, selector="#b")])
-    diff_a = StateDiff(before_label="before", after_label="after", selector="#a", cookies_added=["x"])
+    diff_a = StateDiff(
+        before_label="before", after_label="after", selector="#a", cookies_added=["x"]
+    )
 
     traces = build_interaction_traces([journey_a, journey_b], {journey_a.journey_id: diff_a})
 

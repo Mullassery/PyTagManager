@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
-
 from pytagmanager.control.config import Variable
 from pytagmanager.control.errors import ValidationError
 from pytagmanager.control.expressions import (
@@ -44,7 +43,9 @@ def test_basic_sources_and_dom_resolution():
         Variable.create(name="title", type="string", source="page_title"),
         Variable.create(name="ref", type="string", source="referrer"),
         Variable.create(name="event value", type="string", source="event", source_ref="value"),
-        Variable.create(name="cart items", type="list", source="data_layer", source_ref="cart.items"),
+        Variable.create(
+            name="cart items", type="list", source="data_layer", source_ref="cart.items"
+        ),
         Variable.create(name="analytics", type="boolean", source="consent", source_ref="analytics"),
         Variable.create(name="price", type="string", source="dom", source_ref="#price"),
         Variable.create(
@@ -101,7 +102,9 @@ def test_disabled_and_unknown_variables():
 
 def test_computed_expressions_and_dependency_resolution():
     event_value = Variable.create(name="value", type="string", source="event", source_ref="value")
-    cart_value = Variable.create(name="cart", type="string", source="data_layer", source_ref="cart.value")
+    cart_value = Variable.create(
+        name="cart", type="string", source="data_layer", source_ref="cart.value"
+    )
     chosen = Variable.create(
         name="chosen",
         type="number",
@@ -125,7 +128,10 @@ def test_computed_expressions_and_dependency_resolution():
             "op": "concat",
             "args": [
                 {"op": "literal", "value": "price:"},
-                {"op": "to_string", "arg": {"op": "variable", "id": chosen.variable_id}},
+                {
+                    "op": "to_string",
+                    "arg": {"op": "variable", "id": chosen.variable_id},
+                },
             ],
         },
     )
@@ -135,13 +141,31 @@ def test_computed_expressions_and_dependency_resolution():
 
 
 def test_expression_operations():
-    resolver = lambda variable_id: 5
+    def resolver(variable_id: str) -> int:
+        return 5
+
     assert evaluate_expression({"op": "literal", "value": {"a": 1}}, resolver) == {"a": 1}
-    assert evaluate_expression({"op": "to_string", "arg": {"op": "literal", "value": True}}, resolver) == "true"
-    assert evaluate_expression({"op": "to_boolean", "arg": {"op": "literal", "value": "TRUE"}}, resolver) is True
-    assert evaluate_expression({"op": "to_boolean", "arg": {"op": "literal", "value": 1}}, resolver) is True
-    assert evaluate_expression({"op": "json_parse", "arg": {"op": "literal", "value": '{"a": 1}'}}, resolver) == {"a": 1}
-    assert evaluate_expression({"op": "length", "arg": {"op": "literal", "value": [1, 2]}}, resolver) == 2
+    assert (
+        evaluate_expression({"op": "to_string", "arg": {"op": "literal", "value": True}}, resolver)
+        == "true"
+    )
+    assert (
+        evaluate_expression(
+            {"op": "to_boolean", "arg": {"op": "literal", "value": "TRUE"}}, resolver
+        )
+        is True
+    )
+    assert (
+        evaluate_expression({"op": "to_boolean", "arg": {"op": "literal", "value": 1}}, resolver)
+        is True
+    )
+    assert evaluate_expression(
+        {"op": "json_parse", "arg": {"op": "literal", "value": '{"a": 1}'}}, resolver
+    ) == {"a": 1}
+    assert (
+        evaluate_expression({"op": "length", "arg": {"op": "literal", "value": [1, 2]}}, resolver)
+        == 2
+    )
     with pytest.raises(ExpressionError):
         evaluate_expression({"op": "to_number", "arg": {"op": "literal", "value": "no"}}, resolver)
     with pytest.raises(ExpressionError):
@@ -163,7 +187,11 @@ def test_sensitivity_is_explicit_or_inherited_from_dependencies():
         },
     )
     explicit = Variable.create(
-        name="explicit", type="string", source="static", default="hidden", sensitive=True
+        name="explicit",
+        type="string",
+        source="static",
+        default="hidden",
+        sensitive=True,
     )
     resolved = _resolve(token, computed, explicit)
     assert resolved["token"].sensitive is True
@@ -225,7 +253,12 @@ def test_expression_depth_and_size_limits():
         {"name": "x", "type": "number", "source": "static", "default": "nope"},
         {"name": "x", "type": "string", "source": "event", "source_ref": None},
         {"name": "x", "type": "string", "source": "dom", "source_ref": ""},
-        {"name": "x", "type": "string", "source": "computed", "source_ref": {"op": "eval"}},
+        {
+            "name": "x",
+            "type": "string",
+            "source": "computed",
+            "source_ref": {"op": "eval"},
+        },
         {"name": "x", "type": "string", "source": "nope"},
     ],
 )

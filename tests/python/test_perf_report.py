@@ -28,10 +28,19 @@ def _tradeoff(script_url, tbt_delta_ms=None, vendor=None, category="ads"):
 
 
 def _baseline(**overrides):
-    defaults = dict(
-        lcp_ms=1000.0, lcp_url=None, cls=0.05, fcp_ms=500.0, tbt_ms=100.0, inp_ms=80.0,
-        dom_content_loaded_ms=900.0, load_event_ms=1200.0, transfer_bytes=5000.0, request_count=5, long_task_count=2,
-    )
+    defaults = {
+        "lcp_ms": 1000.0,
+        "lcp_url": None,
+        "cls": 0.05,
+        "fcp_ms": 500.0,
+        "tbt_ms": 100.0,
+        "inp_ms": 80.0,
+        "dom_content_loaded_ms": 900.0,
+        "load_event_ms": 1200.0,
+        "transfer_bytes": 5000.0,
+        "request_count": 5,
+        "long_task_count": 2,
+    }
     defaults.update(overrides)
     return PerformanceBaseline(url=_PAGE_URL, runs=(PerformanceSnapshot(**defaults),))
 
@@ -71,7 +80,9 @@ def test_summarize_template_performance_picks_top_contributors():
         _tradeoff("https://b.example.com/b.js", tbt_delta_ms=200.0, vendor="B"),
         _tradeoff("https://c.example.com/c.js", tbt_delta_ms=None, vendor="Untested"),
     ]
-    summary = summarize_template_performance("Checkout", _baseline(lcp_ms=3700.0, tbt_ms=300.0), tradeoffs, top_n=2)
+    summary = summarize_template_performance(
+        "Checkout", _baseline(lcp_ms=3700.0, tbt_ms=300.0), tradeoffs, top_n=2
+    )
     assert summary.template_label == "Checkout"
     assert summary.median_lcp_ms == 3700.0
     assert summary.top_contributors == ("B", "A")
@@ -93,7 +104,9 @@ def test_render_performance_report_includes_url_and_metrics():
 
 
 def test_render_performance_report_includes_ranked_scripts():
-    tradeoffs = [_tradeoff("https://a.example.com/a.js", tbt_delta_ms=150.0, vendor="A", category="ads")]
+    tradeoffs = [
+        _tradeoff("https://a.example.com/a.js", tbt_delta_ms=150.0, vendor="A", category="ads")
+    ]
     lines = render_performance_report(_baseline(), tradeoffs)
     joined = "\n".join(lines)
     assert "A (ads)" in joined

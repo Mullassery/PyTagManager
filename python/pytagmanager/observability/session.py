@@ -12,13 +12,19 @@ from __future__ import annotations
 
 import re
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
 from urllib.parse import parse_qsl, urlparse
+
+from typing_extensions import Self
 
 from pytagmanager.observability.events import TrackingEvent, redact_payload
 from pytagmanager.observability.scenario import ActionStep, Scenario
-from pytagmanager.observability.state import RuntimeStateSnapshot, StateDiff, diff_state_snapshots
+from pytagmanager.observability.state import (
+    RuntimeStateSnapshot,
+    StateDiff,
+    diff_state_snapshots,
+)
 
 _AGENT_JS_PATH = Path(__file__).parent / "agent.js"
 
@@ -46,7 +52,7 @@ _ANALYTICS_URL_PATTERNS = [
     re.compile(r"/mp/collect(\?|$)"),
 ]
 
-_SOURCE_BY_EVENT_TYPE: Dict[str, str] = {
+_SOURCE_BY_EVENT_TYPE: dict[str, str] = {
     "click": "browser",
     "submit": "browser",
     "change": "browser",
@@ -65,7 +71,7 @@ _SOURCE_BY_EVENT_TYPE: Dict[str, str] = {
 _DEFAULT_SCROLL_DEPTH_MILESTONES = [25, 50, 75, 90, 100]
 
 
-def _classify_network_url(url: str) -> Optional[str]:
+def _classify_network_url(url: str) -> str | None:
     for pattern in _ANALYTICS_URL_PATTERNS:
         if pattern.search(url):
             return pattern.pattern
@@ -83,11 +89,11 @@ class ObservationSession:
         self,
         headless: bool = True,
         browser_name: str = "chromium",
-        mutation_selectors: Optional[Sequence[str]] = None,
-        visibility_selectors: Optional[Sequence[str]] = None,
+        mutation_selectors: Sequence[str] | None = None,
+        visibility_selectors: Sequence[str] | None = None,
         capture_storage_values: bool = False,
         track_scroll_depth: bool = False,
-        scroll_depth_milestones: Optional[Sequence[int]] = None,
+        scroll_depth_milestones: Sequence[int] | None = None,
         capture_all_network: bool = False,
         max_network_events: int = 500,
     ):
@@ -96,7 +102,9 @@ class ObservationSession:
         self.mutation_selectors = list(mutation_selectors or [])
         self.visibility_selectors = list(visibility_selectors or [])
         self.track_scroll_depth = track_scroll_depth
-        self.scroll_depth_milestones = list(scroll_depth_milestones or _DEFAULT_SCROLL_DEPTH_MILESTONES)
+        self.scroll_depth_milestones = list(
+            scroll_depth_milestones or _DEFAULT_SCROLL_DEPTH_MILESTONES
+        )
         # Runtime State Capture (Phase 1.6): off by default for raw cookie/
         # storage *values* -- see the privacy note in observability/state.py.
         # Keys/type/length are always captured regardless of this flag.
@@ -109,14 +117,14 @@ class ObservationSession:
         self.capture_all_network = capture_all_network
         self.max_network_events = max(1, int(max_network_events))
         self._network_event_count = 0
-        self._events: List[TrackingEvent] = []
-        self._state_snapshots: List[RuntimeStateSnapshot] = []
-        self._state_diffs: List[StateDiff] = []
+        self._events: list[TrackingEvent] = []
+        self._state_snapshots: list[RuntimeStateSnapshot] = []
+        self._state_diffs: list[StateDiff] = []
         self._playwright = None
         self._browser = None
         self._page = None
 
-    def __enter__(self) -> "ObservationSession":
+    def __enter__(self) -> Self:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError as exc:
@@ -298,7 +306,7 @@ class ObservationSession:
         """Reload the current page while keeping the injected agent active."""
         self._page.reload(wait_until=wait_until)
 
-    def browser_cookies(self) -> List[dict]:
+    def browser_cookies(self) -> list[dict]:
         """Playwright's full cookie metadata (including HttpOnly cookies).
 
         Cookie *values* are present in Playwright's result; CMP reporting
@@ -318,15 +326,15 @@ class ObservationSession:
         self._page.wait_for_timeout(int(seconds * 1000))
 
     @property
-    def events(self) -> List[TrackingEvent]:
+    def events(self) -> list[TrackingEvent]:
         return list(self._events)
 
     @property
-    def state_snapshots(self) -> List[RuntimeStateSnapshot]:
+    def state_snapshots(self) -> list[RuntimeStateSnapshot]:
         return list(self._state_snapshots)
 
     @property
-    def state_diffs(self) -> List[StateDiff]:
+    def state_diffs(self) -> list[StateDiff]:
         """One `StateDiff` per scenario step, in step order -- what changed
         in cookies/localStorage/sessionStorage/dataLayer as a direct result
         of that interaction."""

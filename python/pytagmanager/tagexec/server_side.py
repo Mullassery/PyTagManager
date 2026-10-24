@@ -18,8 +18,8 @@ unhedged claim.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
 from urllib.parse import parse_qs, urlparse
 
 from pytagmanager.diagnostics.trace import InteractionTrace, InteractionTraceStep
@@ -74,11 +74,13 @@ def _looks_like_ga4_measurement_protocol(params: dict) -> bool:
     return bool(tid) and tid.startswith(("G-", "UA-")) and has_version and has_event_marker
 
 
-def _network_steps(trace: InteractionTrace) -> List[InteractionTraceStep]:
+def _network_steps(trace: InteractionTrace) -> list[InteractionTraceStep]:
     return [s for s in trace.steps if s.event_type == "network_request"]
 
 
-def detect_first_party_collection_endpoints(trace: InteractionTrace) -> List[ServerSideIndicator]:
+def detect_first_party_collection_endpoints(
+    trace: InteractionTrace,
+) -> list[ServerSideIndicator]:
     indicators = []
     for step in _network_steps(trace):
         url = step.payload.get("url", "") if isinstance(step.payload, dict) else ""
@@ -105,7 +107,7 @@ def detect_first_party_collection_endpoints(trace: InteractionTrace) -> List[Ser
     return indicators
 
 
-def detect_fanout(trace: InteractionTrace) -> Optional[ServerSideIndicator]:
+def detect_fanout(trace: InteractionTrace) -> ServerSideIndicator | None:
     """More than one *distinct external* (non-first-party) host receiving
     a network request for the same interaction is consistent with -- not
     proof of -- one first-party event being fanned out server-side to
@@ -138,8 +140,10 @@ def detect_fanout(trace: InteractionTrace) -> Optional[ServerSideIndicator]:
     )
 
 
-def analyze_server_side_indicators(traces: Sequence[InteractionTrace]) -> List[ServerSideIndicator]:
-    indicators: List[ServerSideIndicator] = []
+def analyze_server_side_indicators(
+    traces: Sequence[InteractionTrace],
+) -> list[ServerSideIndicator]:
+    indicators: list[ServerSideIndicator] = []
     for trace in traces:
         indicators.extend(detect_first_party_collection_endpoints(trace))
         fanout = detect_fanout(trace)

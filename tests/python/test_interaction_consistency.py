@@ -12,18 +12,21 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from click.testing import CliRunner
-
 from pytagmanager import _core
 from pytagmanager.cli import main
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.observability.events import TrackingEvent
 from pytagmanager.recommend.models import TrackingRecommendation
-from pytagmanager.sitewide.interaction_consistency import analyze_business_action_consistency
+from pytagmanager.sitewide.interaction_consistency import (
+    analyze_business_action_consistency,
+)
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures" / "observability"
 
 
-def _rec(page_url: str, selector: str, business_objective: str = "Purchase Intent") -> TrackingRecommendation:
+def _rec(
+    page_url: str, selector: str, business_objective: str = "Purchase Intent"
+) -> TrackingRecommendation:
     return TrackingRecommendation(
         event_name="purchase_intent",
         trigger_type="click",
@@ -38,19 +41,43 @@ def _rec(page_url: str, selector: str, business_objective: str = "Purchase Inten
 
 
 def _fired_journey(page_url: str, selector: str, event_name: str) -> TrackingJourney:
-    click = TrackingEvent.create(source="browser", event_type="click", page_url=page_url, selector=selector, timestamp=0.0)
+    click = TrackingEvent.create(
+        source="browser",
+        event_type="click",
+        page_url=page_url,
+        selector=selector,
+        timestamp=0.0,
+    )
     push = TrackingEvent.create(
-        source="datalayer", event_type="datalayer_push", event_name=event_name, page_url=page_url, timestamp=0.1
+        source="datalayer",
+        event_type="datalayer_push",
+        event_name=event_name,
+        page_url=page_url,
+        timestamp=0.1,
     )
     return TrackingJourney(
-        journey_id="j1", business_event=event_name, start_time=0.0, end_time=0.1, observations=[click, push]
+        journey_id="j1",
+        business_event=event_name,
+        start_time=0.0,
+        end_time=0.1,
+        observations=[click, push],
     )
 
 
 def _silent_journey(page_url: str, selector: str) -> TrackingJourney:
-    click = TrackingEvent.create(source="browser", event_type="click", page_url=page_url, selector=selector, timestamp=0.0)
+    click = TrackingEvent.create(
+        source="browser",
+        event_type="click",
+        page_url=page_url,
+        selector=selector,
+        timestamp=0.0,
+    )
     return TrackingJourney(
-        journey_id="j2", business_event="click:x", start_time=0.0, end_time=0.0, observations=[click]
+        journey_id="j2",
+        business_event="click:x",
+        start_time=0.0,
+        end_time=0.0,
+        observations=[click],
     )
 
 

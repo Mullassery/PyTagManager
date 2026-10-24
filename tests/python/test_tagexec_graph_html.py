@@ -11,7 +11,10 @@ from pytagmanager.tagexec.graph import (
     build_graph_html,
     build_tag_execution_graph,
 )
-from pytagmanager.tagexec.static_scan import GtmContainerDetection, StaticScanResult, VendorDetection
+from pytagmanager.tagexec.static_scan import (
+    StaticScanResult,
+    VendorDetection,
+)
 
 
 def _scan(page_url="https://example.com/", gtm_containers=(), vendors=()):

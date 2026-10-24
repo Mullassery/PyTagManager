@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-
 from pytagmanager.events import (
     SCHEMA_VERSION,
     EventValidationError,
@@ -102,10 +101,7 @@ def test_event_name_and_property_limits():
     raw = _fixture(FIXTURES / "valid" / "minimal_server.json")
     raw["event_name"] = "Bad Name"
     raw["properties"] = {"a" * 70: 1}
-    codes = {
-        issue.code
-        for issue in validate_event(raw, now=NOW, max_skew_seconds=None)
-    }
+    codes = {issue.code for issue in validate_event(raw, now=NOW, max_skew_seconds=None)}
     assert "invalid_format" in codes
     assert "invalid_key" in codes
 

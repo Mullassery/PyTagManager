@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
 
 from pytagmanager import _core
 
@@ -13,9 +13,9 @@ def crawl_site(
     concurrency: int = 10,
     respect_robots: bool = True,
     rate_limit: float | None = None,
-    headers: List[tuple[str, str]] | None = None,
+    headers: list[tuple[str, str]] | None = None,
     browser_mode: str = "off",
-) -> List["_core.Page"]:
+) -> list[_core.Page]:
     """Crawl a site starting at `url`, returning one Page (URL, status,
     semantic DOM graph, structured `crawl_status`, and -- only when that
     page was rendered -- captured network requests/cookies) per visited
@@ -67,12 +67,12 @@ class RenderedPage:
 
     url: str
     status: int
-    graph: "_core.SemanticGraph"
+    graph: _core.SemanticGraph
     console_logs: tuple = ()
     network_requests: tuple = ()
-    screenshots: Optional[object] = None
-    sniff: Optional[object] = None
-    interactions: Tuple[object, ...] = ()
+    screenshots: object | None = None
+    sniff: object | None = None
+    interactions: tuple[object, ...] = ()
 
 
 def crawl_site_rendered(
@@ -81,15 +81,15 @@ def crawl_site_rendered(
     concurrency: int = 10,
     respect_robots: bool = True,
     rate_limit: float | None = None,
-    headers: List[tuple[str, str]] | None = None,
+    headers: list[tuple[str, str]] | None = None,
     *,
     headless: bool = True,
     browser_name: str = "chromium",
-    screenshot_dir: Optional[str] = None,
+    screenshot_dir: str | None = None,
     sniff_analytics: bool = False,
     simulate_interactions: bool = False,
     interaction_top_n: int = 5,
-) -> List[RenderedPage]:
+) -> list[RenderedPage]:
     """Render-mode crawl (docs/ROADMAP.md Phase 1): uses the real Rust
     crawler purely for URL discovery (fast, robots/sitemap-aware -- exactly
     `crawl_site()` above), then re-fetches each discovered URL through a
@@ -112,7 +112,9 @@ def crawl_site_rendered(
     enabled, so cost scales with what's actually requested.
     """
     from pytagmanager.recommend.heuristics import recommend_for_graph
-    from pytagmanager.runtime.interactions import simulate_interactions as _simulate_interactions
+    from pytagmanager.runtime.interactions import (
+        simulate_interactions as _simulate_interactions,
+    )
     from pytagmanager.runtime.renderer import render_page
     from pytagmanager.runtime.screenshots import capture_page_screenshots
     from pytagmanager.runtime.sniffer import sniff_page
@@ -126,7 +128,7 @@ def crawl_site_rendered(
         headers=headers,
     )
 
-    rendered_pages: List[RenderedPage] = []
+    rendered_pages: list[RenderedPage] = []
     for page in discovered:
         result = render_page(page.url, headless=headless, browser_name=browser_name)
         graph = _core.parse_html(result.html, result.url)
@@ -134,14 +136,17 @@ def crawl_site_rendered(
         screenshots = None
         if screenshot_dir is not None:
             screenshots = capture_page_screenshots(
-                result.url, Path(screenshot_dir), headless=headless, browser_name=browser_name
+                result.url,
+                Path(screenshot_dir),
+                headless=headless,
+                browser_name=browser_name,
             )
 
         sniff = None
         if sniff_analytics:
             sniff = sniff_page(result.url, headless=headless, browser_name=browser_name)
 
-        interactions: Tuple[object, ...] = ()
+        interactions: tuple[object, ...] = ()
         if simulate_interactions:
             candidates = _top_selectors(recommend_for_graph(graph), interaction_top_n)
             if candidates:
@@ -169,12 +174,12 @@ def crawl_site_rendered(
     return rendered_pages
 
 
-def _top_selectors(recommendations: Sequence, top_n: int) -> List[str]:
+def _top_selectors(recommendations: Sequence, top_n: int) -> list[str]:
     """The `top_n` highest-confidence recommendation selectors,
     deduplicated, order-preserving -- the "top-N heuristic candidates"
     `simulate_interactions` is bounded to per `docs/ROADMAP.md`."""
     ranked = sorted(recommendations, key=lambda rec: rec.confidence, reverse=True)
-    selectors: List[str] = []
+    selectors: list[str] = []
     for rec in ranked:
         if rec.selector not in selectors:
             selectors.append(rec.selector)

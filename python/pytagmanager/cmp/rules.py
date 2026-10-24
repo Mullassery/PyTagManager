@@ -7,7 +7,7 @@ not treat a missing CMP signature as proof that consent management is absent.
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 from pytagmanager.cmp.adapters import ADAPTERS, CmpAdapter, google_categories_from_mode
 from pytagmanager.cmp.models import (
@@ -30,21 +30,23 @@ def analyze_cmp(
     url: str,
     detections: Sequence[CmpDetection],
     initial_state: ConsentState,
-    after_action_state: Optional[ConsentState],
-    after_reload_state: Optional[ConsentState],
+    after_action_state: ConsentState | None,
+    after_reload_state: ConsentState | None,
     lifecycle: ConsentLifecycle,
     requests: Sequence[RequestObservation],
     cookies: Sequence[CookieMetadata],
     adapters: Sequence[CmpAdapter] = ADAPTERS,
-) -> Tuple[CmpFinding, ...]:
-    findings: List[CmpFinding] = []
+) -> tuple[CmpFinding, ...]:
+    findings: list[CmpFinding] = []
     findings.extend(
         _detection_findings(url, detections, initial_state, requests, cookies, adapters)
     )
     findings.extend(_pre_consent_findings(url, detections, initial_state, requests))
     findings.extend(_lifecycle_findings(url, lifecycle, after_action_state, requests))
     findings.extend(_consent_mode_findings(url, initial_state, requests))
-    findings.extend(_state_findings(url, initial_state, after_action_state, after_reload_state, lifecycle))
+    findings.extend(
+        _state_findings(url, initial_state, after_action_state, after_reload_state, lifecycle)
+    )
     return dedupe_findings(tuple(findings))
 
 
@@ -55,11 +57,9 @@ def _detection_findings(
     requests: Sequence[RequestObservation],
     cookies: Sequence[CookieMetadata],
     adapters: Sequence[CmpAdapter],
-) -> List[CmpFinding]:
-    findings: List[CmpFinding] = []
-    unknown_cookies = _recognized_cookie_names_without_detection(
-        cookies, detections, adapters
-    )
+) -> list[CmpFinding]:
+    findings: list[CmpFinding] = []
+    unknown_cookies = _recognized_cookie_names_without_detection(cookies, detections, adapters)
     if unknown_cookies:
         findings.append(
             CmpFinding.create(
@@ -171,12 +171,12 @@ def _pre_consent_findings(
     detections: Sequence[CmpDetection],
     initial_state: ConsentState,
     requests: Sequence[RequestObservation],
-) -> List[CmpFinding]:
-    findings: List[CmpFinding] = []
+) -> list[CmpFinding]:
+    findings: list[CmpFinding] = []
     initial_requests = [item for item in requests if item.phase == "initial" and item.is_tracking]
     if not initial_requests:
         return findings
-    by_category: Dict[str, List[RequestObservation]] = {}
+    by_category: dict[str, list[RequestObservation]] = {}
     for request in initial_requests:
         by_category.setdefault(request.category, []).append(request)
 
@@ -227,10 +227,10 @@ def _pre_consent_findings(
 def _lifecycle_findings(
     url: str,
     lifecycle: ConsentLifecycle,
-    after_action_state: Optional[ConsentState],
+    after_action_state: ConsentState | None,
     requests: Sequence[RequestObservation],
-) -> List[CmpFinding]:
-    findings: List[CmpFinding] = []
+) -> list[CmpFinding]:
+    findings: list[CmpFinding] = []
     if lifecycle.requested_action != "none" and not lifecycle.performed:
         findings.append(
             CmpFinding.create(
@@ -269,7 +269,11 @@ def _lifecycle_findings(
     if not lifecycle.performed:
         return findings
 
-    post_action = [item for item in requests if item.phase in {"after_action", "after_reload"} and item.is_tracking]
+    post_action = [
+        item
+        for item in requests
+        if item.phase in {"after_action", "after_reload"} and item.is_tracking
+    ]
     if lifecycle.requested_action == "reject" and post_action:
         findings.append(
             CmpFinding.create(
@@ -289,7 +293,9 @@ def _lifecycle_findings(
                 ),
                 component="consent:reject",
                 detection_method="explicit reject-all interaction followed by network observation",
-                evidence=_request_evidence(post_action, "Tracking request observed after reject-all")
+                evidence=_request_evidence(
+                    post_action, "Tracking request observed after reject-all"
+                )
                 + (_state_evidence(after_action_state) if after_action_state else ()),
                 subject=f"{url}:reject",
             )
@@ -298,9 +304,7 @@ def _lifecycle_findings(
     if after_action_state is not None and after_action_state.has_categories:
         if lifecycle.requested_action == "accept":
             denied = [
-                name
-                for name in ("analytics", "advertising")
-                if after_action_state.is_denied(name)
+                name for name in ("analytics", "advertising") if after_action_state.is_denied(name)
             ]
             if denied:
                 findings.append(
@@ -323,9 +327,7 @@ def _lifecycle_findings(
                 )
         elif lifecycle.requested_action == "reject":
             granted = [
-                name
-                for name in ("analytics", "advertising")
-                if after_action_state.is_granted(name)
+                name for name in ("analytics", "advertising") if after_action_state.is_granted(name)
             ]
             if granted:
                 findings.append(
@@ -353,12 +355,13 @@ def _consent_mode_findings(
     url: str,
     initial_state: ConsentState,
     requests: Sequence[RequestObservation],
-) -> List[CmpFinding]:
-    findings: List[CmpFinding] = []
+) -> list[CmpFinding]:
+    findings: list[CmpFinding] = []
     google_requests = [
         item
         for item in requests
-        if item.is_tracking and ("google" in item.host.lower() or "googletagmanager" in item.host.lower())
+        if item.is_tracking
+        and ("google" in item.host.lower() or "googletagmanager" in item.host.lower())
     ]
     if initial_state.google_mode or not google_requests:
         return findings
@@ -390,11 +393,11 @@ def _consent_mode_findings(
 def _state_findings(
     url: str,
     initial_state: ConsentState,
-    after_action_state: Optional[ConsentState],
-    after_reload_state: Optional[ConsentState],
+    after_action_state: ConsentState | None,
+    after_reload_state: ConsentState | None,
     lifecycle: ConsentLifecycle,
-) -> List[CmpFinding]:
-    findings: List[CmpFinding] = []
+) -> list[CmpFinding]:
+    findings: list[CmpFinding] = []
 
     if "cookiebot_consent" in initial_state.sources and initial_state.google_mode:
         google_categories = google_categories_from_mode(initial_state.google_mode)
@@ -403,7 +406,9 @@ def _state_findings(
             vendor = initial_state.category(name)
             google = google_categories.get(name)
             if vendor is not None and google is not None and vendor is not google:
-                conflicts.append(f"{name}: CMP={'granted' if vendor else 'denied'}, Google={'granted' if google else 'denied'}")
+                conflicts.append(
+                    f"{name}: CMP={'granted' if vendor else 'denied'}, Google={'granted' if google else 'denied'}"
+                )
         if conflicts:
             findings.append(
                 CmpFinding.create(
@@ -412,7 +417,8 @@ def _state_findings(
                     severity="medium",
                     confidence="high-confidence",
                     title="CMP and Google Consent Mode disagree",
-                    message="The vendor consent API and Google Consent Mode reported different states: " + "; ".join(conflicts),
+                    message="The vendor consent API and Google Consent Mode reported different states: "
+                    + "; ".join(conflicts),
                     remediation=(
                         "Check the integration between the CMP and Google tags. A mismatch can cause "
                         "tags to collect data the CMP believes is blocked, or to remain blocked after consent."
@@ -454,7 +460,9 @@ def _state_findings(
         before = after_action_state.category(name)
         after = after_reload_state.category(name)
         if before is not None and after is not None and before is not after:
-            changed.append(f"{name}: {'granted' if before else 'denied'} -> {'granted' if after else 'denied'}")
+            changed.append(
+                f"{name}: {'granted' if before else 'denied'} -> {'granted' if after else 'denied'}"
+            )
     if changed:
         findings.append(
             CmpFinding.create(
@@ -482,7 +490,7 @@ def _state_findings(
 
 def _request_evidence(
     requests: Iterable[RequestObservation], summary_prefix: str
-) -> Tuple[CmpEvidence, ...]:
+) -> tuple[CmpEvidence, ...]:
     result = []
     for request in list(requests)[:_REPORTED_REQUEST_LIMIT]:
         result.append(
@@ -497,7 +505,7 @@ def _request_evidence(
     return tuple(result)
 
 
-def _state_evidence(state: ConsentState) -> Tuple[CmpEvidence, ...]:
+def _state_evidence(state: ConsentState) -> tuple[CmpEvidence, ...]:
     if state is None:
         return ()
     evidence = list(state.evidence)
@@ -520,7 +528,7 @@ def _state_evidence(state: ConsentState) -> Tuple[CmpEvidence, ...]:
 
 def _detection_evidence(
     detections: Sequence[CmpDetection], cookies: Sequence[CookieMetadata]
-) -> Tuple[CmpEvidence, ...]:
+) -> tuple[CmpEvidence, ...]:
     evidence = [item for detection in detections for item in detection.evidence]
     evidence.extend(
         CmpEvidence(
@@ -539,7 +547,7 @@ def _recognized_cookie_names_without_detection(
     cookies: Sequence[CookieMetadata],
     detections: Sequence[CmpDetection],
     adapters: Sequence[CmpAdapter],
-) -> List[str]:
+) -> list[str]:
     detected_ids = {item.adapter_id for item in detections}
     known_names = {
         adapter.adapter_id: (adapter.cookie_names, adapter.cookie_prefixes)
@@ -548,7 +556,7 @@ def _recognized_cookie_names_without_detection(
     }
     matches = set()
     for cookie in cookies:
-        for adapter_id, (names, prefixes) in known_names.items():
+        for names, prefixes in known_names.values():
             if cookie.name in names or any(
                 cookie.name.lower().startswith(prefix.lower()) for prefix in prefixes
             ):

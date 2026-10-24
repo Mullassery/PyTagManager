@@ -15,7 +15,7 @@ change VISION.md's chain calls for.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from pytagmanager.correlation.journey import TrackingJourney, stage_for_event_type
 from pytagmanager.observability.state import StateDiff
@@ -28,8 +28,8 @@ class InteractionTraceStep:
     event_name: str
     timestamp: float
     source: str
-    selector: Optional[str]
-    payload: Dict[str, Any]
+    selector: str | None
+    payload: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -44,15 +44,15 @@ class InteractionTrace:
     journey_id: str
     business_event: str
     page_url: str
-    element_selector: Optional[str]
+    element_selector: str | None
     start_time: float
     end_time: float
     status: str
-    finding: Optional[str] = None
-    confidence: Optional[str] = None
-    steps: Tuple[InteractionTraceStep, ...] = field(default_factory=tuple)
-    storage_changes: Tuple[StorageChange, ...] = field(default_factory=tuple)
-    new_data_layer_events: Tuple[str, ...] = field(default_factory=tuple)
+    finding: str | None = None
+    confidence: str | None = None
+    steps: tuple[InteractionTraceStep, ...] = field(default_factory=tuple)
+    storage_changes: tuple[StorageChange, ...] = field(default_factory=tuple)
+    new_data_layer_events: tuple[str, ...] = field(default_factory=tuple)
 
 
 _STORAGE_FIELDS = (
@@ -68,7 +68,7 @@ _STORAGE_FIELDS = (
 )
 
 
-def _storage_changes(state_diff: Optional[StateDiff]) -> Tuple[StorageChange, ...]:
+def _storage_changes(state_diff: StateDiff | None) -> tuple[StorageChange, ...]:
     if state_diff is None:
         return ()
     changes = []
@@ -78,7 +78,9 @@ def _storage_changes(state_diff: Optional[StateDiff]) -> Tuple[StorageChange, ..
     return tuple(changes)
 
 
-def build_interaction_trace(journey: TrackingJourney, state_diff: Optional[StateDiff] = None) -> InteractionTrace:
+def build_interaction_trace(
+    journey: TrackingJourney, state_diff: StateDiff | None = None
+) -> InteractionTrace:
     steps = tuple(
         InteractionTraceStep(
             stage=stage_for_event_type(obs.event_type),
@@ -117,7 +119,9 @@ def render_interaction_trace(trace: InteractionTrace) -> str:
     lines.append("  Timeline:")
     for step in trace.steps:
         name = f" '{step.event_name}'" if step.event_name else ""
-        lines.append(f"    [{step.timestamp:.3f}] {step.stage}: {step.event_type}{name} (selector={step.selector})")
+        lines.append(
+            f"    [{step.timestamp:.3f}] {step.stage}: {step.event_type}{name} (selector={step.selector})"
+        )
     if trace.storage_changes:
         lines.append("  Storage changes:")
         for change in trace.storage_changes:
@@ -153,15 +157,17 @@ def build_interaction_trace_json(trace: InteractionTrace) -> dict:
             for step in trace.steps
         ],
         "storage_changes": [
-            {"category": c.category, "key": c.key, "change": c.change} for c in trace.storage_changes
+            {"category": c.category, "key": c.key, "change": c.change}
+            for c in trace.storage_changes
         ],
         "new_data_layer_events": list(trace.new_data_layer_events),
     }
 
 
 def build_interaction_traces(
-    journeys: List[TrackingJourney], state_diffs_by_journey_id: Optional[Dict[str, StateDiff]] = None
-) -> List[InteractionTrace]:
+    journeys: list[TrackingJourney],
+    state_diffs_by_journey_id: dict[str, StateDiff] | None = None,
+) -> list[InteractionTrace]:
     state_diffs_by_journey_id = state_diffs_by_journey_id or {}
     return [
         build_interaction_trace(journey, state_diffs_by_journey_id.get(journey.journey_id))

@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import copy
 import time
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 from urllib.parse import urlsplit
 
 from pytagmanager.control.adapters import AdapterRegistry, default_adapter_registry
@@ -160,9 +161,7 @@ def preview_event(
     resolutions = resolved.resolve_all()
     resolution_by_id = {item.variable_id: item for item in resolutions}
     raw_variables = {
-        item.variable_id: item.value
-        for item in resolutions
-        if item.status in _RESOLVED
+        item.variable_id: item.value for item in resolutions if item.status in _RESOLVED
     }
     context = _condition_context(normalized, consent, raw_variables)
 
@@ -203,7 +202,9 @@ def preview_event(
     errors = []
     redacted_event = _redact(normalized)
     for tag in payload.tags:
-        matched = [trigger_id for trigger_id in tag.trigger_ids if trigger_id in matched_trigger_ids]
+        matched = [
+            trigger_id for trigger_id in tag.trigger_ids if trigger_id in matched_trigger_ids
+        ]
         blocked_reason = None
         if not tag.enabled:
             blocked_reason = "disabled"

@@ -220,12 +220,14 @@ Phase-by-phase, from `docs/ROADMAP.md` (numbers match that file's headings):
   `zig` was available for manylinux cross-compilation), vs. v0.1.3's macOS x86_64 +
   arm64 + Linux x86_64 + aarch64 + sdist. Linux and Intel-Mac users get the sdist and
   need a working Rust toolchain to build from source until a proper multi-platform
-  release is cut. There's still no publish/release workflow in `.github/workflows/`
-  (only `ci.yml`) — this was a manual `maturin build` + `twine upload`, not an
-  automated release; the next release should either restore Docker/zig-based
-  cross-compilation or add a `maturin-action`-based GitHub release workflow so this
-  doesn't have to be redone by hand and platform coverage doesn't silently regress
-  again.
+  release is cut. There was no publish/release workflow in `.github/workflows/` before
+  2026-10-25. **Added `.github/workflows/release.yml`**: on a `v*` tag it
+  builds manylinux x86_64/aarch64, macOS arm64/Intel, and Windows x86_64
+  wheels plus an sdist via `PyO3/maturin-action`, smoke-tests installs on
+  Linux/macOS/Windows, and publishes with PyPI trusted publishing
+  (`environment: pypi`, `id-token: write`). This workflow itself has not
+  run on GitHub yet; the first tagged release should be watched and PyPI
+  trusted publishing configured for the project before relying on it.
 - **The v0.2.0 version bump itself was incomplete**: it updated `pyproject.toml` and
   `python/pytagmanager/__init__.py` to `0.2.0` but missed `Cargo.toml`, which stayed at
   `0.1.3` until this pass (fixed here). Since `pyproject.toml`'s `[project].version` is
@@ -369,21 +371,12 @@ to spend time on them.
   `requires-python` raised to `>=3.10` and CI moved to 3.12, both `cargo audit`
   and `pip-audit --strict` now pass clean. The `click` advisory previously listed
   here (PYSEC-2026-2132) has been withdrawn and is no longer reported.
-- **No Python lint/format tooling wired into CI or `pyproject.toml`** — a
-  `.ruff_cache/` directory exists locally (someone has run `ruff` manually, e.g. via
-  an editor integration) but there is no `[tool.ruff]` config in `pyproject.toml` and
-  no lint/format step in `ci.yml`. Unlike the Rust side (`cargo fmt --check` +
-  `cargo clippy -D warnings`, both enforced in CI), Python code has zero automated
-  style/lint enforcement — a contributor's formatting is whatever their own editor
-  does, with nothing to catch drift. **Checked 2026-09-22 whether adding a CI gate
-  was a quick fix**: with default/unconfigured settings, `ruff check python
-  tests/python` reports 788 errors (132 auto-fixable) and `black --check python
-  tests/python` would reformat 126 of 146 files — this is massive pre-existing
-  formatting/lint debt, not a gap a one-line CI addition can close without either
-  reformatting the whole tree unreviewed or shipping a CI job that's red on arrival.
-  Deliberately not added this pass; a future pass should run `black`/`ruff --fix`
-  as its own reviewed commit (or land a deliberately narrow `[tool.ruff]` config
-  that only catches new drift) before wiring either into `ci.yml`.
+- ~~**No Python lint/format tooling wired into CI or `pyproject.toml`**~~ **Resolved:**
+  `[tool.ruff]` now sets a curated rule set and line length, the Python tree is
+  formatted with `ruff format`, and CI runs `ruff check python tests/python` plus
+  `ruff format --check python tests/python`. The full suite still passes
+  (728 passed, 4 skipped in the verification run).
+
 - ~~**`src/lib.rs:41`**: `tokio::runtime::Runtime::new().expect(...)` panicked on
   Tokio runtime creation failure.~~ **Fixed 2026-09-22**: the `crawl()` pyfunction's
   `py.allow_threads` closure already produces a `Result<Vec<Page>, AppError>`, so

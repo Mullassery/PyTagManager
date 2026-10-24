@@ -6,7 +6,8 @@ import copy
 import json
 import math
 import re
-from typing import Any, Callable, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from pytagmanager.control._sentinels import MISSING
 from pytagmanager.control.checksums import canonical_json
@@ -103,8 +104,6 @@ def iter_variable_ids(expression: Any):
                 yield from iter_variable_ids(item)
 
 
-
-
 def _arg(expression: Mapping[str, Any], resolver: Callable[[str], Any]) -> Any:
     return evaluate_expression(expression["arg"], resolver)
 
@@ -117,7 +116,9 @@ def _number(value: Any, op: str) -> float | int:
     return value
 
 
-def evaluate_expression(expression: Mapping[str, Any], resolve_variable: Callable[[str], Any]) -> Any:
+def evaluate_expression(
+    expression: Mapping[str, Any], resolve_variable: Callable[[str], Any]
+) -> Any:
     """Evaluate a validated expression. ``MISSING`` means unresolved/missing."""
     op = expression.get("op")
     if op == "literal":

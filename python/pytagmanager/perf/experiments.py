@@ -33,32 +33,39 @@ specific run*, worded as an observation, not a general causal law.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Iterable, Optional, Sequence, Set, Tuple
 
-from pytagmanager.perf.dependency_graph import ScriptDependencyGraph, build_dependency_graph
+from pytagmanager.perf.dependency_graph import (
+    ScriptDependencyGraph,
+    build_dependency_graph,
+)
 from pytagmanager.perf.measure import PerformanceBaseline, measure_page_performance
-from pytagmanager.perf.scripts import ScriptEntry, ScriptInventory, build_script_inventory
+from pytagmanager.perf.scripts import (
+    ScriptEntry,
+    ScriptInventory,
+    build_script_inventory,
+)
 
 GROUP_TAG_MANAGEMENT = "tag_management"
 _GTM_LOADER_PATTERN = re.compile(r"googletagmanager\.com/gtm\.js")
 
 
-def _script_group(script: ScriptEntry) -> Optional[str]:
+def _script_group(script: ScriptEntry) -> str | None:
     if _GTM_LOADER_PATTERN.search(script.url):
         return GROUP_TAG_MANAGEMENT
     return script.category
 
 
-def available_groups(inventory: ScriptInventory) -> Tuple[str, ...]:
+def available_groups(inventory: ScriptInventory) -> tuple[str, ...]:
     """Every group actually present in this inventory -- not VISION's
     full aspirational list, which would misrepresent what a caller can
     actually isolate on this page."""
     return tuple(sorted({g for s in inventory.scripts if (g := _script_group(s)) is not None}))
 
 
-def _closure(urls: Iterable[str], graph: ScriptDependencyGraph) -> Set[str]:
-    blocked: Set[str] = set(urls)
+def _closure(urls: Iterable[str], graph: ScriptDependencyGraph) -> set[str]:
+    blocked: set[str] = set(urls)
     for target_url in list(blocked):
         blocked |= graph.downstream_of(target_url)
     return blocked
@@ -67,11 +74,11 @@ def _closure(urls: Iterable[str], graph: ScriptDependencyGraph) -> Set[str]:
 @dataclass(frozen=True)
 class IsolationExperimentResult:
     target_description: str
-    blocked_urls: Tuple[str, ...] = field(default_factory=tuple)
-    baseline: Optional[PerformanceBaseline] = None
-    experiment: Optional[PerformanceBaseline] = None
+    blocked_urls: tuple[str, ...] = field(default_factory=tuple)
+    baseline: PerformanceBaseline | None = None
+    experiment: PerformanceBaseline | None = None
 
-    def _delta(self, metric: str) -> Optional[float]:
+    def _delta(self, metric: str) -> float | None:
         if self.baseline is None or self.experiment is None:
             return None
         before = getattr(self.baseline, metric)
@@ -81,27 +88,27 @@ class IsolationExperimentResult:
         return before - after
 
     @property
-    def lcp_delta_ms(self) -> Optional[float]:
+    def lcp_delta_ms(self) -> float | None:
         return self._delta("median_lcp_ms")
 
     @property
-    def tbt_delta_ms(self) -> Optional[float]:
+    def tbt_delta_ms(self) -> float | None:
         return self._delta("median_tbt_ms")
 
     @property
-    def cls_delta(self) -> Optional[float]:
+    def cls_delta(self) -> float | None:
         return self._delta("median_cls")
 
     @property
-    def inp_delta_ms(self) -> Optional[float]:
+    def inp_delta_ms(self) -> float | None:
         return self._delta("median_inp_ms")
 
     @property
-    def transfer_bytes_delta(self) -> Optional[float]:
+    def transfer_bytes_delta(self) -> float | None:
         return self._delta("median_transfer_bytes")
 
     @property
-    def request_count_delta(self) -> Optional[float]:
+    def request_count_delta(self) -> float | None:
         return self._delta("median_request_count")
 
     @property
@@ -128,15 +135,17 @@ class IsolationExperimentResult:
 def _run(
     url: str,
     target_description: str,
-    blocked_urls: Set[str],
+    blocked_urls: set[str],
     *,
-    baseline: Optional[PerformanceBaseline],
+    baseline: PerformanceBaseline | None,
     runs: int,
     headless: bool,
     browser_name: str,
 ) -> IsolationExperimentResult:
     if baseline is None:
-        baseline = measure_page_performance(url, runs=runs, headless=headless, browser_name=browser_name)
+        baseline = measure_page_performance(
+            url, runs=runs, headless=headless, browser_name=browser_name
+        )
     experiment = measure_page_performance(
         url,
         runs=runs,
@@ -156,8 +165,8 @@ def isolate_script(
     url: str,
     script_url: str,
     *,
-    inventory: Optional[ScriptInventory] = None,
-    baseline: Optional[PerformanceBaseline] = None,
+    inventory: ScriptInventory | None = None,
+    baseline: PerformanceBaseline | None = None,
     runs: int = 3,
     headless: bool = True,
     browser_name: str = "chromium",
@@ -165,11 +174,19 @@ def isolate_script(
     """Blocks `script_url` and everything downstream of it (per the
     dependency graph, item 3) -- so blocking GTM correctly stops its
     GA4/Meta Pixel/etc. children too, not just the GTM loader itself."""
-    inventory = inventory or build_script_inventory(url, headless=headless, browser_name=browser_name)
+    inventory = inventory or build_script_inventory(
+        url, headless=headless, browser_name=browser_name
+    )
     graph = build_dependency_graph(inventory)
     blocked = _closure([script_url], graph)
     return _run(
-        url, f"script {script_url}", blocked, baseline=baseline, runs=runs, headless=headless, browser_name=browser_name
+        url,
+        f"script {script_url}",
+        blocked,
+        baseline=baseline,
+        runs=runs,
+        headless=headless,
+        browser_name=browser_name,
     )
 
 
@@ -177,31 +194,41 @@ def isolate_group(
     url: str,
     group: str,
     *,
-    inventory: Optional[ScriptInventory] = None,
-    baseline: Optional[PerformanceBaseline] = None,
+    inventory: ScriptInventory | None = None,
+    baseline: PerformanceBaseline | None = None,
     runs: int = 3,
     headless: bool = True,
     browser_name: str = "chromium",
 ) -> IsolationExperimentResult:
-    inventory = inventory or build_script_inventory(url, headless=headless, browser_name=browser_name)
+    inventory = inventory or build_script_inventory(
+        url, headless=headless, browser_name=browser_name
+    )
     graph = build_dependency_graph(inventory)
     matching = [s.url for s in inventory.scripts if _script_group(s) == group]
     blocked = _closure(matching, graph)
     return _run(
-        url, f"group '{group}'", blocked, baseline=baseline, runs=runs, headless=headless, browser_name=browser_name
+        url,
+        f"group '{group}'",
+        blocked,
+        baseline=baseline,
+        runs=runs,
+        headless=headless,
+        browser_name=browser_name,
     )
 
 
 def isolate_all_non_essential(
     url: str,
     *,
-    inventory: Optional[ScriptInventory] = None,
-    baseline: Optional[PerformanceBaseline] = None,
+    inventory: ScriptInventory | None = None,
+    baseline: PerformanceBaseline | None = None,
     runs: int = 3,
     headless: bool = True,
     browser_name: str = "chromium",
 ) -> IsolationExperimentResult:
-    inventory = inventory or build_script_inventory(url, headless=headless, browser_name=browser_name)
+    inventory = inventory or build_script_inventory(
+        url, headless=headless, browser_name=browser_name
+    )
     graph = build_dependency_graph(inventory)
     matching = [s.url for s in inventory.scripts if _script_group(s) is not None]
     blocked = _closure(matching, graph)

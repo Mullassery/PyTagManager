@@ -4,12 +4,19 @@ runnable as a passing test without review."""
 
 from __future__ import annotations
 
-from pytagmanager.testintel.candidates import CATEGORY_EVENT_EXISTENCE, SEVERITY_REQUIRES_VERIFICATION, TestCandidate
+from pytagmanager.testintel.candidates import (
+    CATEGORY_EVENT_EXISTENCE,
+    SEVERITY_REQUIRES_VERIFICATION,
+    TestCandidate,
+)
 from pytagmanager.testintel.playwright_export import (
     export_playwright_script,
     export_playwright_ts_script,
 )
-from pytagmanager.testintel.report import build_test_candidates_json, render_test_candidates
+from pytagmanager.testintel.report import (
+    build_test_candidates_json,
+    render_test_candidates,
+)
 
 
 def _candidate(evidence_pages=("https://example.com/a", "https://example.com/b")):
@@ -20,7 +27,10 @@ def _candidate(evidence_pages=("https://example.com/a", "https://example.com/b")
         observed="'add_to_cart' event observed",
         observed_problem="No dataLayer event fired after the interaction.",
         evidence_pages=evidence_pages,
-        suggested_verification=("Trigger the interaction", "Assert an event was pushed"),
+        suggested_verification=(
+            "Trigger the interaction",
+            "Assert an event was pushed",
+        ),
         source_root_causes=("missing_datalayer_event",),
     )
 

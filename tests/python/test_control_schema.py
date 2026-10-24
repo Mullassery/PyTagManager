@@ -3,15 +3,14 @@ from __future__ import annotations
 from dataclasses import replace
 
 import pytest
-
 from pytagmanager.control.checksums import canonical_json, checksum, verify_checksum
+from pytagmanager.control.config import Tag
 from pytagmanager.control.errors import SchemaVersionError, ValidationError
 from pytagmanager.control.models import (
     ConfigPayload,
     ConfigRevision,
     Container,
     Organization,
-    Tag,
 )
 from pytagmanager.control.schema import (
     CURRENT_SCHEMA_VERSION,
@@ -104,6 +103,5 @@ def test_container_and_organization_round_trip():
     assert Container.from_dict(container.to_dict()) == container
     with pytest.raises(ValidationError):
         Container.from_dict(
-            container.to_dict()
-            | {"external_refs": [{"system": "gtm", "id": "GTM-ABC1234"}] * 2}
+            container.to_dict() | {"external_refs": [{"system": "gtm", "id": "GTM-ABC1234"}] * 2}
         )

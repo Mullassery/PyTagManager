@@ -9,7 +9,6 @@ comparison of `snapshot.py`'s dataclasses; no crawling or I/O happens here.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List
 
 from pytagmanager.version_control.snapshot import (
     CrawlSnapshot,
@@ -20,7 +19,16 @@ from pytagmanager.version_control.snapshot import (
 
 # Node fields compared to decide whether a same-identity element "changed"
 # (text/attribute edits) rather than being added/removed outright.
-_TRACKED_NODE_FIELDS = ("tag", "text", "css_selector", "xpath", "aria_label", "aria_role", "classes", "attributes")
+_TRACKED_NODE_FIELDS = (
+    "tag",
+    "text",
+    "css_selector",
+    "xpath",
+    "aria_label",
+    "aria_role",
+    "classes",
+    "attributes",
+)
 
 
 @dataclass
@@ -33,17 +41,17 @@ class ElementFieldChange:
 @dataclass
 class ElementChange:
     identity_key: str
-    field_changes: List[ElementFieldChange]
+    field_changes: list[ElementFieldChange]
 
 
 @dataclass
 class PageDiff:
     url: str
-    added_elements: List[SnapshotNode] = field(default_factory=list)
-    removed_elements: List[SnapshotNode] = field(default_factory=list)
-    changed_elements: List[ElementChange] = field(default_factory=list)
-    added_recommendations: List[SnapshotRecommendation] = field(default_factory=list)
-    removed_recommendations: List[SnapshotRecommendation] = field(default_factory=list)
+    added_elements: list[SnapshotNode] = field(default_factory=list)
+    removed_elements: list[SnapshotNode] = field(default_factory=list)
+    changed_elements: list[ElementChange] = field(default_factory=list)
+    added_recommendations: list[SnapshotRecommendation] = field(default_factory=list)
+    removed_recommendations: list[SnapshotRecommendation] = field(default_factory=list)
 
     @property
     def has_changes(self) -> bool:
@@ -60,9 +68,9 @@ class PageDiff:
 class CrawlDiff:
     old_root_url: str
     new_root_url: str
-    added_pages: List[str] = field(default_factory=list)
-    removed_pages: List[str] = field(default_factory=list)
-    changed_pages: List[PageDiff] = field(default_factory=list)
+    added_pages: list[str] = field(default_factory=list)
+    removed_pages: list[str] = field(default_factory=list)
+    changed_pages: list[PageDiff] = field(default_factory=list)
     unchanged_page_count: int = 0
 
 
@@ -155,7 +163,9 @@ def format_diff_report(diff: CrawlDiff) -> str:
                 lines.append(f"      - element {node.identity_key} (<{node.tag}>)")
             for change in page_diff.changed_elements:
                 for fc in change.field_changes:
-                    lines.append(f"      ~ element {change.identity_key}: {fc.field} {fc.old!r} -> {fc.new!r}")
+                    lines.append(
+                        f"      ~ element {change.identity_key}: {fc.field} {fc.old!r} -> {fc.new!r}"
+                    )
             for rec in page_diff.added_recommendations:
                 lines.append(f"      + recommendation {rec.event_name} via {rec.selector}")
             for rec in page_diff.removed_recommendations:

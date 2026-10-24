@@ -85,7 +85,9 @@ def _objects(payload: ConfigPayload) -> dict[tuple[str, str], dict[str, Any]]:
 
 
 def _changed_fields(before: dict[str, Any], after: dict[str, Any]) -> tuple[str, ...]:
-    return tuple(sorted(key for key in set(before) | set(after) if before.get(key) != after.get(key)))
+    return tuple(
+        sorted(key for key in set(before) | set(after) if before.get(key) != after.get(key))
+    )
 
 
 def diff_payloads(

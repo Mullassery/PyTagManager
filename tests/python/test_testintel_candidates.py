@@ -9,7 +9,10 @@ import uuid
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.diagnostics.models import Diagnosis
 from pytagmanager.observability.events import TrackingEvent
-from pytagmanager.sitewide.interaction_consistency import BusinessActionConsistencyReport, BusinessActionImplementation
+from pytagmanager.sitewide.interaction_consistency import (
+    BusinessActionConsistencyReport,
+    BusinessActionImplementation,
+)
 from pytagmanager.testintel.candidates import (
     CATEGORY_CONSENT_BEHAVIOR,
     CATEGORY_CONSISTENCY,
@@ -25,7 +28,9 @@ from pytagmanager.testintel.candidates import (
 
 
 def _event(page_url, selector="#buy"):
-    return TrackingEvent.create(source="browser", event_type="click", selector=selector, page_url=page_url)
+    return TrackingEvent.create(
+        source="browser", event_type="click", selector=selector, page_url=page_url
+    )
 
 
 def _journey(page_url, root_cause, confidence, business_event="add_to_cart", selector="#buy"):
@@ -72,7 +77,11 @@ def test_groups_multiple_pages_with_the_same_root_cause_into_one_candidate():
     candidate = candidates[0]
     assert candidate.category == CATEGORY_EVENT_EXISTENCE
     assert candidate.evidence_count == 3
-    assert set(candidate.evidence_pages) == {"https://example.com/a", "https://example.com/b", "https://example.com/c"}
+    assert set(candidate.evidence_pages) == {
+        "https://example.com/a",
+        "https://example.com/b",
+        "https://example.com/c",
+    }
 
 
 def test_healthy_journeys_produce_no_candidates():
@@ -82,15 +91,29 @@ def test_healthy_journeys_produce_no_candidates():
 
 def test_journeys_without_diagnosis_produce_no_candidates():
     journey = TrackingJourney(
-        journey_id=str(uuid.uuid4()), business_event="add_to_cart", start_time=0.0, end_time=1.0, observations=[]
+        journey_id=str(uuid.uuid4()),
+        business_event="add_to_cart",
+        start_time=0.0,
+        end_time=1.0,
+        observations=[],
     )
     assert generate_diagnosis_candidates([journey]) == []
 
 
 def test_different_business_events_produce_separate_candidates_even_with_same_root_cause():
     journeys = [
-        _journey("https://example.com/a", "missing_datalayer_event", "Confirmed", business_event="add_to_cart"),
-        _journey("https://example.com/b", "missing_datalayer_event", "Confirmed", business_event="newsletter_signup"),
+        _journey(
+            "https://example.com/a",
+            "missing_datalayer_event",
+            "Confirmed",
+            business_event="add_to_cart",
+        ),
+        _journey(
+            "https://example.com/b",
+            "missing_datalayer_event",
+            "Confirmed",
+            business_event="newsletter_signup",
+        ),
     ]
     candidates = generate_diagnosis_candidates(journeys)
     assert len(candidates) == 2
@@ -126,7 +149,14 @@ def test_unmapped_root_cause_is_skipped_not_guessed():
 
 
 def test_suggested_verification_steps_are_populated_and_parameterized():
-    journeys = [_journey("https://example.com/a", "missing_datalayer_event", "Confirmed", selector="#buy-now")]
+    journeys = [
+        _journey(
+            "https://example.com/a",
+            "missing_datalayer_event",
+            "Confirmed",
+            selector="#buy-now",
+        )
+    ]
     candidate = generate_diagnosis_candidates(journeys)[0]
     assert candidate.suggested_verification
     assert any("#buy-now" in step for step in candidate.suggested_verification)
@@ -141,10 +171,16 @@ def test_inconsistent_business_action_produces_a_candidate():
         business_objective="Purchase Intent",
         implementations=(
             BusinessActionImplementation(
-                page_url="https://example.com/product", selector="#buy", observed_event_name="add_to_cart", fired=True
+                page_url="https://example.com/product",
+                selector="#buy",
+                observed_event_name="add_to_cart",
+                fired=True,
             ),
             BusinessActionImplementation(
-                page_url="https://example.com/search", selector="#quick-buy", observed_event_name="addToCart", fired=True
+                page_url="https://example.com/search",
+                selector="#quick-buy",
+                observed_event_name="addToCart",
+                fired=True,
             ),
         ),
     )
@@ -154,7 +190,10 @@ def test_inconsistent_business_action_produces_a_candidate():
     assert candidate.category == CATEGORY_CONSISTENCY
     assert "add_to_cart" in candidate.observed_problem
     assert "addToCart" in candidate.observed_problem
-    assert set(candidate.evidence_pages) == {"https://example.com/product", "https://example.com/search"}
+    assert set(candidate.evidence_pages) == {
+        "https://example.com/product",
+        "https://example.com/search",
+    }
 
 
 def test_consistent_business_action_produces_no_candidate():
@@ -162,10 +201,16 @@ def test_consistent_business_action_produces_no_candidate():
         business_objective="Purchase Intent",
         implementations=(
             BusinessActionImplementation(
-                page_url="https://example.com/product", selector="#buy", observed_event_name="add_to_cart", fired=True
+                page_url="https://example.com/product",
+                selector="#buy",
+                observed_event_name="add_to_cart",
+                fired=True,
             ),
             BusinessActionImplementation(
-                page_url="https://example.com/search", selector="#quick-buy", observed_event_name="add_to_cart", fired=True
+                page_url="https://example.com/search",
+                selector="#quick-buy",
+                observed_event_name="add_to_cart",
+                fired=True,
             ),
         ),
     )
@@ -178,19 +223,30 @@ def test_consistent_business_action_produces_no_candidate():
 def test_severity_levels_end_with_confirmed_defect_but_generators_never_emit_it():
     assert SEVERITY_LEVELS[-1] == SEVERITY_CONFIRMED_DEFECT
 
-    journeys = [_journey(f"https://example.com/{i}", "missing_datalayer_event", "Confirmed") for i in range(3)]
+    journeys = [
+        _journey(f"https://example.com/{i}", "missing_datalayer_event", "Confirmed")
+        for i in range(3)
+    ]
     report = BusinessActionConsistencyReport(
         business_objective="Purchase Intent",
         implementations=(
             BusinessActionImplementation(
-                page_url="https://example.com/a", selector="#a", observed_event_name="x", fired=True
+                page_url="https://example.com/a",
+                selector="#a",
+                observed_event_name="x",
+                fired=True,
             ),
             BusinessActionImplementation(
-                page_url="https://example.com/b", selector="#b", observed_event_name="y", fired=True
+                page_url="https://example.com/b",
+                selector="#b",
+                observed_event_name="y",
+                fired=True,
             ),
         ),
     )
-    all_candidates = generate_diagnosis_candidates(journeys) + generate_consistency_candidates([report])
+    all_candidates = generate_diagnosis_candidates(journeys) + generate_consistency_candidates(
+        [report]
+    )
     assert all_candidates
     for candidate in all_candidates:
         assert candidate.severity != SEVERITY_CONFIRMED_DEFECT

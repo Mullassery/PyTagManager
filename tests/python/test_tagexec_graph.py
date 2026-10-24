@@ -4,7 +4,11 @@ its unified evidence-label vocabulary (docs/VISION.md §17)."""
 from __future__ import annotations
 
 from pytagmanager.diagnostics.trace import InteractionTrace, InteractionTraceStep
-from pytagmanager.tagexec.duplicates import DuplicateCandidate, DuplicateFinding, RuntimeDuplicateEvidence
+from pytagmanager.tagexec.duplicates import (
+    DuplicateCandidate,
+    DuplicateFinding,
+    RuntimeDuplicateEvidence,
+)
 from pytagmanager.tagexec.graph import (
     EVIDENCE_INFERRED,
     EVIDENCE_LEVELS,
@@ -18,7 +22,11 @@ from pytagmanager.tagexec.graph import (
     build_tag_execution_graph,
 )
 from pytagmanager.tagexec.server_side import ServerSideIndicator
-from pytagmanager.tagexec.static_scan import GtmContainerDetection, StaticScanResult, VendorDetection
+from pytagmanager.tagexec.static_scan import (
+    GtmContainerDetection,
+    StaticScanResult,
+    VendorDetection,
+)
 
 
 def _scan(page_url="https://example.com/", gtm_containers=(), vendors=()):
@@ -37,7 +45,12 @@ def _step(stage, event_type, timestamp, event_name="", payload=None):
     )
 
 
-def _trace(steps, page_url="https://example.com/", journey_id="j1", business_event="add_to_cart"):
+def _trace(
+    steps,
+    page_url="https://example.com/",
+    journey_id="j1",
+    business_event="add_to_cart",
+):
     return InteractionTrace(
         journey_id=journey_id,
         business_event=business_event,
@@ -73,19 +86,33 @@ def test_trace_steps_are_chained_with_observed_edges():
         [
             _step("interaction", "click", 1.0),
             _step("datalayer", "datalayer_push", 1.1, event_name="add_to_cart"),
-            _step("network", "network_request", 1.2, payload={"url": "https://www.google-analytics.com/g/collect"}),
+            _step(
+                "network",
+                "network_request",
+                1.2,
+                payload={"url": "https://www.google-analytics.com/g/collect"},
+            ),
         ]
     )
     graph = build_tag_execution_graph([], [trace])
 
     step_nodes = [n for n in graph.nodes if n.node_id.startswith("trace:j1:step:")]
     assert len(step_nodes) == 3
-    assert all(e.evidence == EVIDENCE_OBSERVED for e in graph.edges if e.source_id.startswith("trace:"))
+    assert all(
+        e.evidence == EVIDENCE_OBSERVED for e in graph.edges if e.source_id.startswith("trace:")
+    )
 
 
 def test_network_step_links_to_an_endpoint_node():
     trace = _trace(
-        [_step("network", "network_request", 1.0, payload={"url": "https://www.google-analytics.com/g/collect?x=1"})]
+        [
+            _step(
+                "network",
+                "network_request",
+                1.0,
+                payload={"url": "https://www.google-analytics.com/g/collect?x=1"},
+            )
+        ]
     )
     graph = build_tag_execution_graph([], [trace])
 
@@ -109,7 +136,14 @@ def test_empty_trace_produces_no_step_nodes():
 
 def test_first_party_indicator_adds_inferred_relay_edge_for_likely_confidence():
     trace = _trace(
-        [_step("network", "network_request", 1.0, payload={"url": "https://shop.example.com/g/collect?v=2"})],
+        [
+            _step(
+                "network",
+                "network_request",
+                1.0,
+                payload={"url": "https://shop.example.com/g/collect?v=2"},
+            )
+        ],
         page_url="https://shop.example.com/",
     )
     indicator = ServerSideIndicator(
@@ -132,8 +166,18 @@ def test_first_party_indicator_adds_inferred_relay_edge_for_likely_confidence():
 def test_fanout_indicator_adds_suspected_edges_between_endpoints():
     trace = _trace(
         [
-            _step("network", "network_request", 1.0, payload={"url": "https://vendor-a.example/collect"}),
-            _step("network", "network_request", 1.1, payload={"url": "https://vendor-b.example/collect"}),
+            _step(
+                "network",
+                "network_request",
+                1.0,
+                payload={"url": "https://vendor-a.example/collect"},
+            ),
+            _step(
+                "network",
+                "network_request",
+                1.1,
+                payload={"url": "https://vendor-b.example/collect"},
+            ),
         ],
         page_url="https://shop.example.com/",
     )
@@ -148,7 +192,9 @@ def test_fanout_indicator_adds_suspected_edges_between_endpoints():
     graph = build_tag_execution_graph([], [trace], server_side_indicators=[indicator])
 
     fanout_edges = [
-        e for e in graph.edges if e.source_id == "endpoint:vendor-a.example" and e.target_id == "endpoint:vendor-b.example"
+        e
+        for e in graph.edges
+        if e.source_id == "endpoint:vendor-a.example" and e.target_id == "endpoint:vendor-b.example"
     ]
     assert len(fanout_edges) == 1
     assert fanout_edges[0].evidence == EVIDENCE_SUSPECTED
@@ -172,14 +218,23 @@ def test_duplicate_gtm_containers_are_linked():
         ),
         runtime_evidence=(
             RuntimeDuplicateEvidence(
-                journey_id="j1", business_event="add_to_cart", request_count=2, request_urls=(), payload_similarity=1.0
+                journey_id="j1",
+                business_event="add_to_cart",
+                request_count=2,
+                request_urls=(),
+                payload_similarity=1.0,
             ),
         ),
     )
     graph = build_tag_execution_graph([scan], [], duplicate_findings=[finding])
 
     edge = next(
-        (e for e in graph.edges if {e.source_id, e.target_id} == {"gtm:GTM-AAA1111", "gtm:GTM-BBB2222"}), None
+        (
+            e
+            for e in graph.edges
+            if {e.source_id, e.target_id} == {"gtm:GTM-AAA1111", "gtm:GTM-BBB2222"}
+        ),
+        None,
     )
     assert edge is not None
     assert edge.evidence == EVIDENCE_OBSERVED
@@ -195,7 +250,11 @@ def test_duplicate_finding_with_unresolvable_name_is_skipped_gracefully():
         ),
         runtime_evidence=(
             RuntimeDuplicateEvidence(
-                journey_id="j1", business_event="add_to_cart", request_count=2, request_urls=(), payload_similarity=1.0
+                journey_id="j1",
+                business_event="add_to_cart",
+                request_count=2,
+                request_urls=(),
+                payload_similarity=1.0,
             ),
         ),
     )
@@ -210,13 +269,26 @@ def test_duplicate_finding_with_unresolvable_name_is_skipped_gracefully():
 
 
 def test_evidence_levels_match_vision_vocabulary():
-    assert EVIDENCE_LEVELS == ("Observed", "Inferred", "Suspected", "Unknown", "Not observed")
+    assert EVIDENCE_LEVELS == (
+        "Observed",
+        "Inferred",
+        "Suspected",
+        "Unknown",
+        "Not observed",
+    )
 
 
 def test_no_edge_ever_uses_an_evidence_level_outside_the_vocabulary():
     scan = _scan(gtm_containers=(GtmContainerDetection("GTM-AAA1111", "script_tag"),))
     trace = _trace(
-        [_step("network", "network_request", 1.0, payload={"url": "https://example.com/g/collect"})],
+        [
+            _step(
+                "network",
+                "network_request",
+                1.0,
+                payload={"url": "https://example.com/g/collect"},
+            )
+        ],
         page_url="https://example.com/",
     )
     indicator = ServerSideIndicator(

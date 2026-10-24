@@ -2,21 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pytagmanager.cmp.models import CmpAuditReport, ConsentState
 
 _SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "informational": 4}
 
 
-def _format_consent(state: Optional[ConsentState]) -> str:
+def _format_consent(state: ConsentState | None) -> str:
     if state is None:
         return "not captured"
-    known = {
-        name: value
-        for name, value in state.categories.items()
-        if value is not None
-    }
+    known = {name: value for name, value in state.categories.items() if value is not None}
     if known:
         categories = ", ".join(
             f"{name}={'granted' if value else 'denied'}" for name, value in sorted(known.items())
@@ -97,7 +91,11 @@ def render_cmp_audit_report(report: CmpAuditReport) -> str:
     lines.append(f"Findings: {len(report.findings)}")
     for finding in sorted(
         report.findings,
-        key=lambda item: (_SEVERITY_ORDER.get(item.severity, 99), item.rule_id, item.finding_id),
+        key=lambda item: (
+            _SEVERITY_ORDER.get(item.severity, 99),
+            item.rule_id,
+            item.finding_id,
+        ),
     ):
         lines.append(
             f"  [{finding.severity.upper()}/{finding.confidence}] "

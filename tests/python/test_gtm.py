@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from click.testing import CliRunner
-
 from pytagmanager import cli
 from pytagmanager.control import (
     ConfigPayload,
@@ -53,9 +51,7 @@ def _sample_export():
                     "name": "Broken",
                     "type": "gaawe",
                     "firingTriggerId": [],
-                    "parameter": [
-                        {"key": "eventName", "value": "{{Missing Var}}"}
-                    ],
+                    "parameter": [{"key": "eventName", "value": "{{Missing Var}}"}],
                 },
             ],
             "trigger": [
@@ -92,8 +88,19 @@ def test_analysis_finds_duplicates_unused_and_unresolved():
         "duplicate_measurement_id",
     } <= codes
     for finding in findings:
-        assert finding.severity in {"critical", "high", "medium", "low", "informational"}
-        assert finding.confidence in {"confirmed", "high-confidence", "suspected", "unverified"}
+        assert finding.severity in {
+            "critical",
+            "high",
+            "medium",
+            "low",
+            "informational",
+        }
+        assert finding.confidence in {
+            "confirmed",
+            "high-confidence",
+            "suspected",
+            "unverified",
+        }
         assert finding.evidence
         assert finding.remediation
 
@@ -111,10 +118,16 @@ def test_control_payload_round_trips_through_gtm_projection():
     trigger = Trigger.create(
         name="Purchase event",
         type="custom_event",
-        conditions={"op": "all", "conditions": [{"op": "equals", "path": "event.name", "value": "purchase"}]},
+        conditions={
+            "op": "all",
+            "conditions": [{"op": "equals", "path": "event.name", "value": "purchase"}],
+        },
     )
     variable = Variable.create(
-        name="ecommerce.value", type="string", source="data_layer", source_ref="ecommerce.value"
+        name="ecommerce.value",
+        type="string",
+        source="data_layer",
+        source_ref="ecommerce.value",
     )
     tag = Tag.create(
         name="GA4 purchase",
@@ -153,7 +166,10 @@ def test_cli_export_and_import_as_drafts(tmp_path):
     trigger = Trigger.create(
         name="Purchase event",
         type="custom_event",
-        conditions={"op": "all", "conditions": [{"op": "equals", "path": "event.name", "value": "purchase"}]},
+        conditions={
+            "op": "all",
+            "conditions": [{"op": "equals", "path": "event.name", "value": "purchase"}],
+        },
     )
     tag = Tag.create(
         name="GA4 purchase",
@@ -169,9 +185,13 @@ def test_cli_export_and_import_as_drafts(tmp_path):
     result = runner.invoke(
         cli.main,
         [
-            "gtm", "export", "GTM-ABC1234",
-            "--home", str(service.store.root),
-            "--output", str(exported),
+            "gtm",
+            "export",
+            "GTM-ABC1234",
+            "--home",
+            str(service.store.root),
+            "--output",
+            str(exported),
         ],
     )
     assert result.exit_code == 0, result.output
@@ -180,8 +200,13 @@ def test_cli_export_and_import_as_drafts(tmp_path):
     imported = runner.invoke(
         cli.main,
         [
-            "gtm", "import", str(exported), "GTM-OTHER1",
-            "--home", str(service.store.root), "--json",
+            "gtm",
+            "import",
+            str(exported),
+            "GTM-OTHER1",
+            "--home",
+            str(service.store.root),
+            "--json",
         ],
     )
     assert imported.exit_code == 0, imported.output

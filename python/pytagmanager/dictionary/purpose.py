@@ -26,8 +26,8 @@ import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
-from typing import List, Optional, Protocol, Tuple, runtime_checkable
-from urllib.parse import urlparse, parse_qs
+from typing import Protocol, runtime_checkable
+from urllib.parse import parse_qs, urlparse
 
 from pytagmanager.dictionary.build import DictionaryVariable
 
@@ -66,10 +66,16 @@ _CAMPAIGN_QUERY_PARAMS = {
 # (regex matched against the lowercased key name, purpose), checked in
 # order -- first match wins. Specific vendor-prefixed names (e.g. "_fbp")
 # are listed before generic substrings they'd otherwise be shadowed by.
-_KEY_PATTERNS: List[Tuple[re.Pattern, str]] = [
-    (re.compile(r"_fbp|_fbc|_gcl_au|doubleclick|adroll|criteo|taboola|outbrain|ad_id"), "Advertising"),
+_KEY_PATTERNS: list[tuple[re.Pattern, str]] = [
+    (
+        re.compile(r"_fbp|_fbc|_gcl_au|doubleclick|adroll|criteo|taboola|outbrain|ad_id"),
+        "Advertising",
+    ),
     (re.compile(r"consent|gdpr|ccpa|onetrust|cookieyes|trustarc"), "Consent"),
-    (re.compile(r"ab[_-]?test|experiment|variant|split[_-]?test|optimizely|vwo"), "Experiment"),
+    (
+        re.compile(r"ab[_-]?test|experiment|variant|split[_-]?test|optimizely|vwo"),
+        "Experiment",
+    ),
     (re.compile(r"csrf|jwt|access[_-]?token|refresh[_-]?token|auth"), "Auth"),
     (re.compile(r"utm_|campaign|gclid|fbclid|msclkid|dclid|ttclid"), "Campaign"),
     (re.compile(r"referrer|attribution|affiliate"), "Attribution"),
@@ -77,8 +83,14 @@ _KEY_PATTERNS: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"lang(uage)?|locale|theme|currency|\bpref"), "Preferences"),
     (re.compile(r"personaliz|recommend|recently[_-]?viewed"), "Personalization"),
     (re.compile(r"phpsessid|jsessionid|\bsess(ion)?[_-]?id\b|^sid$"), "Session"),
-    (re.compile(r"_ga\b|_gid|_gat|utag|analytics|amplitude|mixpanel|segment"), "Analytics"),
-    (re.compile(r"customer[_-]?id|user[_-]?id|\buid\b|visitor[_-]?id|client[_-]?id"), "Identity"),
+    (
+        re.compile(r"_ga\b|_gid|_gat|utag|analytics|amplitude|mixpanel|segment"),
+        "Analytics",
+    ),
+    (
+        re.compile(r"customer[_-]?id|user[_-]?id|\buid\b|visitor[_-]?id|client[_-]?id"),
+        "Identity",
+    ),
 ]
 
 
@@ -86,7 +98,7 @@ _KEY_PATTERNS: List[Tuple[re.Pattern, str]] = [
 class PurposeResult:
     purpose: str  # one of PURPOSES
     confidence: float
-    evidence: List[str]
+    evidence: list[str]
     rationale: str
 
 
@@ -103,10 +115,12 @@ def _campaign_url_evidence(variable: DictionaryVariable) -> bool:
     return False
 
 
-def _persistence_evidence(variable: DictionaryVariable) -> Optional[str]:
+def _persistence_evidence(variable: DictionaryVariable) -> str | None:
     if variable.pages_total and variable.observed_count > 1:
         ratio = variable.presence_ratio or 0.0
-        return f"persists across {variable.observed_count}/{variable.pages_total} pages ({ratio:.0%})"
+        return (
+            f"persists across {variable.observed_count}/{variable.pages_total} pages ({ratio:.0%})"
+        )
     return None
 
 
@@ -118,17 +132,21 @@ class HeuristicPurposeClassifier:
 
     def classify(self, variable: DictionaryVariable) -> PurposeResult:
         key = variable.path.lower()
-        evidence: List[str] = []
+        evidence: list[str] = []
 
         persistence = _persistence_evidence(variable)
         if persistence:
             evidence.append(persistence)
         if _campaign_url_evidence(variable):
-            evidence.append("observed on a page URL carrying a campaign query parameter (utm_*/gclid/fbclid/...)")
+            evidence.append(
+                "observed on a page URL carrying a campaign query parameter (utm_*/gclid/fbclid/...)"
+            )
 
         for pattern, purpose in _KEY_PATTERNS:
             if pattern.search(key):
-                match_evidence = [f"key name '{variable.path}' matches the {purpose.lower()} naming pattern"] + evidence
+                match_evidence = [
+                    f"key name '{variable.path}' matches the {purpose.lower()} naming pattern"
+                ] + evidence
                 confidence = 0.55 + 0.1 * min(len(evidence), 3)
                 return PurposeResult(
                     purpose=purpose,
@@ -209,7 +227,9 @@ class OllamaPurposeClassifier:
             '"rationale": "<one short sentence>"}'
         )
 
-    def _classify_via_ollama(self, variable: DictionaryVariable, deterministic: PurposeResult) -> PurposeResult:
+    def _classify_via_ollama(
+        self, variable: DictionaryVariable, deterministic: PurposeResult
+    ) -> PurposeResult:
         payload = json.dumps(
             {
                 "model": self.model,
@@ -236,6 +256,15 @@ class OllamaPurposeClassifier:
 
         confidence = max(0.0, min(float(parsed.get("confidence", 0.5)), 1.0))
         rationale = str(parsed.get("rationale") or "").strip()
-        rationale = f"Ollama ({self.model}): {rationale}" if rationale else f"Ollama ({self.model}) classification."
+        rationale = (
+            f"Ollama ({self.model}): {rationale}"
+            if rationale
+            else f"Ollama ({self.model}) classification."
+        )
 
-        return PurposeResult(purpose=purpose, confidence=confidence, evidence=deterministic.evidence, rationale=rationale)
+        return PurposeResult(
+            purpose=purpose,
+            confidence=confidence,
+            evidence=deterministic.evidence,
+            rationale=rationale,
+        )

@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 
 from click.testing import CliRunner
-
 from pytagmanager.cli import main
 
 _PAGE = "perf_isolate.html"
@@ -18,7 +17,9 @@ _PAGE = "perf_isolate.html"
 def test_perf_baseline_only_reports_real_metrics(fixture_server, tmp_path):
     url = f"{fixture_server}/{_PAGE}"
     out_path = tmp_path / "report.json"
-    result = CliRunner().invoke(main, ["perf", url, "--runs", "1", "-o", str(out_path), "--format", "json"])
+    result = CliRunner().invoke(
+        main, ["perf", url, "--runs", "1", "-o", str(out_path), "--format", "json"]
+    )
 
     assert result.exit_code == 0, result.output
     report = json.loads(out_path.read_text())
@@ -66,7 +67,19 @@ def test_perf_isolate_group_targets_only_classified_scripts(fixture_server, tmp_
     url = f"{fixture_server}/{_PAGE}"
     out_path = tmp_path / "report.json"
     result = CliRunner().invoke(
-        main, ["perf", url, "--runs", "1", "--isolate-group", "ads", "-o", str(out_path), "--format", "json"]
+        main,
+        [
+            "perf",
+            url,
+            "--runs",
+            "1",
+            "--isolate-group",
+            "ads",
+            "-o",
+            str(out_path),
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -78,7 +91,9 @@ def test_perf_isolate_group_targets_only_classified_scripts(fixture_server, tmp_
 
 def test_perf_mutually_exclusive_isolate_flags_rejected(fixture_server):
     url = f"{fixture_server}/{_PAGE}"
-    result = CliRunner().invoke(main, ["perf", url, "--isolate", "https://x.example.com/x.js", "--all-off"])
+    result = CliRunner().invoke(
+        main, ["perf", url, "--isolate", "https://x.example.com/x.js", "--all-off"]
+    )
     assert result.exit_code != 0
     assert "mutually exclusive" in result.output
 

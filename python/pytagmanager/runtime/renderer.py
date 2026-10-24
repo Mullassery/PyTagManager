@@ -15,7 +15,6 @@ a full render-mode crawl.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
 
 
 @dataclass(frozen=True)
@@ -29,7 +28,7 @@ class NetworkRequestEntry:
     url: str
     method: str
     resource_type: str
-    status: Optional[int]
+    status: int | None
 
 
 @dataclass(frozen=True)
@@ -37,8 +36,8 @@ class RenderResult:
     url: str  # final URL after redirects, from the navigation response
     status: int
     html: str
-    console_logs: Tuple[ConsoleLogEntry, ...]
-    network_requests: Tuple[NetworkRequestEntry, ...]
+    console_logs: tuple[ConsoleLogEntry, ...]
+    network_requests: tuple[NetworkRequestEntry, ...]
 
 
 def render_page(
@@ -69,8 +68,8 @@ def render_page(
             "`pip install pytagmanager[diagnostics]` and run `playwright install chromium` once."
         ) from exc
 
-    console_logs: List[ConsoleLogEntry] = []
-    requests_by_url: "dict[str, NetworkRequestEntry]" = {}
+    console_logs: list[ConsoleLogEntry] = []
+    requests_by_url: dict[str, NetworkRequestEntry] = {}
 
     with sync_playwright() as playwright:
         browser_type = getattr(playwright, browser_name)
@@ -79,7 +78,10 @@ def render_page(
             context = browser.new_context()
             try:
                 page = context.new_page()
-                page.on("console", lambda msg: console_logs.append(ConsoleLogEntry(level=msg.type, text=msg.text)))
+                page.on(
+                    "console",
+                    lambda msg: console_logs.append(ConsoleLogEntry(level=msg.type, text=msg.text)),
+                )
 
                 def _on_request(request):
                     requests_by_url[request.url] = NetworkRequestEntry(

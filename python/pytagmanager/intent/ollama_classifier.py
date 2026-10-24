@@ -28,7 +28,6 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from typing import Optional
 
 from pytagmanager._core import SemanticNode
 from pytagmanager.intent.base import IntentResult, PageContext
@@ -160,7 +159,9 @@ class OllamaIntentClassifier:
         else:
             rationale = f"Ollama ({self.model}): {rationale}"
 
-        return IntentResult(business_objective=objective, confidence=confidence, rationale=rationale)
+        return IntentResult(
+            business_objective=objective, confidence=confidence, rationale=rationale
+        )
 
     # -- fallback --------------------------------------------------------
 
@@ -169,7 +170,7 @@ class OllamaIntentClassifier:
         unreachable/unusable. Same taxonomy, same output shape -- callers
         never see a different `IntentResult` structure depending on which
         path was taken, only a rationale explaining which one was."""
-        match: Optional[tuple] = classify_node_keywords(node)
+        match: tuple | None = classify_node_keywords(node)
         if match is None:
             return IntentResult(
                 business_objective="None",
@@ -181,6 +182,7 @@ class OllamaIntentClassifier:
             business_objective=objective,
             confidence=0.5,
             rationale=(
-                f"Ollama unavailable; deterministic keyword fallback matched '{keyword}': " + ", ".join(signals)
+                f"Ollama unavailable; deterministic keyword fallback matched '{keyword}': "
+                + ", ".join(signals)
             ),
         )

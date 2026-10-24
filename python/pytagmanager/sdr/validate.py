@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Iterable, Mapping, Optional
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from pytagmanager.correlation.journey import TrackingJourney
@@ -403,13 +404,7 @@ def _event_result(
         )
     )
     selectors = tuple(
-        sorted(
-            {
-                journey.anchor_selector
-                for journey, _ in matches
-                if journey.anchor_selector
-            }
-        )
+        sorted({journey.anchor_selector for journey, _ in matches if journey.anchor_selector})
     )
     network_observed = any(
         event.event_type == "network_request"
@@ -554,10 +549,14 @@ def validate_sdr(schema: SdrSchema, journeys: Iterable[TrackingJourney]) -> SdrV
     results = tuple(_event_result(spec, journey_list) for spec in schema.events)
     issues = tuple(issue for result in results for issue in result.issues)
     limitations = [
-        "Validation covers observed dataLayer events and payload fields. It does not prove GA4/Adobe "
-        "parameter equivalence or server-side delivery.",
-        "Only interactions exercised by the current scenario/crawl are evaluated; untested interactions "
-        "appear as missing events.",
+        (
+            "Validation covers observed dataLayer events and payload fields. It does not prove GA4/Adobe "
+            "parameter equivalence or server-side delivery."
+        ),
+        (
+            "Only interactions exercised by the current scenario/crawl are evaluated; untested interactions "
+            "appear as missing events."
+        ),
         "Parameter values are never serialized; reports contain presence, type and allow-list outcomes only.",
         "Network observation only proves that some network request occurred in the matching journey.",
         "SDR alignment is not a legal compliance verdict and does not validate consent enforcement.",

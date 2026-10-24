@@ -4,7 +4,11 @@
 from __future__ import annotations
 
 from pytagmanager.dictionary.build import DictionaryVariable
-from pytagmanager.dictionary.labels import ACCESSIBLE, POSSIBLY_ACCESSIBLE, label_presence
+from pytagmanager.dictionary.labels import (
+    ACCESSIBLE,
+    POSSIBLY_ACCESSIBLE,
+    label_presence,
+)
 
 
 def _variable(source: str, path: str = "x") -> DictionaryVariable:

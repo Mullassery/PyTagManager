@@ -13,14 +13,14 @@ real-world constructor requiring the caller's own GCP credentials.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pytagmanager.analytics_api.models import GtmTag, GtmTrigger
 
 GTM_READONLY_SCOPE = "https://www.googleapis.com/auth/tagmanager.readonly"
 
 
-def _extract_custom_event_name(raw_trigger: dict) -> Optional[str]:
+def _extract_custom_event_name(raw_trigger: dict) -> str | None:
     """GTM represents a Custom Event trigger's "Event name equals X"
     condition as a `customEventFilter`: an EQUALS filter comparing the
     built-in `{{_event}}` variable (arg0) against a literal string (arg1).
@@ -60,7 +60,7 @@ class GtmApiClient:
         self._service = service
 
     @classmethod
-    def from_service_account(cls, key_path: str, scopes: Optional[List[str]] = None) -> "GtmApiClient":
+    def from_service_account(cls, key_path: str, scopes: list[str] | None = None) -> GtmApiClient:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
 
@@ -70,12 +70,12 @@ class GtmApiClient:
         return cls(build("tagmanager", "v2", credentials=credentials, cache_discovery=False))
 
     @classmethod
-    def from_oauth_user(cls, credentials: Any) -> "GtmApiClient":
+    def from_oauth_user(cls, credentials: Any) -> GtmApiClient:
         from googleapiclient.discovery import build
 
         return cls(build("tagmanager", "v2", credentials=credentials, cache_discovery=False))
 
-    def find_container_by_public_id(self, public_id: str) -> Optional[Dict[str, Any]]:
+    def find_container_by_public_id(self, public_id: str) -> dict[str, Any] | None:
         """`public_id` is the "GTM-XXXXXXX" string from a site's GTM
         snippet. The API addresses containers by internal account/container
         resource path, not this string, so accessible accounts/containers
@@ -85,14 +85,18 @@ class GtmApiClient:
         accounts = self._service.accounts().list().execute().get("account", [])
         for account in accounts:
             containers = (
-                self._service.accounts().containers().list(parent=account["path"]).execute().get("container", [])
+                self._service.accounts()
+                .containers()
+                .list(parent=account["path"])
+                .execute()
+                .get("container", [])
             )
             for container in containers:
                 if container.get("publicId") == public_id:
                     return container
         return None
 
-    def get_live_container_document(self, container_path: str) -> Dict[str, Any]:
+    def get_live_container_document(self, container_path: str) -> dict[str, Any]:
         """Return the raw live container version document.
 
         Unlike :meth:`get_live_container_config`, this keeps the original GTM
@@ -100,17 +104,19 @@ class GtmApiClient:
         ``parameter`` values), which is what the Data Dictionary's GTM usage
         index needs.
         """
-        return self._service.accounts().containers().versions().live(
-            parent=container_path
-        ).execute()
+        return (
+            self._service.accounts().containers().versions().live(parent=container_path).execute()
+        )
 
-    def get_live_container_config(self, container_path: str) -> Dict[str, List]:
+    def get_live_container_config(self, container_path: str) -> dict[str, list]:
         """Fetch the currently *live* (published) container version -- the
         config actually running on the site right now, not an unpublished
         draft workspace, since that's what runtime behavior should be
         compared against.
         """
-        version = self._service.accounts().containers().versions().live(parent=container_path).execute()
+        version = (
+            self._service.accounts().containers().versions().live(parent=container_path).execute()
+        )
         return {
             "triggers": [_normalize_trigger(t) for t in version.get("trigger", [])],
             "tags": [_normalize_tag(t) for t in version.get("tag", [])],

@@ -12,7 +12,9 @@ _PAGE = "perf_scripts.html"
 def test_first_party_async_script_is_classified_correctly(fixture_server):
     inventory = build_script_inventory(f"{fixture_server}/{_PAGE}", headless=True)
 
-    local_script = next((s for s in inventory.scripts if s.url.endswith("local_first_party.js")), None)
+    local_script = next(
+        (s for s in inventory.scripts if s.url.endswith("local_first_party.js")), None
+    )
     assert local_script is not None
     assert local_script.is_first_party is True
     assert local_script.load_mechanism == "async"
@@ -22,7 +24,9 @@ def test_first_party_async_script_is_classified_correctly(fixture_server):
     assert local_script.transfer_bytes > 0
 
 
-def test_dynamically_injected_vendor_script_has_script_initiator_and_vendor_classification(fixture_server):
+def test_dynamically_injected_vendor_script_has_script_initiator_and_vendor_classification(
+    fixture_server,
+):
     inventory = build_script_inventory(f"{fixture_server}/{_PAGE}", headless=True, wait_ms=1500)
 
     vendor_script = next((s for s in inventory.scripts if "fbevents.js" in s.url), None)
@@ -35,7 +39,9 @@ def test_dynamically_injected_vendor_script_has_script_initiator_and_vendor_clas
 
 def test_unclassified_script_has_no_vendor_or_category(fixture_server):
     inventory = build_script_inventory(f"{fixture_server}/{_PAGE}", headless=True)
-    local_script = next((s for s in inventory.scripts if s.url.endswith("local_first_party.js")), None)
+    local_script = next(
+        (s for s in inventory.scripts if s.url.endswith("local_first_party.js")), None
+    )
     assert local_script is not None
     assert local_script.vendor is None
     assert local_script.category is None

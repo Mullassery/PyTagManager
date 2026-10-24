@@ -20,7 +20,11 @@ from pathlib import Path
 from pytagmanager import _core
 from pytagmanager.recommend.heuristics import recommend_for_graph
 from pytagmanager.version_control.diff import diff_snapshots, format_diff_report
-from pytagmanager.version_control.snapshot import build_snapshot, load_snapshot, save_snapshot
+from pytagmanager.version_control.snapshot import (
+    build_snapshot,
+    load_snapshot,
+    save_snapshot,
+)
 
 _OLD_HOME_HTML = """
 <html><body>
@@ -140,7 +144,9 @@ def test_diff_detects_added_removed_and_changed_elements_across_real_crawls():
     # its text changed -> reported as a changed element, not added+removed.
     changed_keys = {c.identity_key for c in home_diff.changed_elements}
     assert '[data-testid="add-to-cart"]' in changed_keys
-    add_to_cart_change = next(c for c in home_diff.changed_elements if c.identity_key == '[data-testid="add-to-cart"]')
+    add_to_cart_change = next(
+        c for c in home_diff.changed_elements if c.identity_key == '[data-testid="add-to-cart"]'
+    )
     text_change = next(fc for fc in add_to_cart_change.field_changes if fc.field == "text")
     assert text_change.old == "Add to Cart"
     assert text_change.new == "Buy Now"

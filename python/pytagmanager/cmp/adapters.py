@@ -10,9 +10,10 @@ without decoding it.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any
 
 from pytagmanager.cmp.models import (
     CATEGORIES,
@@ -39,10 +40,10 @@ _GCM_KEYS = (
 class _ScriptExtractor(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.script_sources: List[str] = []
-        self.inline_scripts: List[str] = []
+        self.script_sources: list[str] = []
+        self.inline_scripts: list[str] = []
         self._in_script = False
-        self._current: List[str] = []
+        self._current: list[str] = []
 
     def handle_starttag(self, tag: str, attrs) -> None:
         if tag.lower() != "script":
@@ -67,11 +68,11 @@ class _ScriptExtractor(HTMLParser):
 @dataclass(frozen=True)
 class DetectionSignals:
     html: str = ""
-    script_sources: Tuple[str, ...] = ()
-    inline_scripts: Tuple[str, ...] = ()
-    cookie_names: Tuple[str, ...] = ()
-    globals: Tuple[str, ...] = ()
-    network_urls: Tuple[str, ...] = ()
+    script_sources: tuple[str, ...] = ()
+    inline_scripts: tuple[str, ...] = ()
+    cookie_names: tuple[str, ...] = ()
+    globals: tuple[str, ...] = ()
+    network_urls: tuple[str, ...] = ()
 
 
 def extract_signals(
@@ -101,19 +102,19 @@ class CmpAdapter:
     adapter_id = ""
     vendor = ""
     contract_version = "1"
-    script_markers: Tuple[str, ...] = ()
-    url_markers: Tuple[str, ...] = ()
-    markup_markers: Tuple[str, ...] = ()
-    global_names: Tuple[str, ...] = ()
-    cookie_names: Tuple[str, ...] = ()
-    cookie_prefixes: Tuple[str, ...] = ()
-    accept_selectors: Tuple[str, ...] = ()
-    reject_selectors: Tuple[str, ...] = ()
-    notes: Tuple[str, ...] = ()
+    script_markers: tuple[str, ...] = ()
+    url_markers: tuple[str, ...] = ()
+    markup_markers: tuple[str, ...] = ()
+    global_names: tuple[str, ...] = ()
+    cookie_names: tuple[str, ...] = ()
+    cookie_prefixes: tuple[str, ...] = ()
+    accept_selectors: tuple[str, ...] = ()
+    reject_selectors: tuple[str, ...] = ()
+    notes: tuple[str, ...] = ()
     supports_consent_api = False
 
-    def detect(self, signals: DetectionSignals) -> Optional[CmpDetection]:
-        evidence: List[CmpEvidence] = []
+    def detect(self, signals: DetectionSignals) -> CmpDetection | None:
+        evidence: list[CmpEvidence] = []
         strong = False
         medium = False
 
@@ -207,14 +208,18 @@ class CmpAdapter:
             notes=self.notes,
         )
 
-    def read_consent(self, session, timestamp: float = 0.0) -> Optional[ConsentState]:
+    def read_consent(self, session, timestamp: float = 0.0) -> ConsentState | None:
         return None
 
 
 class CookiebotAdapter(CmpAdapter):
     adapter_id = "cookiebot"
     vendor = "Cookiebot"
-    script_markers = ("consent.cookiebot.com", "consent.cookiebot.eu", "cookiebot.com/uc.js")
+    script_markers = (
+        "consent.cookiebot.com",
+        "consent.cookiebot.eu",
+        "cookiebot.com/uc.js",
+    )
     url_markers = ("consent.cookiebot.com", "consent.cookiebot.eu")
     markup_markers = ("cookiebot", "cookieconsent")
     global_names = ("Cookiebot",)
@@ -227,7 +232,7 @@ class CookiebotAdapter(CmpAdapter):
     notes = ("Consent object read via the documented window.Cookiebot.consent API.",)
     supports_consent_api = True
 
-    def read_consent(self, session, timestamp: float = 0.0) -> Optional[ConsentState]:
+    def read_consent(self, session, timestamp: float = 0.0) -> ConsentState | None:
         script = """
         () => {
           const consent = window.Cookiebot && window.Cookiebot.consent;
@@ -247,7 +252,7 @@ class CookiebotAdapter(CmpAdapter):
         if not isinstance(raw, dict):
             return None
         categories = {
-            "necessary": True if raw.get("necessary") is not False else False,
+            "necessary": raw.get("necessary") is not False,
             "preferences": _as_bool(raw.get("preferences")),
             "analytics": _as_bool(raw.get("statistics")),
             "advertising": _as_bool(raw.get("marketing")),
@@ -289,7 +294,7 @@ class OneTrustAdapter(CmpAdapter):
         "Direct state uses the documented window.OnetrustActiveGroups list; group IDs are not mapped to categories.",
     )
 
-    def read_consent(self, session, timestamp: float = 0.0) -> Optional[ConsentState]:
+    def read_consent(self, session, timestamp: float = 0.0) -> ConsentState | None:
         script = """
         () => {
           const raw = window.OnetrustActiveGroups || window.OptanonActiveGroups;
@@ -330,6 +335,7 @@ class OneTrustAdapter(CmpAdapter):
             evidence=evidence,
         )
 
+
 class UsercentricsAdapter(CmpAdapter):
     adapter_id = "usercentrics"
     vendor = "Usercentrics"
@@ -356,9 +362,11 @@ class DidomiAdapter(CmpAdapter):
     accept_selectors = ("#didomi-notice-agree-button",)
     reject_selectors = ("#didomi-notice-disagree-button",)
     supports_consent_api = True
-    notes = ("Direct state uses documented Didomi.getCurrentUserStatus(); purpose/vendor IDs are not mapped to categories.",)
+    notes = (
+        "Direct state uses documented Didomi.getCurrentUserStatus(); purpose/vendor IDs are not mapped to categories.",
+    )
 
-    def read_consent(self, session, timestamp: float = 0.0) -> Optional[ConsentState]:
+    def read_consent(self, session, timestamp: float = 0.0) -> ConsentState | None:
         script = """
         () => new Promise((resolve) => {
           if (!window.Didomi) return resolve(null);
@@ -449,7 +457,12 @@ class TrustArcAdapter(CmpAdapter):
     url_markers = ("consent.trustarc.com", "trustarc.com")
     markup_markers = ("trustarc", "truste")
     global_names = ("truste", "TrustArc")
-    cookie_names = ("notice_preferences", "notice_gdpr_prefs", "cmapi_cookie_privacy", "cmapi_gtm_bl")
+    cookie_names = (
+        "notice_preferences",
+        "notice_gdpr_prefs",
+        "cmapi_cookie_privacy",
+        "cmapi_gtm_bl",
+    )
     cookie_prefixes = ("notice_", "cmapi_")
     accept_selectors = ("#truste-consent-button",)
     reject_selectors = ("#truste-consent-required",)
@@ -481,7 +494,7 @@ class GoogleFundingChoicesAdapter(CmpAdapter):
     notes = ("Cookie presence is reported; Funding Choices categories are not decoded.",)
 
 
-ADAPTERS: Tuple[CmpAdapter, ...] = (
+ADAPTERS: tuple[CmpAdapter, ...] = (
     CookiebotAdapter(),
     OneTrustAdapter(),
     UsercentricsAdapter(),
@@ -494,16 +507,16 @@ ADAPTERS: Tuple[CmpAdapter, ...] = (
 
 
 def detect_adapters(
-    signals: DetectionSignals, adapters: Optional[Sequence[CmpAdapter]] = None
-) -> Tuple[CmpDetection, ...]:
+    signals: DetectionSignals, adapters: Sequence[CmpAdapter] | None = None
+) -> tuple[CmpDetection, ...]:
     registry = tuple(adapters) if adapters is not None else ADAPTERS
     detections = [adapter.detect(signals) for adapter in registry]
     return tuple(item for item in detections if item is not None)
 
 
 def adapter_for(
-    detection: CmpDetection, adapters: Optional[Sequence[CmpAdapter]] = None
-) -> Optional[CmpAdapter]:
+    detection: CmpDetection, adapters: Sequence[CmpAdapter] | None = None
+) -> CmpAdapter | None:
     registry = tuple(adapters) if adapters is not None else ADAPTERS
     for adapter in registry:
         if adapter.adapter_id == detection.adapter_id:
@@ -515,8 +528,8 @@ def read_vendor_consent(
     detections: Sequence[CmpDetection],
     session,
     timestamp: float = 0.0,
-    adapters: Optional[Sequence[CmpAdapter]] = None,
-) -> Optional[ConsentState]:
+    adapters: Sequence[CmpAdapter] | None = None,
+) -> ConsentState | None:
     for detection in detections:
         adapter = adapter_for(detection, adapters=adapters)
         if adapter is None:
@@ -531,8 +544,8 @@ def cookie_presence_state(
     detections: Sequence[CmpDetection],
     cookie_names: Sequence[str],
     timestamp: float = 0.0,
-    adapters: Optional[Sequence[CmpAdapter]] = None,
-) -> Optional[ConsentState]:
+    adapters: Sequence[CmpAdapter] | None = None,
+) -> ConsentState | None:
     if not detections:
         return None
     related = []
@@ -569,8 +582,8 @@ def cookie_presence_state(
 
 def parse_google_consent_mode(
     events: Iterable[TrackingEvent], timestamp: float = 0.0
-) -> Optional[ConsentState]:
-    mode: Dict[str, str] = {}
+) -> ConsentState | None:
+    mode: dict[str, str] = {}
     evidence = []
     for event in events:
         if event.event_type != "consent_change":
@@ -615,8 +628,8 @@ _TCF_CATEGORY_PURPOSES = {
 
 
 def tcf_categories_from_purposes(
-    purpose_consents: Dict[str, bool], *, gdpr_applies: Optional[bool] = None
-) -> Dict[str, Optional[bool]]:
+    purpose_consents: dict[str, bool], *, gdpr_applies: bool | None = None
+) -> dict[str, bool | None]:
     categories = {name: None for name in CATEGORIES}
     categories["necessary"] = True
     if gdpr_applies is False:
@@ -631,7 +644,7 @@ def tcf_categories_from_purposes(
     return categories
 
 
-def read_tcf_consent(session, timestamp: float = 0.0) -> Optional[ConsentState]:
+def read_tcf_consent(session, timestamp: float = 0.0) -> ConsentState | None:
     script = """
     () => new Promise((resolve) => {
       if (typeof window.__tcfapi !== "function") return resolve(null);
@@ -660,7 +673,9 @@ def read_tcf_consent(session, timestamp: float = 0.0) -> Optional[ConsentState]:
     if not isinstance(raw, dict):
         return None
     purpose = raw.get("purpose") if isinstance(raw.get("purpose"), dict) else {}
-    legitimate = raw.get("legitimateInterests") if isinstance(raw.get("legitimateInterests"), dict) else {}
+    legitimate = (
+        raw.get("legitimateInterests") if isinstance(raw.get("legitimateInterests"), dict) else {}
+    )
     special = raw.get("specialFeatures") if isinstance(raw.get("specialFeatures"), dict) else {}
     consents = _bool_map(purpose.get("consents"))
     legitimate_interests = _bool_map(legitimate.get("consents"))
@@ -702,7 +717,7 @@ def read_tcf_consent(session, timestamp: float = 0.0) -> Optional[ConsentState]:
     )
 
 
-def read_gpp_consent(session, timestamp: float = 0.0) -> Optional[ConsentState]:
+def read_gpp_consent(session, timestamp: float = 0.0) -> ConsentState | None:
     script = """
     () => new Promise((resolve) => {
       if (typeof window.__gpp !== "function") return resolve(null);
@@ -769,30 +784,32 @@ def read_gpp_consent(session, timestamp: float = 0.0) -> Optional[ConsentState]:
     )
 
 
-def google_categories_from_mode(mode: Dict[str, str]) -> Dict[str, Optional[bool]]:
+def google_categories_from_mode(mode: dict[str, str]) -> dict[str, bool | None]:
     categories = {name: None for name in CATEGORIES}
     categories["necessary"] = True
     categories["analytics"] = _tri_state([mode.get("analytics_storage")])
     categories["advertising"] = _tri_state(
-        [mode.get("ad_storage"), mode.get("ad_user_data"), mode.get("ad_personalization")]
+        [
+            mode.get("ad_storage"),
+            mode.get("ad_user_data"),
+            mode.get("ad_personalization"),
+        ]
     )
     categories["preferences"] = _tri_state([mode.get("personalization_storage")])
     return categories
 
 
-def merge_consent_states(
-    states: Sequence[ConsentState], timestamp: float = 0.0
-) -> ConsentState:
+def merge_consent_states(states: Sequence[ConsentState], timestamp: float = 0.0) -> ConsentState:
     usable = [state for state in states if state is not None]
     if not usable:
         return ConsentState(timestamp=timestamp)
-    sources: List[str] = []
+    sources: list[str] = []
     categories = {name: None for name in CATEGORIES}
-    google_mode: Dict[str, str] = {}
-    tcf: Dict[str, Any] = {}
-    gpp: Dict[str, Any] = {}
-    vendor_state: Dict[str, Any] = {}
-    evidence: List[CmpEvidence] = []
+    google_mode: dict[str, str] = {}
+    tcf: dict[str, Any] = {}
+    gpp: dict[str, Any] = {}
+    vendor_state: dict[str, Any] = {}
+    evidence: list[CmpEvidence] = []
     confidence = "unverified"
     for state in usable:
         sources.extend(source for source in state.sources if source not in sources)
@@ -819,11 +836,11 @@ def merge_consent_states(
     )
 
 
-def _as_bool(value) -> Optional[bool]:
+def _as_bool(value) -> bool | None:
     return value if isinstance(value, bool) else None
 
 
-def _csv_list(value: str, limit: int = 200) -> List[str]:
+def _csv_list(value: str, limit: int = 200) -> list[str]:
     result = []
     for item in value.split(",")[:limit]:
         text = item.strip()
@@ -832,7 +849,7 @@ def _csv_list(value: str, limit: int = 200) -> List[str]:
     return result
 
 
-def _string_list(value, limit: int = 200) -> List[str]:
+def _string_list(value, limit: int = 200) -> list[str]:
     if not isinstance(value, list):
         return []
     result = []
@@ -844,17 +861,13 @@ def _string_list(value, limit: int = 200) -> List[str]:
     return result
 
 
-def _bool_map(value) -> Dict[str, bool]:
+def _bool_map(value) -> dict[str, bool]:
     if not isinstance(value, dict):
         return {}
-    return {
-        str(key): item
-        for key, item in value.items()
-        if isinstance(item, bool)
-    }
+    return {str(key): item for key, item in value.items() if isinstance(item, bool)}
 
 
-def _tri_state(values: Sequence[Optional[str]]) -> Optional[bool]:
+def _tri_state(values: Sequence[str | None]) -> bool | None:
     known = [str(value).lower() for value in values if value is not None]
     if not known:
         return None
@@ -866,5 +879,8 @@ def _tri_state(values: Sequence[Optional[str]]) -> Optional[bool]:
 
 
 def _confidence_rank(value: str) -> int:
-    order = {name: index for index, name in enumerate(("unverified", "suspected", "high-confidence", "confirmed"))}
+    order = {
+        name: index
+        for index, name in enumerate(("unverified", "suspected", "high-confidence", "confirmed"))
+    }
     return order.get(value, 0)

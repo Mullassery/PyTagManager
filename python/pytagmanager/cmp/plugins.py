@@ -10,8 +10,9 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Mapping, Sequence, Tuple
+from typing import Any
 
 from pytagmanager.cmp.adapters import ADAPTERS, CmpAdapter
 
@@ -44,7 +45,7 @@ class AdapterFileError(ValueError):
 
 def load_adapter_files(
     paths: Sequence[str | Path], *, reserved_ids: Sequence[str] = ()
-) -> Tuple[CmpAdapter, ...]:
+) -> tuple[CmpAdapter, ...]:
     reserved = set(reserved_ids) or {adapter.adapter_id for adapter in ADAPTERS}
     loaded = []
     seen = set(reserved)
@@ -52,9 +53,7 @@ def load_adapter_files(
         path = Path(raw_path)
         for adapter in load_adapter_file(path, reserved_ids=tuple(seen)):
             if adapter.adapter_id in seen:
-                raise AdapterFileError(
-                    f"{path}: duplicate adapter_id {adapter.adapter_id!r}"
-                )
+                raise AdapterFileError(f"{path}: duplicate adapter_id {adapter.adapter_id!r}")
             seen.add(adapter.adapter_id)
             loaded.append(adapter)
     return tuple(loaded)
@@ -62,7 +61,7 @@ def load_adapter_files(
 
 def load_adapter_file(
     path: str | Path, *, reserved_ids: Sequence[str] = ()
-) -> Tuple[CmpAdapter, ...]:
+) -> tuple[CmpAdapter, ...]:
     resolved = Path(path)
     try:
         payload = json.loads(resolved.read_text(encoding="utf-8"))
@@ -84,9 +83,7 @@ def load_adapter_file(
     if not isinstance(raw_adapters, list) or not raw_adapters:
         raise AdapterFileError(f"{resolved}: adapters must be a non-empty array")
     if len(raw_adapters) > _MAX_ADAPTERS:
-        raise AdapterFileError(
-            f"{resolved}: at most {_MAX_ADAPTERS} adapters are allowed"
-        )
+        raise AdapterFileError(f"{resolved}: at most {_MAX_ADAPTERS} adapters are allowed")
 
     reserved = set(reserved_ids) or {adapter.adapter_id for adapter in ADAPTERS}
     result = []
@@ -115,17 +112,15 @@ def adapter_from_mapping(
         raise AdapterFileError(f"{location}: adapter must be a JSON object")
     unknown = set(raw) - _ADAPTER_KEYS
     if unknown:
-        raise AdapterFileError(
-            f"{location}: unsupported key(s): {', '.join(sorted(unknown))}"
-        )
+        raise AdapterFileError(f"{location}: unsupported key(s): {', '.join(sorted(unknown))}")
 
     adapter_id = raw.get("adapter_id")
     if not isinstance(adapter_id, str) or not _ADAPTER_ID_PATTERN.fullmatch(adapter_id):
-        raise AdapterFileError(
-            f"{location}: adapter_id must match {_ADAPTER_ID_PATTERN.pattern}"
-        )
+        raise AdapterFileError(f"{location}: adapter_id must match {_ADAPTER_ID_PATTERN.pattern}")
     if adapter_id in set(reserved_ids):
-        raise AdapterFileError(f"{location}: adapter_id {adapter_id!r} is reserved or already loaded")
+        raise AdapterFileError(
+            f"{location}: adapter_id {adapter_id!r} is reserved or already loaded"
+        )
 
     vendor = raw.get("vendor")
     if not isinstance(vendor, str) or not vendor.strip():
@@ -161,28 +156,22 @@ def adapter_from_mapping(
             adapter.cookie_prefixes,
         )
     ):
-        raise AdapterFileError(
-            f"{location}: at least one detection signature is required"
-        )
+        raise AdapterFileError(f"{location}: at least one detection signature is required")
     return adapter
 
 
-def _string_tuple(raw: Mapping[str, Any], field: str, location: str) -> Tuple[str, ...]:
+def _string_tuple(raw: Mapping[str, Any], field: str, location: str) -> tuple[str, ...]:
     value = raw.get(field, [])
     if value is None:
         return ()
     if not isinstance(value, list):
         raise AdapterFileError(f"{location}: {field} must be an array of strings")
     if len(value) > _MAX_ITEMS:
-        raise AdapterFileError(
-            f"{location}: {field} must contain at most {_MAX_ITEMS} items"
-        )
+        raise AdapterFileError(f"{location}: {field} must contain at most {_MAX_ITEMS} items")
     result = []
     for index, item in enumerate(value):
         if not isinstance(item, str) or not item.strip():
-            raise AdapterFileError(
-                f"{location}: {field}[{index}] must be a non-empty string"
-            )
+            raise AdapterFileError(f"{location}: {field}[{index}] must be a non-empty string")
         if len(item) > _MAX_ITEM_LENGTH:
             raise AdapterFileError(
                 f"{location}: {field}[{index}] exceeds {_MAX_ITEM_LENGTH} characters"

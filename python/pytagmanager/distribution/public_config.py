@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import copy
 import hashlib
+from collections.abc import Iterable, Mapping
 from datetime import datetime, timezone
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 from pytagmanager.control.errors import NotFoundError, ValidationError
 from pytagmanager.control.ids import utc_now
@@ -173,17 +174,13 @@ def build_published_config(
         raise ValidationError(
             f"environment {environment.name!r} has no active configuration revision"
         )
-    revision = service.get_revision(
-        container_id, environment.current_config_version, org_id=org_id
-    )
+    revision = service.get_revision(container_id, environment.current_config_version, org_id=org_id)
     report = service.validate_config(
         container_id, config_version=revision.config_version, org_id=org_id
     )
     if not report.valid:
         messages = "; ".join(issue.message for issue in report.errors)
-        raise ValidationError(
-            f"revision {revision.config_version!r} failed validation: {messages}"
-        )
+        raise ValidationError(f"revision {revision.config_version!r} failed validation: {messages}")
 
     unsigned: dict[str, Any] = {
         "schema_version": PUBLISHED_CONFIG_SCHEMA_VERSION,
@@ -217,8 +214,7 @@ def build_published_config(
     }
     if default_consent is not None:
         unsigned["consent_defaults"] = {
-            str(purpose): bool(value)
-            for purpose, value in sorted(default_consent.items())
+            str(purpose): bool(value) for purpose, value in sorted(default_consent.items())
         }
 
     _check_public(unsigned)
@@ -251,9 +247,9 @@ def verify_published_config(document: Mapping[str, Any]) -> str:
 
 
 def environment_slug(name: str) -> str:
-    value = "".join(
-        character.lower() if character.isalnum() else "-" for character in name
-    ).strip("-")
+    value = "".join(character.lower() if character.isalnum() else "-" for character in name).strip(
+        "-"
+    )
     while "--" in value:
         value = value.replace("--", "-")
     if not value:
@@ -275,9 +271,12 @@ def published_config_paths(
 
 
 def utc_timestamp(value: datetime | None = None) -> str:
-    return (value or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat(
-        timespec="milliseconds"
-    ).replace("+00:00", "Z")
+    return (
+        (value or datetime.now(timezone.utc))
+        .astimezone(timezone.utc)
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def iter_event_names(config: Mapping[str, Any]) -> Iterable[str]:
@@ -292,9 +291,7 @@ def purpose_requirements(config: Mapping[str, Any]) -> dict[str, tuple[str, ...]
         if not isinstance(event, Mapping) or not isinstance(event.get("name"), str):
             continue
         purposes = event.get("purposes", ())
-        result[event["name"]] = tuple(
-            purpose for purpose in purposes if isinstance(purpose, str)
-        )
+        result[event["name"]] = tuple(purpose for purpose in purposes if isinstance(purpose, str))
     return result
 
 
@@ -317,7 +314,5 @@ def require_current_revision(
         raise NotFoundError(
             f"environment {environment.name!r} has no active configuration revision"
         )
-    revision = service.get_revision(
-        container_id, environment.current_config_version, org_id=org_id
-    )
+    revision = service.get_revision(container_id, environment.current_config_version, org_id=org_id)
     return revision.config_version, revision.revision_number

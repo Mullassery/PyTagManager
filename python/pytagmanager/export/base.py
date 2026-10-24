@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Callable, Dict, List, NamedTuple, Protocol
+from collections.abc import Callable
+from typing import NamedTuple, Protocol
 
 from pytagmanager.export.adobe_tags import build_adobe_launch_rules
 from pytagmanager.export.ga4 import build_ga4_config
@@ -23,11 +24,11 @@ class Exporter(Protocol):
     format name without importing every module directly.
     """
 
-    def export(self, recommendations: List[TrackingRecommendation]) -> dict: ...
+    def export(self, recommendations: list[TrackingRecommendation]) -> dict: ...
 
 
 class ExporterSpec(NamedTuple):
-    build: Callable[[List[TrackingRecommendation]], dict]
+    build: Callable[[list[TrackingRecommendation]], dict]
     label: str
 
 
@@ -35,7 +36,7 @@ class ExporterSpec(NamedTuple):
 # CLI output). Adding a new exporter means adding one module + one entry
 # here; the CLI's Click `Choice` and dispatch logic read this dict, not a
 # hardcoded list.
-EXPORTERS: Dict[str, ExporterSpec] = {
+EXPORTERS: dict[str, ExporterSpec] = {
     "gtm": ExporterSpec(build_gtm_container, "GTM container"),
     "ga4": ExporterSpec(build_ga4_config, "GA4 event config"),
     "segment": ExporterSpec(build_segment_tracking_plan, "Segment tracking plan"),

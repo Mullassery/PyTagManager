@@ -25,7 +25,10 @@ def test_static_scan_detects_gtm_container_and_vendor_from_real_page(fixture_ser
 
 
 def test_static_scan_detects_delayed_gtm_container_after_interaction(fixture_server):
-    scenario = Scenario(name="accept consent", steps=[ActionStep(action="click", selector='[data-testid="accept-consent"]')])
+    scenario = Scenario(
+        name="accept consent",
+        steps=[ActionStep(action="click", selector='[data-testid="accept-consent"]')],
+    )
     with ObservationSession(headless=True) as session:
         session.load(f"{fixture_server}/{_PAGE}")
         baseline_html = session.capture_html()

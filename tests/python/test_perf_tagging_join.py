@@ -28,14 +28,22 @@ def _script(url, category=None, vendor=None, transfer_bytes=100.0):
 
 
 def test_unclassified_scripts_are_excluded():
-    inventory = ScriptInventory(page_url=_PAGE_URL, scripts=(_script("https://shop.example.com/app.js"),))
+    inventory = ScriptInventory(
+        page_url=_PAGE_URL, scripts=(_script("https://shop.example.com/app.js"),)
+    )
     assert build_tagging_performance_tradeoffs(inventory) == []
 
 
 def test_classified_script_produces_a_tradeoff_entry():
     inventory = ScriptInventory(
         page_url=_PAGE_URL,
-        scripts=(_script("https://connect.facebook.net/fbevents.js", category="ads", vendor="Meta Pixel"),),
+        scripts=(
+            _script(
+                "https://connect.facebook.net/fbevents.js",
+                category="ads",
+                vendor="Meta Pixel",
+            ),
+        ),
     )
     tradeoffs = build_tagging_performance_tradeoffs(inventory)
     assert len(tradeoffs) == 1
@@ -45,14 +53,26 @@ def test_classified_script_produces_a_tradeoff_entry():
 
 def test_matching_isolation_result_supplies_cost_deltas():
     script_url = "https://connect.facebook.net/fbevents.js"
-    inventory = ScriptInventory(page_url=_PAGE_URL, scripts=(_script(script_url, category="ads", vendor="Meta Pixel"),))
+    inventory = ScriptInventory(
+        page_url=_PAGE_URL,
+        scripts=(_script(script_url, category="ads", vendor="Meta Pixel"),),
+    )
     from pytagmanager.perf.measure import PerformanceBaseline, PerformanceSnapshot
 
     def snap(**overrides):
-        defaults = dict(
-            lcp_ms=1000.0, lcp_url=None, cls=0.0, fcp_ms=500.0, tbt_ms=100.0, inp_ms=None,
-            dom_content_loaded_ms=900.0, load_event_ms=1200.0, transfer_bytes=0.0, request_count=0, long_task_count=0,
-        )
+        defaults = {
+            "lcp_ms": 1000.0,
+            "lcp_url": None,
+            "cls": 0.0,
+            "fcp_ms": 500.0,
+            "tbt_ms": 100.0,
+            "inp_ms": None,
+            "dom_content_loaded_ms": 900.0,
+            "load_event_ms": 1200.0,
+            "transfer_bytes": 0.0,
+            "request_count": 0,
+            "long_task_count": 0,
+        }
         defaults.update(overrides)
         return PerformanceSnapshot(**defaults)
 
@@ -71,7 +91,13 @@ def test_matching_isolation_result_supplies_cost_deltas():
 def test_no_matching_result_leaves_cost_fields_none_not_zero():
     inventory = ScriptInventory(
         page_url=_PAGE_URL,
-        scripts=(_script("https://connect.facebook.net/fbevents.js", category="ads", vendor="Meta Pixel"),),
+        scripts=(
+            _script(
+                "https://connect.facebook.net/fbevents.js",
+                category="ads",
+                vendor="Meta Pixel",
+            ),
+        ),
     )
     tradeoffs = build_tagging_performance_tradeoffs(inventory, [])
     assert tradeoffs[0].tbt_delta_ms is None
@@ -80,9 +106,19 @@ def test_no_matching_result_leaves_cost_fields_none_not_zero():
 
 def test_matches_graph_node_by_vendor_label():
     script_url = "https://connect.facebook.net/fbevents.js"
-    inventory = ScriptInventory(page_url=_PAGE_URL, scripts=(_script(script_url, category="ads", vendor="Meta Pixel"),))
+    inventory = ScriptInventory(
+        page_url=_PAGE_URL,
+        scripts=(_script(script_url, category="ads", vendor="Meta Pixel"),),
+    )
     graph = TagExecutionGraph(
-        nodes=(GraphNode(node_id="vendor:Meta Pixel:x", kind=NODE_VENDOR_SCRIPT, label="Meta Pixel", page_url=_PAGE_URL),)
+        nodes=(
+            GraphNode(
+                node_id="vendor:Meta Pixel:x",
+                kind=NODE_VENDOR_SCRIPT,
+                label="Meta Pixel",
+                page_url=_PAGE_URL,
+            ),
+        )
     )
     tradeoffs = build_tagging_performance_tradeoffs(inventory, [], graph)
     assert tradeoffs[0].graph_node_id == "vendor:Meta Pixel:x"
@@ -91,7 +127,13 @@ def test_matches_graph_node_by_vendor_label():
 def test_no_graph_node_match_is_none():
     inventory = ScriptInventory(
         page_url=_PAGE_URL,
-        scripts=(_script("https://connect.facebook.net/fbevents.js", category="ads", vendor="Meta Pixel"),),
+        scripts=(
+            _script(
+                "https://connect.facebook.net/fbevents.js",
+                category="ads",
+                vendor="Meta Pixel",
+            ),
+        ),
     )
     graph = TagExecutionGraph(nodes=())
     tradeoffs = build_tagging_performance_tradeoffs(inventory, [], graph)

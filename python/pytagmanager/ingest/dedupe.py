@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable, Protocol
+from typing import Protocol
 
 
 class DedupeStore(Protocol):
@@ -120,9 +122,7 @@ class SQLiteDedupeStore:
             raise RuntimeError("dedupe store is closed")
         connection = getattr(self._local, "connection", None)
         if connection is None:
-            connection = sqlite3.connect(
-                str(self.path), timeout=5.0, isolation_level=None
-            )
+            connection = sqlite3.connect(str(self.path), timeout=5.0, isolation_level=None)
             connection.execute("PRAGMA busy_timeout = 5000")
             connection.execute("PRAGMA synchronous = NORMAL")
             self._local.connection = connection
@@ -142,16 +142,13 @@ class SQLiteDedupeStore:
             """
         )
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS event_dedupe_expiry "
-            "ON event_dedupe (state, expires_at)"
+            "CREATE INDEX IF NOT EXISTS event_dedupe_expiry ON event_dedupe (state, expires_at)"
         )
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS event_dedupe_updated "
-            "ON event_dedupe (state, updated_at)"
+            "CREATE INDEX IF NOT EXISTS event_dedupe_updated ON event_dedupe (state, updated_at)"
         )
         connection.execute(
-            "CREATE INDEX IF NOT EXISTS event_dedupe_expires_only "
-            "ON event_dedupe (expires_at)"
+            "CREATE INDEX IF NOT EXISTS event_dedupe_expires_only ON event_dedupe (expires_at)"
         )
 
     def claim(self, event_id: str, *, now: float | None = None) -> str:
@@ -234,10 +231,8 @@ class SQLiteDedupeStore:
             Path(str(self.path) + "-wal"),
             Path(str(self.path) + "-shm"),
         ):
-            try:
+            with contextlib.suppress(OSError):
                 os.chmod(path, 0o600)
-            except OSError:
-                pass
 
     def _purge(self, connection: sqlite3.Connection, now: float) -> None:
         connection.execute("DELETE FROM event_dedupe WHERE expires_at <= ?", (now,))

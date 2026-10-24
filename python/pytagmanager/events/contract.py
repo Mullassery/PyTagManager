@@ -12,9 +12,10 @@ import copy
 import json
 import math
 import re
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any, Iterable, Mapping
+from datetime import datetime, timezone
+from typing import Any
 
 SCHEMA_VERSION = "1.0"
 MAX_EVENT_BYTES = 32_768
@@ -74,9 +75,7 @@ _SDK_VERSION_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?$")
 _APP_VERSION_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.+-]{0,63}$")
 _PROPERTY_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,63}$")
 _PURPOSE_RE = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
-_TIMESTAMP_RE = re.compile(
-    r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$"
-)
+_TIMESTAMP_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?Z$")
 _SAFE_ID_RE = re.compile(r"^[^\x00-\x1f\x7f]+$")
 
 _SENSITIVE_TOKENS = frozenset(
@@ -159,9 +158,9 @@ class EventValidationError(ValueError):
 
     def __init__(self, issues: Iterable[EventIssue]) -> None:
         self.issues = tuple(issues)
-        message = "; ".join(
-            f"{issue.field}: {issue.message}" for issue in self.issues
-        ) or "invalid event"
+        message = (
+            "; ".join(f"{issue.field}: {issue.message}" for issue in self.issues) or "invalid event"
+        )
         super().__init__(message)
 
     def to_dict(self) -> dict[str, Any]:
@@ -189,9 +188,7 @@ def is_sensitive_property(key: str) -> bool:
         return False
     normalized = "".join(tokens)
     if any(phrase in normalized for phrase in _SENSITIVE_PHRASES):
-        if tokens[0] in _HASH_MARKERS or tokens[-1] in _HASH_MARKERS:
-            return False
-        return True
+        return not (tokens[0] in _HASH_MARKERS or tokens[-1] in _HASH_MARKERS)
     sensitive = any(token in _SENSITIVE_TOKENS for token in tokens)
     if not sensitive:
         return False
@@ -221,17 +218,11 @@ def _parse_timestamp(value: Any) -> datetime | None:
 
 
 def _format_timestamp(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
-        "+00:00", "Z"
-    )
+    return value.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _is_number(value: Any) -> bool:
-    return (
-        isinstance(value, (int, float))
-        and not isinstance(value, bool)
-        and math.isfinite(value)
-    )
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def _has_control(value: str, *, allow_whitespace: bool = False) -> bool:
@@ -262,12 +253,12 @@ def _check_string(
         issues.append(EventIssue("required", field, "must not be empty"))
         return False
     if len(value) > max_length:
-        issues.append(
-            EventIssue("too_long", field, f"must be at most {max_length} characters")
-        )
+        issues.append(EventIssue("too_long", field, f"must be at most {max_length} characters"))
         return False
     if _has_control(value, allow_whitespace=allow_whitespace):
-        issues.append(EventIssue("invalid_characters", field, "must not contain control characters"))
+        issues.append(
+            EventIssue("invalid_characters", field, "must not contain control characters")
+        )
         return False
     if pattern is not None and not pattern.fullmatch(value):
         issues.append(EventIssue("invalid_format", field, "has an invalid format"))
@@ -313,7 +304,11 @@ def _validate_properties(
     if isinstance(value, (list, tuple)):
         if len(value) > MAX_ARRAY_ITEMS:
             issues.append(
-                EventIssue("too_many_items", field, f"must have at most {MAX_ARRAY_ITEMS} items")
+                EventIssue(
+                    "too_many_items",
+                    field,
+                    f"must have at most {MAX_ARRAY_ITEMS} items",
+                )
             )
         for index, item in enumerate(value):
             _validate_properties(
@@ -386,9 +381,7 @@ def validate_event(
     try:
         serialized = canonical_json(raw)
         if len(serialized.encode("utf-8")) > max_bytes:
-            issues.append(
-                EventIssue("too_large", "$", f"event must be at most {max_bytes} bytes")
-            )
+            issues.append(EventIssue("too_large", "$", f"event must be at most {max_bytes} bytes"))
     except (TypeError, ValueError):
         issues.append(EventIssue("invalid_json", "$", "event must be JSON-serializable"))
 
@@ -405,15 +398,14 @@ def validate_event(
     for field in missing:
         issues.append(EventIssue("required", field, "is required"))
 
-    if "schema_version" in raw:
-        if raw.get("schema_version") != SCHEMA_VERSION:
-            issues.append(
-                EventIssue(
-                    "unsupported_schema",
-                    "schema_version",
-                    f"must be {SCHEMA_VERSION!r}",
-                )
+    if "schema_version" in raw and raw.get("schema_version") != SCHEMA_VERSION:
+        issues.append(
+            EventIssue(
+                "unsupported_schema",
+                "schema_version",
+                f"must be {SCHEMA_VERSION!r}",
             )
+        )
 
     if "event_id" in raw:
         _check_string(
@@ -474,9 +466,7 @@ def validate_event(
                 )
             for field in ("platform", "sdk_name", "sdk_version"):
                 if field not in source:
-                    issues.append(
-                        EventIssue("required", f"source.{field}", "is required")
-                    )
+                    issues.append(EventIssue("required", f"source.{field}", "is required"))
             platform = source.get("platform")
             if platform not in PLATFORMS:
                 issues.append(
@@ -583,9 +573,7 @@ def validate_event(
                 )
             for field in ("purposes", "source", "provenance"):
                 if field not in consent:
-                    issues.append(
-                        EventIssue("required", f"consent.{field}", "is required")
-                    )
+                    issues.append(EventIssue("required", f"consent.{field}", "is required"))
             purposes = consent.get("purposes")
             if not isinstance(purposes, Mapping) or not purposes:
                 issues.append(
@@ -688,9 +676,7 @@ def validate_event(
             for key, value in properties.items():
                 child = f"properties.{key}"
                 if not isinstance(key, str):
-                    issues.append(
-                        EventIssue("invalid_key", "properties", "keys must be strings")
-                    )
+                    issues.append(EventIssue("invalid_key", "properties", "keys must be strings"))
                     continue
                 if not _PROPERTY_KEY_RE.fullmatch(key):
                     issues.append(
@@ -785,9 +771,7 @@ def validate_batch(
     :class:`EventValidationError`.
     """
     if not isinstance(raw, Mapping):
-        raise EventValidationError(
-            [EventIssue("invalid_type", "$", "batch must be a JSON object")]
-        )
+        raise EventValidationError([EventIssue("invalid_type", "$", "batch must be a JSON object")])
     unknown = sorted(set(raw) - {"schema_version", "events"})
     if unknown:
         raise EventValidationError(

@@ -43,7 +43,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from html.parser import HTMLParser
-from typing import List, Optional, Tuple
 
 _GTM_LOADER_PATTERN = re.compile(r"googletagmanager\.com/gtm\.js\?id=(GTM-[A-Z0-9]+)")
 _GTM_NOSCRIPT_PATTERN = re.compile(r"googletagmanager\.com/ns\.html\?id=(GTM-[A-Z0-9]+)")
@@ -61,13 +60,13 @@ class _TagSourceExtractor(HTMLParser):
 
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
-        self.script_srcs: List[str] = []
-        self.iframe_srcs: List[str] = []
-        self.inline_script_texts: List[str] = []
+        self.script_srcs: list[str] = []
+        self.iframe_srcs: list[str] = []
+        self.inline_script_texts: list[str] = []
         self._in_inline_script = False
-        self._current_inline_chunks: List[str] = []
+        self._current_inline_chunks: list[str] = []
 
-    def handle_starttag(self, tag: str, attrs: List[Tuple[str, Optional[str]]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attrs_dict = dict(attrs)
         if tag == "script":
             src = attrs_dict.get("src")
@@ -98,13 +97,26 @@ def _extract(html: str) -> _TagSourceExtractor:
     parser.feed(html)
     return parser
 
+
 # (vendor, category, regex) -- category taxonomy per docs/VISION.md §17:
 # analytics/ads/experimentation/personalization/heatmap/chat/payment/video.
-_VENDOR_SIGNATURES: List[Tuple[str, str, "re.Pattern[str]"]] = [
-    ("GA4", "analytics", re.compile(r"googletagmanager\.com/gtag/js\?id=(G-[A-Z0-9]+)")),
-    ("GA4", "analytics", re.compile(r"gtag\(\s*['\"]config['\"]\s*,\s*['\"](G-[A-Z0-9]+)")),
+_VENDOR_SIGNATURES: list[tuple[str, str, re.Pattern[str]]] = [
+    (
+        "GA4",
+        "analytics",
+        re.compile(r"googletagmanager\.com/gtag/js\?id=(G-[A-Z0-9]+)"),
+    ),
+    (
+        "GA4",
+        "analytics",
+        re.compile(r"gtag\(\s*['\"]config['\"]\s*,\s*['\"](G-[A-Z0-9]+)"),
+    ),
     ("Google Ads", "ads", re.compile(r"googleadservices\.com/pagead/conversion")),
-    ("Google Ads", "ads", re.compile(r"gtag\(\s*['\"]config['\"]\s*,\s*['\"](AW-[0-9]+)")),
+    (
+        "Google Ads",
+        "ads",
+        re.compile(r"gtag\(\s*['\"]config['\"]\s*,\s*['\"](AW-[0-9]+)"),
+    ),
     ("Floodlight", "ads", re.compile(r"[a-z0-9.-]*\bfls\.doubleclick\.net")),
     ("Meta Pixel", "ads", re.compile(r"connect\.facebook\.net/[^\"'\s]+/fbevents\.js")),
     ("Meta Pixel", "ads", re.compile(r"fbq\(\s*['\"]init['\"]")),
@@ -146,7 +158,7 @@ class VendorDetection:
     evidence: str  # matched snippet, length-capped -- not raw page content
 
     @property
-    def identity_key(self) -> Tuple[str, str]:
+    def identity_key(self) -> tuple[str, str]:
         """(vendor, evidence) rather than just vendor -- the same vendor
         can legitimately appear more than once with different container/
         pixel IDs (e.g. two GA4 measurement IDs), which is itself a
@@ -158,11 +170,11 @@ class VendorDetection:
 @dataclass(frozen=True)
 class StaticScanResult:
     page_url: str
-    gtm_containers: Tuple[GtmContainerDetection, ...]
-    vendors: Tuple[VendorDetection, ...]
+    gtm_containers: tuple[GtmContainerDetection, ...]
+    vendors: tuple[VendorDetection, ...]
 
     @property
-    def gtm_container_ids(self) -> Tuple[str, ...]:
+    def gtm_container_ids(self) -> tuple[str, ...]:
         return tuple(sorted({c.container_id for c in self.gtm_containers}))
 
     @property
@@ -170,11 +182,13 @@ class StaticScanResult:
         return len(self.gtm_container_ids) > 1
 
 
-def _snippet(match: "re.Match[str]") -> str:
+def _snippet(match: re.Match[str]) -> str:
     return match.group(0)[:_EVIDENCE_SNIPPET_MAX_LEN]
 
 
-def _detect_gtm_containers(extractor: _TagSourceExtractor) -> Tuple[GtmContainerDetection, ...]:
+def _detect_gtm_containers(
+    extractor: _TagSourceExtractor,
+) -> tuple[GtmContainerDetection, ...]:
     # Only real script/iframe `src` attribute values -- never inline script
     # text -- so a container ID that merely appears as a string literal
     # inside some *other* (e.g. not-yet-fired event handler) script isn't
@@ -199,7 +213,7 @@ def _detect_gtm_containers(extractor: _TagSourceExtractor) -> Tuple[GtmContainer
     )
 
 
-def _detect_vendors(extractor: _TagSourceExtractor) -> Tuple[VendorDetection, ...]:
+def _detect_vendors(extractor: _TagSourceExtractor) -> tuple[VendorDetection, ...]:
     # Checked against both real src attribute values and inline script
     # bodies: unlike GTM container detection (which is about "is this
     # actively loaded right now"), a vendor SDK init call appearing
@@ -207,12 +221,18 @@ def _detect_vendors(extractor: _TagSourceExtractor) -> Tuple[VendorDetection, ..
     # conditionally-executed handler -- is still real "hard-coded vendor
     # implementation" evidence per docs/VISION.md §17, not a false
     # positive to filter out.
-    haystacks = list(extractor.script_srcs) + list(extractor.iframe_srcs) + list(extractor.inline_script_texts)
+    haystacks = (
+        list(extractor.script_srcs)
+        + list(extractor.iframe_srcs)
+        + list(extractor.inline_script_texts)
+    )
     detections = []
     for vendor, category, pattern in _VENDOR_SIGNATURES:
         for haystack in haystacks:
             for match in pattern.finditer(haystack):
-                detections.append(VendorDetection(vendor=vendor, category=category, evidence=_snippet(match)))
+                detections.append(
+                    VendorDetection(vendor=vendor, category=category, evidence=_snippet(match))
+                )
     # Dedupe identical (vendor, evidence) pairs -- the same script tag can
     # be matched by more than one signature pass in rare cases, and a
     # vendor script referenced twice in markup is not two findings.
@@ -234,7 +254,7 @@ def scan_html(html: str, page_url: str) -> StaticScanResult:
     )
 
 
-def classify_vendor_url(url: str) -> Optional[Tuple[str, str]]:
+def classify_vendor_url(url: str) -> tuple[str, str] | None:
     """(vendor, category) for a single URL (e.g. a script `src`), reusing
     the same curated `_VENDOR_SIGNATURES` list `scan_html()` matches
     against -- a public entry point so other modules (`perf/scripts.py`'s
@@ -248,7 +268,9 @@ def classify_vendor_url(url: str) -> Optional[Tuple[str, str]]:
     return None
 
 
-def detect_delayed_containers(baseline: StaticScanResult, later: StaticScanResult) -> Tuple[str, ...]:
+def detect_delayed_containers(
+    baseline: StaticScanResult, later: StaticScanResult
+) -> tuple[str, ...]:
     """GTM container IDs present in `later` but absent from `baseline` --
     evidence the container loaded sometime between the two snapshots
     (consent-gated, interaction-gated, or just slow), not present at the
@@ -259,6 +281,8 @@ def detect_delayed_containers(baseline: StaticScanResult, later: StaticScanResul
     return tuple(cid for cid in later.gtm_container_ids if cid not in baseline_ids)
 
 
-def detect_delayed_vendors(baseline: StaticScanResult, later: StaticScanResult) -> Tuple[VendorDetection, ...]:
+def detect_delayed_vendors(
+    baseline: StaticScanResult, later: StaticScanResult
+) -> tuple[VendorDetection, ...]:
     baseline_keys = {v.identity_key for v in baseline.vendors}
     return tuple(v for v in later.vendors if v.identity_key not in baseline_keys)

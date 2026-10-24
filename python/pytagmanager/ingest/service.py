@@ -12,11 +12,11 @@ import ipaddress
 import re
 import threading
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping, Protocol
+from typing import Any, Protocol
 
-from pytagmanager.control.errors import ValidationError
 from pytagmanager.control.secrets import resolve_secret_ref
 from pytagmanager.events import EventValidationError, parse_event, validate_batch
 
@@ -147,9 +147,7 @@ class IngestService:
                 claim_ttl_seconds=self.config.dedupe_claim_ttl_seconds,
             )
         else:
-            self.dedupe = DedupeCache(
-                self.config.dedupe_ttl_seconds, self.config.dedupe_capacity
-            )
+            self.dedupe = DedupeCache(self.config.dedupe_ttl_seconds, self.config.dedupe_capacity)
         self.api_token = (
             resolve_secret_ref(self.config.api_token_ref, home=self.config.home)
             if self.config.api_token_ref
@@ -213,12 +211,8 @@ class IngestService:
                 "results": [],
                 "errors": [issue.to_dict() for issue in exc.issues],
             }
-        results = [
-            self._process_validated(event, now=current) for event in accepted_events
-        ]
-        rejected_by_index = {
-            int(item["index"]): item for item in rejected_events
-        }
+        results = [self._process_validated(event, now=current) for event in accepted_events]
+        rejected_by_index = {int(item["index"]): item for item in rejected_events}
         ordered: list[dict[str, Any]] = []
         accepted_index = 0
         for index in range(len(accepted_events) + len(rejected_events)):
@@ -237,12 +231,8 @@ class IngestService:
                 ordered.append(results[accepted_index].to_dict())
                 accepted_index += 1
         has_retryable = any(item.retryable for item in results)
-        has_rejected = bool(rejected_events) or any(
-            item.status == "rejected" for item in results
-        )
-        all_accepted = not has_rejected and all(
-            item.accepted or item.duplicate for item in results
-        )
+        has_rejected = bool(rejected_events) or any(item.status == "rejected" for item in results)
+        all_accepted = not has_rejected and all(item.accepted or item.duplicate for item in results)
         if has_retryable:
             status = "partial"
         elif has_rejected:
@@ -269,15 +259,17 @@ class IngestService:
     ) -> IngestResult:
         event_id = str(event["event_id"])
         event_name = str(event["event_name"])
-        if self.config.allowed_containers is not None:
-            if event["container_id"] not in self.config.allowed_containers:
-                return IngestResult(
-                    status="rejected",
-                    event_id=event_id,
-                    event_name=event_name,
-                    accepted=False,
-                    errors=({"message": "container is not allowed by this endpoint"},),
-                )
+        if (
+            self.config.allowed_containers is not None
+            and event["container_id"] not in self.config.allowed_containers
+        ):
+            return IngestResult(
+                status="rejected",
+                event_id=event_id,
+                event_name=event_name,
+                accepted=False,
+                errors=({"message": "container is not allowed by this endpoint"},),
+            )
         claim = self.dedupe.claim(event_id)
         if claim == "completed":
             return IngestResult(

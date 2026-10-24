@@ -4,7 +4,6 @@ import json
 
 import pytest
 from click.testing import CliRunner
-
 from pytagmanager import cli
 from pytagmanager.control import Tag
 
@@ -82,7 +81,15 @@ def test_revision_create_list_and_validate(runner, tmp_path):
 
     validated = runner.invoke(
         cli.main,
-        ["container", "validate", "--id", "GTM-ABC1234", "--home", str(tmp_path), "--json"],
+        [
+            "container",
+            "validate",
+            "--id",
+            "GTM-ABC1234",
+            "--home",
+            str(tmp_path),
+            "--json",
+        ],
     )
     assert validated.exit_code == 0, validated.output
     report = json.loads(validated.output)
@@ -151,8 +158,6 @@ def test_config_export_then_import_as(runner, tmp_path):
 def test_import_rejects_non_json_file(runner, tmp_path):
     bad = tmp_path / "bad.json"
     bad.write_text("not json", encoding="utf-8")
-    result = runner.invoke(
-        cli.main, ["config", "import", str(bad), "--home", str(tmp_path)]
-    )
+    result = runner.invoke(cli.main, ["config", "import", str(bad), "--home", str(tmp_path)])
     assert result.exit_code != 0
     assert "not valid JSON" in result.output

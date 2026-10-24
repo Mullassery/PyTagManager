@@ -9,8 +9,8 @@ requests) and never submits a consent choice on its own.
 from __future__ import annotations
 
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from typing import Iterable, List, Optional, Sequence, Tuple
 from urllib.parse import urlsplit
 
 from pytagmanager.cmp.adapters import (
@@ -121,17 +121,17 @@ class CmpAuditAuthorizationError(RuntimeError):
 class CmpAuditOptions:
     headless: bool = True
     browser_name: str = "chromium"
-    accept_selectors: Tuple[str, ...] = ()
-    reject_selectors: Tuple[str, ...] = ()
+    accept_selectors: tuple[str, ...] = ()
+    reject_selectors: tuple[str, ...] = ()
     wait_seconds: float = 1.0
     selector_timeout_ms: int = 5000
     reload_after_consent: bool = False
     max_network_events: int = 500
-    extra_adapters: Tuple[CmpAdapter, ...] = ()
+    extra_adapters: tuple[CmpAdapter, ...] = ()
 
 
 class CmpAuditRunner:
-    def __init__(self, options: Optional[CmpAuditOptions] = None):
+    def __init__(self, options: CmpAuditOptions | None = None):
         self.options = options or CmpAuditOptions()
         self.adapters = _adapter_registry(self.options.extra_adapters)
 
@@ -156,10 +156,10 @@ class CmpAuditRunner:
             authorized=authorize_consent_interaction,
             started_at=started_at,
         )
-        action_timestamp: Optional[float] = None
-        reload_timestamp: Optional[float] = None
-        consent_after_action: Optional[ConsentState] = None
-        consent_after_reload: Optional[ConsentState] = None
+        action_timestamp: float | None = None
+        reload_timestamp: float | None = None
+        consent_after_action: ConsentState | None = None
+        consent_after_reload: ConsentState | None = None
         reloaded = False
 
         with ObservationSession(
@@ -255,9 +255,7 @@ class CmpAuditRunner:
             final_detections = _merge_detections(
                 detections, detect_adapters(final_signals, adapters=self.adapters)
             )
-            requests = _request_observations(
-                session.events, action_timestamp, reload_timestamp
-            )
+            requests = _request_observations(session.events, action_timestamp, reload_timestamp)
 
         cookie_metadata = _cookie_metadata(final_cookies, final_detections, self.adapters)
         limitations = list(_CMP_LIMITATIONS)
@@ -307,13 +305,17 @@ class CmpAuditRunner:
             limitations=tuple(limitations),
         )
 
-    def _selectors_for(self, detections: Sequence[CmpDetection], action: str) -> Tuple[str, ...]:
-        explicit = self.options.accept_selectors if action == "accept" else self.options.reject_selectors
+    def _selectors_for(self, detections: Sequence[CmpDetection], action: str) -> tuple[str, ...]:
+        explicit = (
+            self.options.accept_selectors if action == "accept" else self.options.reject_selectors
+        )
         if explicit:
             return tuple(explicit)
-        selectors: List[str] = []
+        selectors: list[str] = []
         for detection in detections:
-            values = detection.accept_selectors if action == "accept" else detection.reject_selectors
+            values = (
+                detection.accept_selectors if action == "accept" else detection.reject_selectors
+            )
             selectors.extend(value for value in values if value not in selectors)
         return tuple(selectors)
 
@@ -323,7 +325,7 @@ class CmpAuditRunner:
         lifecycle: ConsentLifecycle,
         selectors: Sequence[str],
         started_at: float,
-    ) -> Tuple[ConsentLifecycle, str]:
+    ) -> tuple[ConsentLifecycle, str]:
         if not selectors:
             return (
                 ConsentLifecycle(
@@ -362,7 +364,7 @@ class CmpAuditRunner:
         )
 
 
-def _adapter_registry(extra_adapters: Sequence[CmpAdapter]) -> Tuple[CmpAdapter, ...]:
+def _adapter_registry(extra_adapters: Sequence[CmpAdapter]) -> tuple[CmpAdapter, ...]:
     registry = list(ADAPTERS)
     seen = {adapter.adapter_id for adapter in registry}
     for adapter in extra_adapters:
@@ -377,7 +379,7 @@ def _adapter_registry(extra_adapters: Sequence[CmpAdapter]) -> Tuple[CmpAdapter,
 
 def _present_globals(
     session: ObservationSession, adapters: Sequence[CmpAdapter]
-) -> Tuple[str, ...]:
+) -> tuple[str, ...]:
     names = sorted({name for adapter in adapters for name in adapter.global_names})
     script = """
     (names) => names.filter((name) => {
@@ -391,7 +393,7 @@ def _present_globals(
     return tuple(result or ())
 
 
-def _network_urls(events: Iterable[TrackingEvent]) -> Tuple[str, ...]:
+def _network_urls(events: Iterable[TrackingEvent]) -> tuple[str, ...]:
     urls = []
     for event in events:
         if event.event_type != "network_request" or not isinstance(event.payload, dict):
@@ -415,23 +417,25 @@ def _current_consent_state(
         read_tcf_consent(session, timestamp=timestamp),
         read_gpp_consent(session, timestamp=timestamp),
         parse_google_consent_mode(events, timestamp=timestamp),
-        cookie_presence_state(
-            detections, cookie_names, timestamp=timestamp, adapters=adapters
-        ),
+        cookie_presence_state(detections, cookie_names, timestamp=timestamp, adapters=adapters),
     ]
-    return merge_consent_states([state for state in states if state is not None], timestamp=timestamp)
+    return merge_consent_states(
+        [state for state in states if state is not None], timestamp=timestamp
+    )
 
 
 def _merge_detections(
     first: Sequence[CmpDetection], second: Sequence[CmpDetection]
-) -> Tuple[CmpDetection, ...]:
+) -> tuple[CmpDetection, ...]:
     by_id = {item.adapter_id: item for item in first}
     order = [item.adapter_id for item in first]
     for item in second:
         if item.adapter_id not in by_id:
             by_id[item.adapter_id] = item
             order.append(item.adapter_id)
-        elif _confidence_rank(item.confidence) > _confidence_rank(by_id[item.adapter_id].confidence):
+        elif _confidence_rank(item.confidence) > _confidence_rank(
+            by_id[item.adapter_id].confidence
+        ):
             by_id[item.adapter_id] = item
     return tuple(by_id[adapter_id] for adapter_id in order)
 
@@ -441,7 +445,17 @@ def _confidence_rank(value: str) -> int:
 
 
 _NON_COLLECTION_RESOURCE_TYPES = frozenset(
-    {"script", "stylesheet", "document", "font", "media", "manifest", "websocket", "eventsource", "texttrack"}
+    {
+        "script",
+        "stylesheet",
+        "document",
+        "font",
+        "media",
+        "manifest",
+        "websocket",
+        "eventsource",
+        "texttrack",
+    }
 )
 _COLLECTION_PATH_MARKERS = (
     "/g/collect",
@@ -464,7 +478,7 @@ def _classify_request(url: str, resource_type: str = "") -> str:
     path = parsed.path
     if any(name in host for name in _CONSENT_HOSTS):
         return "consent"
-    if path.endswith("/g/collect") or path.endswith("/mp/collect"):
+    if path.endswith(("/g/collect", "/mp/collect")):
         category = "analytics"
     elif any(name in host for name in _ADVERTISING_HOSTS):
         category = "advertising"
@@ -482,9 +496,9 @@ def _classify_request(url: str, resource_type: str = "") -> str:
 
 def _request_observations(
     events: Sequence[TrackingEvent],
-    action_timestamp: Optional[float],
-    reload_timestamp: Optional[float],
-) -> Tuple[RequestObservation, ...]:
+    action_timestamp: float | None,
+    reload_timestamp: float | None,
+) -> tuple[RequestObservation, ...]:
     observations = []
     for event in events:
         if event.event_type != "network_request" or not isinstance(event.payload, dict):
@@ -518,7 +532,7 @@ def _cookie_metadata(
     cookies: Sequence[dict],
     detections: Sequence[CmpDetection],
     adapters: Sequence[CmpAdapter],
-) -> Tuple[CookieMetadata, ...]:
+) -> tuple[CookieMetadata, ...]:
     cmp_names = set()
     cmp_prefixes = []
     for detection in detections:

@@ -19,7 +19,10 @@ class _FakePage:
 
 def test_url_template_generalizes_numeric_and_uuid_segments():
     assert url_template("https://example.com/products/123") == "/products/{param}"
-    assert url_template("https://example.com/products/9f8b7c6d-1111-2222-3333-444455556666") == "/products/{param}"
+    assert (
+        url_template("https://example.com/products/9f8b7c6d-1111-2222-3333-444455556666")
+        == "/products/{param}"
+    )
     assert url_template("https://example.com/") == "/"
     assert url_template("https://example.com/checkout/confirmation") == "/checkout/confirmation"
 
@@ -46,7 +49,13 @@ def test_detect_templates_groups_by_url_pattern():
 
 
 def test_detect_templates_merges_by_dom_fingerprint_across_different_urls():
-    shared_classes = [["product-grid"], ["product-card"], ["product-card"], ["price-tag"], ["price-tag"]]
+    shared_classes = [
+        ["product-grid"],
+        ["product-card"],
+        ["product-card"],
+        ["price-tag"],
+        ["price-tag"],
+    ]
     pages = [
         _FakePage("https://example.com/deals", shared_classes),
         _FakePage("https://example.com/new-arrivals", shared_classes),

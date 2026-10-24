@@ -7,13 +7,20 @@ from __future__ import annotations
 from pytagmanager.dictionary.build import build_data_dictionary
 from pytagmanager.dictionary.schema_drift import diff_dictionaries
 from pytagmanager.observability.state import RuntimeStateSnapshot
-from pytagmanager.testintel.candidates import CATEGORY_REGRESSION, SEVERITY_REQUIRES_VERIFICATION
+from pytagmanager.testintel.candidates import (
+    CATEGORY_REGRESSION,
+    SEVERITY_REQUIRES_VERIFICATION,
+)
 from pytagmanager.testintel.regression import generate_regression_candidates
 
 
 def _snapshot(page_url, timestamp, data_layer=None, cookies=None):
     return RuntimeStateSnapshot(
-        page_url=page_url, timestamp=timestamp, label="page_load", data_layer=data_layer or [], cookies=cookies or {}
+        page_url=page_url,
+        timestamp=timestamp,
+        label="page_load",
+        data_layer=data_layer or [],
+        cookies=cookies or {},
     )
 
 
@@ -21,7 +28,13 @@ def test_removed_datalayer_field_produces_a_regression_candidate_naming_the_exac
     # Reproduces the Phase 1.9 exit criteria: a purchase event's
     # transaction_id field was removed between two crawls.
     old = build_data_dictionary(
-        [_snapshot("https://example.com/checkout", 1.0, data_layer=[{"event": "purchase", "transaction_id": "T1"}])]
+        [
+            _snapshot(
+                "https://example.com/checkout",
+                1.0,
+                data_layer=[{"event": "purchase", "transaction_id": "T1"}],
+            )
+        ]
     )
     new = build_data_dictionary(
         [_snapshot("https://example.com/checkout", 2.0, data_layer=[{"event": "purchase"}])]
@@ -43,33 +56,61 @@ def test_removed_datalayer_field_produces_a_regression_candidate_naming_the_exac
 
 def test_no_removed_fields_produces_no_candidates():
     dictionary = build_data_dictionary(
-        [_snapshot("https://example.com/checkout", 1.0, data_layer=[{"event": "purchase", "transaction_id": "T1"}])]
+        [
+            _snapshot(
+                "https://example.com/checkout",
+                1.0,
+                data_layer=[{"event": "purchase", "transaction_id": "T1"}],
+            )
+        ]
     )
     drift = diff_dictionaries(dictionary, dictionary)
     assert generate_regression_candidates(drift, "old", "new") == []
 
 
 def test_removed_cookie_does_not_produce_a_regression_candidate():
-    old = build_data_dictionary([_snapshot("https://example.com/", 1.0, cookies={})])
+    build_data_dictionary([_snapshot("https://example.com/", 1.0, cookies={})])
     # Simulate a cookie present in old but not new via direct dictionary construction
     from pytagmanager.observability.state import StorageEntry
 
     old_with_cookie = build_data_dictionary(
-        [_snapshot("https://example.com/", 1.0, cookies={"session_id": StorageEntry(key="session_id", value_type="string", length=8)})]
+        [
+            _snapshot(
+                "https://example.com/",
+                1.0,
+                cookies={
+                    "session_id": StorageEntry(key="session_id", value_type="string", length=8)
+                },
+            )
+        ]
     )
     new_without_cookie = build_data_dictionary([_snapshot("https://example.com/", 2.0, cookies={})])
     drift = diff_dictionaries(old_with_cookie, new_without_cookie)
 
     assert drift.removed_variables  # the cookie removal is real structural drift...
-    assert generate_regression_candidates(drift, "old", "new") == []  # ...but not a regression *candidate*
+    assert (
+        generate_regression_candidates(drift, "old", "new") == []
+    )  # ...but not a regression *candidate*
 
 
 def test_possible_rename_is_excluded_from_regression_candidates():
     old = build_data_dictionary(
-        [_snapshot("https://example.com/p", 1.0, data_layer=[{"event": "product_view", "product_identifier": "p1"}])]
+        [
+            _snapshot(
+                "https://example.com/p",
+                1.0,
+                data_layer=[{"event": "product_view", "product_identifier": "p1"}],
+            )
+        ]
     )
     new = build_data_dictionary(
-        [_snapshot("https://example.com/p", 2.0, data_layer=[{"event": "product_view", "product_id": "p1"}])]
+        [
+            _snapshot(
+                "https://example.com/p",
+                2.0,
+                data_layer=[{"event": "product_view", "product_id": "p1"}],
+            )
+        ]
     )
     drift = diff_dictionaries(old, new)
     assert drift.possible_renames  # confirm the rename heuristic actually caught this
@@ -80,9 +121,17 @@ def test_possible_rename_is_excluded_from_regression_candidates():
 
 def test_suggested_verification_names_the_field():
     old = build_data_dictionary(
-        [_snapshot("https://example.com/checkout", 1.0, data_layer=[{"event": "purchase", "currency": "USD"}])]
+        [
+            _snapshot(
+                "https://example.com/checkout",
+                1.0,
+                data_layer=[{"event": "purchase", "currency": "USD"}],
+            )
+        ]
     )
-    new = build_data_dictionary([_snapshot("https://example.com/checkout", 2.0, data_layer=[{"event": "purchase"}])])
+    new = build_data_dictionary(
+        [_snapshot("https://example.com/checkout", 2.0, data_layer=[{"event": "purchase"}])]
+    )
     drift = diff_dictionaries(old, new)
 
     candidate = generate_regression_candidates(drift, "old", "new")[0]

@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-import copy
+import contextlib
 import hashlib
 import json
 import os
-import posixpath
 import shutil
 import tempfile
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Mapping
+from typing import Any
 
 from pytagmanager.control.errors import ConflictError, NotFoundError, ValidationError
 from pytagmanager.control.ids import container_storage_key, utc_now
@@ -82,9 +82,7 @@ def _json_bytes(value: Any, *, pretty: bool = True) -> bytes:
     if pretty:
         text = json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
     else:
-        text = json.dumps(
-            value, sort_keys=True, separators=(",", ":"), ensure_ascii=False
-        )
+        text = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
     return text.encode("utf-8")
 
 
@@ -108,10 +106,8 @@ def _atomic_write(path: Path, data: bytes, *, mode: int = 0o644) -> None:
         finally:
             os.close(directory)
     except BaseException:
-        try:
+        with contextlib.suppress(FileNotFoundError):
             temp.unlink()
-        except FileNotFoundError:
-            pass
         raise
 
 
@@ -119,9 +115,7 @@ def _write_immutable(path: Path, data: bytes, *, label: str) -> None:
     if path.exists():
         existing = path.read_bytes()
         if existing != data:
-            raise ConflictError(
-                f"{label} already exists with different contents: {path}"
-            )
+            raise ConflictError(f"{label} already exists with different contents: {path}")
         return
     _atomic_write(path, data)
 
@@ -221,7 +215,11 @@ class FilesystemCDN:
                 raise ConflictError(
                     f"existing published configuration is unreadable or invalid: {exc}"
                 ) from exc
-        config_bytes = existing_config_path.read_bytes() if existing_config_path.is_file() else _json_bytes(config)
+        config_bytes = (
+            existing_config_path.read_bytes()
+            if existing_config_path.is_file()
+            else _json_bytes(config)
+        )
         file_sha256 = _sha256_bytes(config_bytes)
         integrity_digest = verify_published_config(config)
 
@@ -371,7 +369,12 @@ class FilesystemCDN:
                 reverse=True,
             ),
             "sdk_assets": [
-                {"platform": "web", "version": self.sdk_version, "path": sdk_path, "sha256": sdk_digest}
+                {
+                    "platform": "web",
+                    "version": self.sdk_version,
+                    "path": sdk_path,
+                    "sha256": sdk_digest,
+                }
             ],
         }
 
@@ -436,9 +439,7 @@ class FilesystemCDN:
             "Content-Type": "application/javascript; charset=utf-8",
             "X-Content-Type-Options": "nosniff",
         }
-        headers[
-            f"/{base}/revisions/{config_version}/config.json"
-        ] = {
+        headers[f"/{base}/revisions/{config_version}/config.json"] = {
             "Cache-Control": IMMUTABLE_CACHE,
             "Content-Type": "application/json; charset=utf-8",
             "X-Content-Type-Options": "nosniff",
@@ -534,7 +535,10 @@ class FilesystemCDN:
                     continue
                 if pointer.get("config_version") != manifest.get("current_config_version"):
                     issues.append(
-                        {"path": str(latest), "message": "latest pointer does not match manifest"}
+                        {
+                            "path": str(latest),
+                            "message": "latest pointer does not match manifest",
+                        }
                     )
         return issues
 

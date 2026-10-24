@@ -12,9 +12,10 @@ import socket
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Mapping
+from typing import Any
 
 from pytagmanager.control.errors import ValidationError
 from pytagmanager.control.secrets import resolve_secret_ref
@@ -92,7 +93,9 @@ def validate_pytagshield_url(value: str, *, allow_private_networks: bool = False
         try:
             addresses = {
                 item[4][0]
-                for item in socket.getaddrinfo(parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM)
+                for item in socket.getaddrinfo(
+                    parsed.hostname, parsed.port or 443, type=socket.SOCK_STREAM
+                )
             }
         except OSError as exc:
             raise ValidationError(f"PyTagShield hostname cannot be resolved: {exc}") from exc
@@ -132,8 +135,7 @@ def to_pytagshield_event(event: Mapping[str, Any]) -> dict[str, Any]:
     consent = event.get("consent")
     if isinstance(consent, Mapping) and isinstance(consent.get("purposes"), Mapping):
         payload["consent"] = {
-            purpose: bool(granted)
-            for purpose, granted in consent["purposes"].items()
+            purpose: bool(granted) for purpose, granted in consent["purposes"].items()
         }
     return payload
 
@@ -260,16 +262,12 @@ class PyTagShieldClient:
             status=status,
             transient=status == "backpressure",
             event_id=(
-                document.get("event_id")
-                if isinstance(document.get("event_id"), str)
-                else None
+                document.get("event_id") if isinstance(document.get("event_id"), str) else None
             ),
             destinations=tuple(
                 item for item in document.get("destinations", []) if isinstance(item, str)
             ),
-            enqueued=tuple(
-                item for item in document.get("enqueued", []) if isinstance(item, str)
-            ),
+            enqueued=tuple(item for item in document.get("enqueued", []) if isinstance(item, str)),
             skipped=tuple(
                 dict(item) for item in document.get("skipped", []) if isinstance(item, Mapping)
             ),

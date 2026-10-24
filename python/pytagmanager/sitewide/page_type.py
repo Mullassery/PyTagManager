@@ -18,8 +18,9 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Protocol, Sequence, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
 from pytagmanager.sitewide.templates import PageTemplate
@@ -51,8 +52,8 @@ class PageSummary:
 
     url: str
     title: str
-    headings: List[str] = field(default_factory=list)
-    cta_texts: List[str] = field(default_factory=list)
+    headings: list[str] = field(default_factory=list)
+    cta_texts: list[str] = field(default_factory=list)
     form_count: int = 0
 
 
@@ -115,7 +116,9 @@ class HeuristicPageTypeClassifier:
         for keyword, page_type in _URL_KEYWORD_MAP:
             if keyword in path:
                 return PageTypeResult(page_type, 0.6, f"URL path contains '{keyword}'.")
-        if summary.form_count >= 1 and any("contact" in heading.lower() for heading in summary.headings):
+        if summary.form_count >= 1 and any(
+            "contact" in heading.lower() for heading in summary.headings
+        ):
             return PageTypeResult("Contact", 0.5, "Page contains a form and a 'contact' heading.")
         return PageTypeResult("Other", 0.3, "No matching URL or content signal.")
 
@@ -194,7 +197,11 @@ class OllamaPageTypeClassifier:
 
         confidence = max(0.0, min(float(parsed.get("confidence", 0.5)), 1.0))
         rationale = str(parsed.get("rationale") or "").strip()
-        rationale = f"Ollama ({self.model}): {rationale}" if rationale else f"Ollama ({self.model}) classification."
+        rationale = (
+            f"Ollama ({self.model}): {rationale}"
+            if rationale
+            else f"Ollama ({self.model}) classification."
+        )
 
         return PageTypeResult(page_type=page_type, confidence=confidence, rationale=rationale)
 
@@ -209,10 +216,10 @@ class OllamaPageTypeClassifier:
 
 def assign_semantic_labels(
     templates: Sequence[PageTemplate],
-    graphs_by_url: Dict[str, Any],
+    graphs_by_url: dict[str, Any],
     classifier: PageTypeClassifier,
     sample_size: int = 3,
-) -> List[PageTemplate]:
+) -> list[PageTemplate]:
     """Relabel each template with a majority vote across a sample of its
     pages' classified page types, instead of the URL-segment-derived label
     `detect_templates()` assigns by default. A template with no
@@ -221,7 +228,7 @@ def assign_semantic_labels(
     """
     relabeled = []
     for template in templates:
-        votes: Dict[str, int] = {}
+        votes: dict[str, int] = {}
         for url in template.page_urls[:sample_size]:
             graph = graphs_by_url.get(url)
             if graph is None:

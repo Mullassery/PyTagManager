@@ -17,9 +17,10 @@ from __future__ import annotations
 
 import datetime
 import json
+from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Sequence
+from typing import Any
 
 from pytagmanager.recommend.models import TrackingRecommendation
 
@@ -35,8 +36,8 @@ class SnapshotNode:
     xpath: str
     aria_label: str | None
     aria_role: str | None
-    classes: List[str]
-    attributes: Dict[str, str]
+    classes: list[str]
+    attributes: dict[str, str]
 
     @property
     def identity_key(self) -> str:
@@ -49,7 +50,7 @@ class SnapshotNode:
         return self.stable_selector or self.css_selector
 
     @classmethod
-    def from_semantic_node(cls, node: Any) -> "SnapshotNode":
+    def from_semantic_node(cls, node: Any) -> SnapshotNode:
         return cls(
             tag=node.tag,
             text=node.text,
@@ -63,7 +64,7 @@ class SnapshotNode:
         )
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SnapshotNode":
+    def from_dict(cls, data: dict) -> SnapshotNode:
         return cls(
             tag=data["tag"],
             text=data["text"],
@@ -96,7 +97,7 @@ class SnapshotRecommendation:
         return f"{self.event_name}@{self.selector}"
 
     @classmethod
-    def from_recommendation(cls, rec: TrackingRecommendation) -> "SnapshotRecommendation":
+    def from_recommendation(cls, rec: TrackingRecommendation) -> SnapshotRecommendation:
         return cls(
             event_name=rec.event_name,
             trigger_type=rec.trigger_type,
@@ -107,7 +108,7 @@ class SnapshotRecommendation:
         )
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SnapshotRecommendation":
+    def from_dict(cls, data: dict) -> SnapshotRecommendation:
         return cls(**data)
 
 
@@ -115,16 +116,18 @@ class SnapshotRecommendation:
 class SnapshotPage:
     url: str
     status: int
-    nodes: List[SnapshotNode]
-    recommendations: List[SnapshotRecommendation]
+    nodes: list[SnapshotNode]
+    recommendations: list[SnapshotRecommendation]
 
     @classmethod
-    def from_dict(cls, data: dict) -> "SnapshotPage":
+    def from_dict(cls, data: dict) -> SnapshotPage:
         return cls(
             url=data["url"],
             status=data["status"],
             nodes=[SnapshotNode.from_dict(n) for n in data.get("nodes", [])],
-            recommendations=[SnapshotRecommendation.from_dict(r) for r in data.get("recommendations", [])],
+            recommendations=[
+                SnapshotRecommendation.from_dict(r) for r in data.get("recommendations", [])
+            ],
         )
 
 
@@ -133,10 +136,10 @@ class CrawlSnapshot:
     format_version: int
     created_at: str
     root_url: str
-    pages: List[SnapshotPage]
+    pages: list[SnapshotPage]
 
     @classmethod
-    def from_dict(cls, data: dict) -> "CrawlSnapshot":
+    def from_dict(cls, data: dict) -> CrawlSnapshot:
         return cls(
             format_version=data.get("format_version", SNAPSHOT_FORMAT_VERSION),
             created_at=data["created_at"],
@@ -147,7 +150,7 @@ class CrawlSnapshot:
 
 def build_snapshot(
     pages: Sequence[Any],
-    recommendations_by_url: Dict[str, Sequence[TrackingRecommendation]],
+    recommendations_by_url: dict[str, Sequence[TrackingRecommendation]],
     root_url: str,
 ) -> CrawlSnapshot:
     """Build a `CrawlSnapshot` from a completed crawl: `pages` is whatever

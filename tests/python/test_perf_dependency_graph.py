@@ -32,7 +32,9 @@ def _entry(url, initiator_type="parser", initiator_url=None):
 
 
 def test_parser_initiated_script_is_parented_to_the_page():
-    inventory = ScriptInventory(page_url=_PAGE_URL, scripts=(_entry("https://shop.example.com/gtm.js"),))
+    inventory = ScriptInventory(
+        page_url=_PAGE_URL, scripts=(_entry("https://shop.example.com/gtm.js"),)
+    )
     graph = build_dependency_graph(inventory)
 
     assert len(graph.edges) == 1
@@ -56,7 +58,9 @@ def test_script_initiated_script_is_parented_to_the_initiator():
     )
     graph = build_dependency_graph(inventory)
 
-    child_edge = next(e for e in graph.edges if e.child_url == "https://www.google-analytics.com/ga4.js")
+    child_edge = next(
+        e for e in graph.edges if e.child_url == "https://www.google-analytics.com/ga4.js"
+    )
     assert child_edge.parent_url == "https://shop.example.com/gtm.js"
     assert child_edge.relationship == RELATIONSHIP_LOADED_BY_SCRIPT
 
@@ -66,7 +70,14 @@ def test_script_initiator_with_no_resolvable_url_falls_back_to_page():
     # inventory node -- but CDP can still report initiator.type=="script"
     # with no usable stack frame URL in edge cases.
     inventory = ScriptInventory(
-        page_url=_PAGE_URL, scripts=(_entry("https://shop.example.com/injected.js", initiator_type="script", initiator_url=None),)
+        page_url=_PAGE_URL,
+        scripts=(
+            _entry(
+                "https://shop.example.com/injected.js",
+                initiator_type="script",
+                initiator_url=None,
+            ),
+        ),
     )
     graph = build_dependency_graph(inventory)
     assert graph.edges[0].parent_url == _PAGE_URL
@@ -78,8 +89,16 @@ def test_downstream_of_computes_transitive_closure():
         page_url=_PAGE_URL,
         scripts=(
             _entry("https://shop.example.com/gtm.js"),
-            _entry("https://ga4.example.com/a.js", initiator_type="script", initiator_url="https://shop.example.com/gtm.js"),
-            _entry("https://pixel.example.com/b.js", initiator_type="script", initiator_url="https://shop.example.com/gtm.js"),
+            _entry(
+                "https://ga4.example.com/a.js",
+                initiator_type="script",
+                initiator_url="https://shop.example.com/gtm.js",
+            ),
+            _entry(
+                "https://pixel.example.com/b.js",
+                initiator_type="script",
+                initiator_url="https://shop.example.com/gtm.js",
+            ),
             _entry(
                 "https://sub.example.com/c.js",
                 initiator_type="script",
@@ -104,7 +123,11 @@ def test_downstream_of_leaf_script_is_empty():
         page_url=_PAGE_URL,
         scripts=(
             _entry("https://shop.example.com/gtm.js"),
-            _entry("https://ga4.example.com/a.js", initiator_type="script", initiator_url="https://shop.example.com/gtm.js"),
+            _entry(
+                "https://ga4.example.com/a.js",
+                initiator_type="script",
+                initiator_url="https://shop.example.com/gtm.js",
+            ),
         ),
     )
     graph = build_dependency_graph(inventory)
@@ -117,8 +140,16 @@ def test_downstream_of_handles_cycles_without_infinite_loop():
     inventory = ScriptInventory(
         page_url=_PAGE_URL,
         scripts=(
-            _entry("https://a.example.com/a.js", initiator_type="script", initiator_url="https://b.example.com/b.js"),
-            _entry("https://b.example.com/b.js", initiator_type="script", initiator_url="https://a.example.com/a.js"),
+            _entry(
+                "https://a.example.com/a.js",
+                initiator_type="script",
+                initiator_url="https://b.example.com/b.js",
+            ),
+            _entry(
+                "https://b.example.com/b.js",
+                initiator_type="script",
+                initiator_url="https://a.example.com/a.js",
+            ),
         ),
     )
     graph = build_dependency_graph(inventory)
@@ -131,7 +162,11 @@ def test_children_of_returns_direct_children_only():
         page_url=_PAGE_URL,
         scripts=(
             _entry("https://shop.example.com/gtm.js"),
-            _entry("https://ga4.example.com/a.js", initiator_type="script", initiator_url="https://shop.example.com/gtm.js"),
+            _entry(
+                "https://ga4.example.com/a.js",
+                initiator_type="script",
+                initiator_url="https://shop.example.com/gtm.js",
+            ),
             _entry(
                 "https://sub.example.com/c.js",
                 initiator_type="script",

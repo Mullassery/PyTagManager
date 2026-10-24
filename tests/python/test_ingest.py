@@ -4,12 +4,11 @@ import http.client
 import json
 import threading
 from contextlib import contextmanager
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
 from pytagmanager.control.errors import ValidationError
 from pytagmanager.events import SCHEMA_VERSION
 from pytagmanager.ingest import (
@@ -30,7 +29,11 @@ def _event(**overrides):
         "event_id": "123e4567-e89b-42d3-a456-426614174000",
         "event_name": "add_to_cart",
         "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z",
-        "source": {"platform": "web", "sdk_name": "pytagmanager-web", "sdk_version": "0.1.0"},
+        "source": {
+            "platform": "web",
+            "sdk_name": "pytagmanager-web",
+            "sdk_version": "0.1.0",
+        },
         "container_id": "GTM-ABC1234",
         "subject": {"id": "customer-1", "type": "user"},
         "consent": {
@@ -220,9 +223,10 @@ def test_mapped_event_is_accepted_by_pytagshield_when_available():
 def test_pytagshield_url_requires_https_or_explicit_private_network():
     with pytest.raises(ValidationError):
         validate_pytagshield_url("http://127.0.0.1:8099")
-    assert validate_pytagshield_url(
-        "http://127.0.0.1:8099", allow_private_networks=True
-    ) == "http://127.0.0.1:8099"
+    assert (
+        validate_pytagshield_url("http://127.0.0.1:8099", allow_private_networks=True)
+        == "http://127.0.0.1:8099"
+    )
     with pytest.raises(ValidationError):
         validate_pytagshield_url("https://127.0.0.1:8099")
 
@@ -297,7 +301,9 @@ def test_pytagshield_anonymous_events_get_distinct_fallbacks():
     second.pop("subject")
     assert to_pytagshield_event(first)["distinct_id"] == "anon:123e4567-e89b-42d3-a456-426614174001"
     assert to_pytagshield_event(first)["distinct_id"] == "anon:123e4567-e89b-42d3-a456-426614174001"
-    assert to_pytagshield_event(second)["distinct_id"] == "anon:123e4567-e89b-42d3-a456-426614174002"
+    assert (
+        to_pytagshield_event(second)["distinct_id"] == "anon:123e4567-e89b-42d3-a456-426614174002"
+    )
 
 
 def test_pytagshield_client_sends_mapped_event_and_auth(monkeypatch):
@@ -403,9 +409,7 @@ def test_http_health_event_duplicate_and_invalid(http_endpoint):
     assert status == 202
     assert json.loads(body)["duplicate"] is True
 
-    status, _, body = _request(
-        server, "POST", "/api/v1/events", _event(event_name="Not Valid")
-    )
+    status, _, body = _request(server, "POST", "/api/v1/events", _event(event_name="Not Valid"))
     assert status == 422
     assert json.loads(body)["status"] == "rejected"
     assert len(forwarder.calls) == 1
@@ -495,9 +499,7 @@ def test_http_requires_content_length(http_endpoint):
 
 def test_batch_rate_limit_charges_once_per_event_and_consumes_tokens():
     forwarder = FakeForwarder()
-    service = IngestService(
-        IngestConfig(rate_limit_per_minute=3), forwarder=forwarder
-    )
+    service = IngestService(IngestConfig(rate_limit_per_minute=3), forwarder=forwarder)
     first = _batch(("101", "102"))
     assert service.ingest_batch(first, client_ip="203.0.113.20")["status"] == "accepted"
     assert [call["event_id"][-3:] for call in forwarder.calls] == ["101", "102"]
@@ -518,10 +520,7 @@ def test_batch_larger_than_bucket_is_rejected_without_token_charge():
     service = IngestService(IngestConfig(rate_limit_per_minute=2))
     oversized = {
         "schema_version": SCHEMA_VERSION,
-        "events": [
-            _event(event_id=f"123e4567-e89b-42d3-a456-{index:012d}")
-            for index in range(3)
-        ],
+        "events": [_event(event_id=f"123e4567-e89b-42d3-a456-{index:012d}") for index in range(3)],
     }
     limited = service.ingest_batch(oversized, client_ip="203.0.113.21")
     assert limited["status"] == "rate_limited"
@@ -539,8 +538,7 @@ def _batch(suffixes):
     return {
         "schema_version": SCHEMA_VERSION,
         "events": [
-            _event(event_id=f"123e4567-e89b-42d3-a456-{suffix:0>12}")
-            for suffix in suffixes
+            _event(event_id=f"123e4567-e89b-42d3-a456-{suffix:0>12}") for suffix in suffixes
         ],
     }
 

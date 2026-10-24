@@ -17,7 +17,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from pytagmanager.export._taxonomy import canonical_event
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -39,8 +38,14 @@ _GA4_EVENT_SPECS = {
     # have no GA4 recommended event of their own so they reuse GA4's
     # `select_content` (its generic recommended "user selected content"
     # event) with a content_type that distinguishes them.
-    "remove_from_cart": ("remove_from_cart", {"currency": "USD", "value": 0.0, "items": []}),
-    "add_to_wishlist": ("add_to_wishlist", {"currency": "USD", "value": 0.0, "items": []}),
+    "remove_from_cart": (
+        "remove_from_cart",
+        {"currency": "USD", "value": 0.0, "items": []},
+    ),
+    "add_to_wishlist": (
+        "add_to_wishlist",
+        {"currency": "USD", "value": 0.0, "items": []},
+    ),
     "content_discovery": ("select_content", {"content_type": "results", "item_id": ""}),
     "pagination": ("select_content", {"content_type": "pagination", "item_id": ""}),
     "video_engagement": ("video_start", {"video_title": "", "video_current_time": 0.0}),
@@ -50,7 +55,7 @@ _GA4_EVENT_SPECS = {
 _DEFAULT_GA4_EVENT_NAME = "select_content"
 
 
-def build_ga4_config(recommendations: List[TrackingRecommendation]) -> dict:
+def build_ga4_config(recommendations: list[TrackingRecommendation]) -> dict:
     """Build a GA4 event-configuration export: one entry per recommendation,
     each shaped like a GA4 Measurement Protocol event (`name` + `params`),
     using GA4's recommended-event names/params where our taxonomy maps to
@@ -89,6 +94,6 @@ def build_ga4_config(recommendations: List[TrackingRecommendation]) -> dict:
     }
 
 
-def export_ga4_json(recommendations: List[TrackingRecommendation], path: str) -> None:
+def export_ga4_json(recommendations: list[TrackingRecommendation], path: str) -> None:
     config = build_ga4_config(recommendations)
     Path(path).write_text(json.dumps(config, indent=2))

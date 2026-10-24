@@ -34,9 +34,14 @@ def export_playwright_script(candidate: TestCandidate) -> str:
     remaining = candidate.evidence_count - len(evidence_lines)
     if remaining > 0:
         evidence_lines.append(f"  ... and {remaining} more")
-    evidence_block = "\n".join(evidence_lines) if evidence_lines else "  (no page-level evidence recorded)"
+    evidence_block = (
+        "\n".join(evidence_lines) if evidence_lines else "  (no page-level evidence recorded)"
+    )
 
-    step_comments = "\n".join(f"    # Step {i}: {step}" for i, step in enumerate(candidate.suggested_verification, start=1))
+    step_comments = "\n".join(
+        f"    # Step {i}: {step}"
+        for i, step in enumerate(candidate.suggested_verification, start=1)
+    )
     if not step_comments:
         step_comments = "    # No suggested verification steps were generated for this category."
 
@@ -99,7 +104,9 @@ def export_playwright_ts_script(candidate: TestCandidate) -> str:
     if not step_comments:
         step_comments = "  // No suggested verification steps were generated for this category."
 
-    default_url = candidate.evidence_pages[0] if candidate.evidence_pages else "<fill-in-from-evidence>"
+    default_url = (
+        candidate.evidence_pages[0] if candidate.evidence_pages else "<fill-in-from-evidence>"
+    )
 
     header = "\n".join(
         " * " + _escape_ts_comment(line)
@@ -114,7 +121,7 @@ def export_playwright_ts_script(candidate: TestCandidate) -> str:
         )
     )
 
-    return f'''/*
+    return f"""/*
 {header}
 {evidence_block}
  *
@@ -134,5 +141,4 @@ test('{_escape_ts_string(candidate.name)}', async ({{ page }}) => {{
   // TODO: implement the steps above against TARGET_URL and add assertions.
   expect(page).toBeTruthy();
 }});
-'''
-
+"""

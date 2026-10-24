@@ -17,8 +17,9 @@ Anything broader would produce false "this tag uses that field" claims.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from pytagmanager.dictionary.build import DataDictionary
 
@@ -43,16 +44,16 @@ class GtmConsumer:
 class GtmUsageIndex:
     """Data Layer Variable name -> GTM objects that reference it."""
 
-    by_data_layer_name: Dict[str, Tuple[GtmConsumer, ...]] = field(default_factory=dict)
+    by_data_layer_name: dict[str, tuple[GtmConsumer, ...]] = field(default_factory=dict)
 
-    def consumers_for_path(self, path: str) -> Tuple[GtmConsumer, ...]:
+    def consumers_for_path(self, path: str) -> tuple[GtmConsumer, ...]:
         """Return consumers for a dictionary path using exact/suffix matching."""
-        matches: List[GtmConsumer] = []
+        matches: list[GtmConsumer] = []
         for name, consumers in sorted(self.by_data_layer_name.items()):
             if path == name or path.endswith("." + name):
                 matches.extend(consumers)
         seen = set()
-        unique: List[GtmConsumer] = []
+        unique: list[GtmConsumer] = []
         for consumer in matches:
             key = (consumer.kind, consumer.name, consumer.detail)
             if key in seen:
@@ -61,15 +62,15 @@ class GtmUsageIndex:
             unique.append(consumer)
         return tuple(unique)
 
-    def render_for_path(self, path: str) -> Optional[str]:
+    def render_for_path(self, path: str) -> str | None:
         consumers = self.consumers_for_path(path)
         if not consumers:
             return None
         return "; ".join(consumer.render() for consumer in consumers)
 
-    def drift_blast_radius(self, drift: DictionaryDrift) -> List[Dict[str, Any]]:
+    def drift_blast_radius(self, drift: DictionaryDrift) -> list[dict[str, Any]]:
         """Explain which GTM consumers may be affected by each dataLayer change."""
-        impacts: List[Dict[str, Any]] = []
+        impacts: list[dict[str, Any]] = []
 
         def add(change: str, path: str, detail: str = "") -> None:
             consumers = self.consumers_for_path(path)
@@ -81,24 +82,35 @@ class GtmUsageIndex:
                     "path": path,
                     "detail": detail,
                     "consumers": [
-                        {"kind": c.kind, "name": c.name, "detail": c.detail}
-                        for c in consumers
+                        {"kind": c.kind, "name": c.name, "detail": c.detail} for c in consumers
                     ],
                 }
             )
 
         for variable in drift.added_variables:
             if variable.source == "datalayer_field":
-                add("added", variable.path, "new field; no existing GTM consumer should be assumed")
+                add(
+                    "added",
+                    variable.path,
+                    "new field; no existing GTM consumer should be assumed",
+                )
         for variable in drift.removed_variables:
             if variable.source == "datalayer_field":
-                add("removed", variable.path, "field no longer observed; dependent GTM objects may receive undefined")
+                add(
+                    "removed",
+                    variable.path,
+                    "field no longer observed; dependent GTM objects may receive undefined",
+                )
         for shift in drift.type_distribution_shifts:
             if shift.source == "datalayer_field":
                 add("type_changed", shift.path, shift.render())
         for rename in drift.possible_renames:
             if rename.new_source == "datalayer_field":
-                add("possible_rename", rename.new_path, f"possible rename from {rename.old_path}")
+                add(
+                    "possible_rename",
+                    rename.new_path,
+                    f"possible rename from {rename.old_path}",
+                )
         return impacts
 
     def render_drift_blast_radius(self, drift: DictionaryDrift) -> str:
@@ -107,9 +119,7 @@ class GtmUsageIndex:
             return ""
         lines = ["GTM blast radius (fields with known consumers):"]
         for impact in impacts:
-            consumers = ", ".join(
-                f"{c['kind']} {c['name']!r}" for c in impact["consumers"]
-            )
+            consumers = ", ".join(f"{c['kind']} {c['name']!r}" for c in impact["consumers"])
             lines.append(
                 f"  ! {impact['change']}: {impact['path']} — read by {consumers}"
                 + (f" ({impact['detail']})" if impact["detail"] else "")
@@ -117,14 +127,14 @@ class GtmUsageIndex:
         return "\n".join(lines)
 
 
-def _container_version(document: Dict[str, Any]) -> Dict[str, Any]:
+def _container_version(document: dict[str, Any]) -> dict[str, Any]:
     version = document.get("containerVersion")
     if isinstance(version, dict):
         return version
     return document
 
 
-def _elements(document: Dict[str, Any], key: str) -> List[Dict[str, Any]]:
+def _elements(document: dict[str, Any], key: str) -> list[dict[str, Any]]:
     version = _container_version(document)
     values = version.get(key) or []
     return [value for value in values if isinstance(value, dict)]
@@ -141,9 +151,9 @@ def _iter_strings(value: Any) -> Iterable[str]:
             yield from _iter_strings(nested)
 
 
-def _references(value: Any) -> List[str]:
+def _references(value: Any) -> list[str]:
     """Extract `{{Variable Name}}` references from a GTM parameter value."""
-    refs: List[str] = []
+    refs: list[str] = []
     for text in _iter_strings(value):
         start = 0
         while True:
@@ -158,9 +168,9 @@ def _references(value: Any) -> List[str]:
     return refs
 
 
-def _data_layer_variables(document: Dict[str, Any]) -> Dict[str, str]:
+def _data_layer_variables(document: dict[str, Any]) -> dict[str, str]:
     """GTM variable name -> dataLayerName for type `v` variables."""
-    result: Dict[str, str] = {}
+    result: dict[str, str] = {}
     for variable in _elements(document, "variable"):
         if variable.get("type") != "v":
             continue
@@ -178,10 +188,10 @@ def _data_layer_variables(document: Dict[str, Any]) -> Dict[str, str]:
     return result
 
 
-def build_gtm_usage_index(container: Dict[str, Any]) -> GtmUsageIndex:
+def build_gtm_usage_index(container: dict[str, Any]) -> GtmUsageIndex:
     """Index which GTM tags/triggers/variables reference each dataLayer path."""
     data_layer_vars = _data_layer_variables(container)
-    by_name: Dict[str, List[GtmConsumer]] = {}
+    by_name: dict[str, list[GtmConsumer]] = {}
 
     # Another variable that reads {{DLV - price}} is itself a consumer of the
     # underlying dataLayer field, even if no tag references it yet.
@@ -220,7 +230,7 @@ def build_gtm_usage_index(container: Dict[str, Any]) -> GtmUsageIndex:
     )
 
 
-def load_gtm_container(path: str) -> Dict[str, Any]:
+def load_gtm_container(path: str) -> dict[str, Any]:
     """Load a GTM container export from a local JSON file."""
     import json
 
@@ -233,9 +243,9 @@ def load_gtm_container(path: str) -> Dict[str, Any]:
 
 def consumers_for_dictionary(
     dictionary: DataDictionary, usage: GtmUsageIndex
-) -> Dict[Tuple[str, str], Tuple[GtmConsumer, ...]]:
+) -> dict[tuple[str, str], tuple[GtmConsumer, ...]]:
     """Map (source, path) -> GTM consumers for every dataLayer field."""
-    result: Dict[Tuple[str, str], Tuple[GtmConsumer, ...]] = {}
+    result: dict[tuple[str, str], tuple[GtmConsumer, ...]] = {}
     for variable in dictionary.variables:
         if variable.source != "datalayer_field":
             continue

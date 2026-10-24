@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Mapping
+from typing import Any
 from urllib.parse import urlparse
 
 from pytagmanager.control.config import Destination, Tag
@@ -75,7 +76,11 @@ def _referenced_destinations(
         destination = by_id.get(destination_id)
         if destination is None:
             issues.append(
-                AdapterIssue("error", "destination_missing", f"destination {destination_id} does not exist")
+                AdapterIssue(
+                    "error",
+                    "destination_missing",
+                    f"destination {destination_id} does not exist",
+                )
             )
             continue
         if destination.kind != kind:
@@ -144,7 +149,9 @@ class Adapter:
                     "tag.parameters.event_name must be a non-empty string",
                 )
             )
-        selected, destination_issues = _referenced_destinations(tag, destinations, self.destination_kind)
+        selected, destination_issues = _referenced_destinations(
+            tag, destinations, self.destination_kind
+        )
         issues.extend(destination_issues)
         for destination in selected:
             issues.extend(self.validate_destination(destination))

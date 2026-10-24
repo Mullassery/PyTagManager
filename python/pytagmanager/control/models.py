@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from typing import Any, Mapping
+from typing import Any
 
 from pytagmanager.control.checksums import canonical_json, checksum
-from pytagmanager.control.config import ConfigPayload, Destination, Tag, Trigger, Variable
+from pytagmanager.control.config import (
+    ConfigPayload,
+)
 from pytagmanager.control.errors import ValidationError
 from pytagmanager.control.ids import (
     new_id,
@@ -87,7 +90,7 @@ class Organization:
     created_by: str = "local"
 
     @classmethod
-    def create(cls, name: str, *, created_by: str = "local") -> "Organization":
+    def create(cls, name: str, *, created_by: str = "local") -> Organization:
         return cls(
             org_id=new_id(),
             name=validate_name(name),
@@ -104,7 +107,7 @@ class Organization:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "Organization":
+    def from_dict(cls, value: Mapping[str, Any]) -> Organization:
         data = _mapping(value, "organization")
         expected = {"org_id", "name", "created_at", "created_by"}
         _check_unknown_keys(data, expected, "organization")
@@ -126,7 +129,7 @@ class Workspace:
     created_by: str = "local"
 
     @classmethod
-    def create(cls, org_id: str, name: str, *, created_by: str = "local") -> "Workspace":
+    def create(cls, org_id: str, name: str, *, created_by: str = "local") -> Workspace:
         return cls(
             workspace_id=new_id(),
             org_id=validate_id(org_id, field="org_id"),
@@ -145,7 +148,7 @@ class Workspace:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "Workspace":
+    def from_dict(cls, value: Mapping[str, Any]) -> Workspace:
         data = _mapping(value, "workspace")
         expected = {"workspace_id", "org_id", "name", "created_at", "created_by"}
         _check_unknown_keys(data, expected, "workspace")
@@ -184,7 +187,7 @@ class Container:
         site_urls: tuple[str, ...] | list[str] = (),
         external_refs: tuple[dict[str, Any], ...] | list[dict[str, Any]] = (),
         created_by: str = "local",
-    ) -> "Container":
+    ) -> Container:
         container_id = validate_container_id(container_id)
         name = validate_name(name if name is not None else container_id)
         refs = _external_refs(external_refs)
@@ -219,7 +222,7 @@ class Container:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "Container":
+    def from_dict(cls, value: Mapping[str, Any]) -> Container:
         data = _mapping(value, "container")
         expected = {
             "container_id",
@@ -275,7 +278,7 @@ class Environment:
         name: str,
         protected: bool = False,
         created_by: str = "local",
-    ) -> "Environment":
+    ) -> Environment:
         return cls(
             environment_id=new_id(),
             org_id=validate_id(org_id, field="org_id"),
@@ -306,7 +309,7 @@ class Environment:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "Environment":
+    def from_dict(cls, value: Mapping[str, Any]) -> Environment:
         data = _mapping(value, "environment")
         expected = {
             "environment_id",
@@ -398,7 +401,7 @@ class AuditEvent:
         previous_checksum: str | None = None,
         details: Mapping[str, Any] | None = None,
         sequence: int = 0,
-    ) -> "AuditEvent":
+    ) -> AuditEvent:
         if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 0:
             raise ValidationError("audit.sequence must be a non-negative integer")
         action = _string(action, "audit.action")
@@ -412,7 +415,10 @@ class AuditEvent:
         ):
             if value is not None:
                 validate_id(value, field=field)
-        for field, value in (("audit.checksum", checksum), ("audit.previous_checksum", previous_checksum)):
+        for field, value in (
+            ("audit.checksum", checksum),
+            ("audit.previous_checksum", previous_checksum),
+        ):
             if value is not None:
                 _string(value, field)
         detail_map = dict(details or {})
@@ -451,7 +457,7 @@ class AuditEvent:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "AuditEvent":
+    def from_dict(cls, value: Mapping[str, Any]) -> AuditEvent:
         data = _mapping(value, "audit_event")
         expected = {
             "event_id",
@@ -523,7 +529,9 @@ def _revision_checksum(
     payload: ConfigPayload | Mapping[str, Any],
 ) -> str:
     payload_dict = (
-        payload.to_dict() if isinstance(payload, ConfigPayload) else ConfigPayload.from_dict(payload).to_dict()
+        payload.to_dict()
+        if isinstance(payload, ConfigPayload)
+        else ConfigPayload.from_dict(payload).to_dict()
     )
     return checksum(
         {
@@ -563,7 +571,7 @@ class ConfigRevision:
         created_by: str = "local",
         notes: str = "",
         schema_version: str = SCHEMA_VERSION,
-    ) -> "ConfigRevision":
+    ) -> ConfigRevision:
         container_id = validate_container_id(container_id)
         if not isinstance(revision_number, int) or revision_number < 1:
             raise ValidationError("revision_number must be a positive integer")
@@ -601,7 +609,7 @@ class ConfigRevision:
             notes=_string(notes, "notes", allow_empty=True),
         )
 
-    def with_status(self, status: str) -> "ConfigRevision":
+    def with_status(self, status: str) -> ConfigRevision:
         if status not in _REVISION_STATUSES:
             raise ValidationError(f"unsupported revision status: {status!r}")
         return replace(self, status=status)
@@ -637,7 +645,7 @@ class ConfigRevision:
         }
 
     @classmethod
-    def from_dict(cls, value: Mapping[str, Any]) -> "ConfigRevision":
+    def from_dict(cls, value: Mapping[str, Any]) -> ConfigRevision:
         data = _mapping(value, "config_revision")
         expected = {
             "config_version",

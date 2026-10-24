@@ -15,8 +15,8 @@ nothing was actually measured for that script.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
 
 from pytagmanager.perf.experiments import IsolationExperimentResult
 from pytagmanager.perf.scripts import ScriptEntry, ScriptInventory
@@ -26,15 +26,15 @@ from pytagmanager.tagexec.graph import NODE_VENDOR_SCRIPT, TagExecutionGraph
 @dataclass(frozen=True)
 class TaggingPerformanceTradeoff:
     script_url: str
-    vendor: Optional[str]
-    category: Optional[str]
-    tbt_delta_ms: Optional[float]
-    lcp_delta_ms: Optional[float]
-    transfer_bytes: Optional[float]
-    graph_node_id: Optional[str]
+    vendor: str | None
+    category: str | None
+    tbt_delta_ms: float | None
+    lcp_delta_ms: float | None
+    transfer_bytes: float | None
+    graph_node_id: str | None
 
 
-def _match_graph_node(script: ScriptEntry, graph: Optional[TagExecutionGraph]) -> Optional[str]:
+def _match_graph_node(script: ScriptEntry, graph: TagExecutionGraph | None) -> str | None:
     if graph is None or not script.vendor:
         return None
     for node in graph.nodes:
@@ -43,15 +43,17 @@ def _match_graph_node(script: ScriptEntry, graph: Optional[TagExecutionGraph]) -
     return None
 
 
-def _matching_result(script: ScriptEntry, results: Sequence[IsolationExperimentResult]) -> Optional[IsolationExperimentResult]:
+def _matching_result(
+    script: ScriptEntry, results: Sequence[IsolationExperimentResult]
+) -> IsolationExperimentResult | None:
     return next((r for r in results if script.url in r.blocked_urls), None)
 
 
 def build_tagging_performance_tradeoffs(
     inventory: ScriptInventory,
     experiment_results: Sequence[IsolationExperimentResult] = (),
-    graph: Optional[TagExecutionGraph] = None,
-) -> List[TaggingPerformanceTradeoff]:
+    graph: TagExecutionGraph | None = None,
+) -> list[TaggingPerformanceTradeoff]:
     """Only classified (tagging-relevant) scripts participate -- an
     unclassified first-party script has no known "tagging capability" to
     join against, so it's excluded rather than included with every field

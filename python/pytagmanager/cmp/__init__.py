@@ -35,8 +35,8 @@ from pytagmanager.cmp.rules import analyze_cmp
 
 __all__ = [
     "ADAPTERS",
-    "AdapterFileError",
     "CATEGORIES",
+    "AdapterFileError",
     "CmpAuditAuthorizationError",
     "CmpAuditOptions",
     "CmpAuditReport",

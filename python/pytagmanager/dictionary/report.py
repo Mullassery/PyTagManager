@@ -4,11 +4,9 @@ terminal/JSON split for the diagnostics side."""
 
 from __future__ import annotations
 
-from typing import Dict, Optional, Tuple
-
 from pytagmanager.dictionary.build import DataDictionary, DictionaryVariable
-from pytagmanager.dictionary.labels import PresenceLabel, label_presence
 from pytagmanager.dictionary.gtm_usage import GtmUsageIndex
+from pytagmanager.dictionary.labels import label_presence
 from pytagmanager.dictionary.purpose import PurposeResult
 
 JSON_SCHEMA_VERSION = 2
@@ -20,22 +18,28 @@ _SOURCE_LABELS = {
     "local_storage": "LocalStorage",
     "session_storage": "SessionStorage",
 }
-_SOURCE_ORDER = ("datalayer_event", "datalayer_field", "cookie", "local_storage", "session_storage")
+_SOURCE_ORDER = (
+    "datalayer_event",
+    "datalayer_field",
+    "cookie",
+    "local_storage",
+    "session_storage",
+)
 
 # Purpose classification only applies to sources §6 of docs/VISION.md scopes
 # it to: cookies and browser storage, not dataLayer events/fields.
 _PURPOSE_ELIGIBLE_SOURCES = ("cookie", "local_storage", "session_storage")
 
 
-def _variable_key(variable: DictionaryVariable) -> Tuple[str, str]:
+def _variable_key(variable: DictionaryVariable) -> tuple[str, str]:
     return (variable.source, variable.path)
 
 
 def render_dictionary_report(
     dictionary: DataDictionary,
-    purpose_by_key: Optional[Dict[Tuple[str, str], PurposeResult]] = None,
+    purpose_by_key: dict[tuple[str, str], PurposeResult] | None = None,
     include_presence: bool = False,
-    gtm_usage: Optional[GtmUsageIndex] = None,
+    gtm_usage: GtmUsageIndex | None = None,
 ) -> str:
     lines = ["PyTagManager Website Data Dictionary", "=" * 37, ""]
     lines.append(f"Pages analyzed: {dictionary.pages_total}")
@@ -67,7 +71,9 @@ def render_dictionary_report(
             if purpose_by_key is not None and source in _PURPOSE_ELIGIBLE_SOURCES:
                 result = purpose_by_key.get(_variable_key(variable))
                 if result is not None:
-                    lines.append(f"      purpose: {result.purpose} (confidence {result.confidence:.0%})")
+                    lines.append(
+                        f"      purpose: {result.purpose} (confidence {result.confidence:.0%})"
+                    )
                     for item in result.evidence:
                         lines.append(f"        evidence: {item}")
         lines.append("")
@@ -80,9 +86,9 @@ def render_dictionary_report(
 
 def build_dictionary_json(
     dictionary: DataDictionary,
-    purpose_by_key: Optional[Dict[Tuple[str, str], PurposeResult]] = None,
+    purpose_by_key: dict[tuple[str, str], PurposeResult] | None = None,
     include_presence: bool = False,
-    gtm_usage: Optional[GtmUsageIndex] = None,
+    gtm_usage: GtmUsageIndex | None = None,
 ) -> dict:
     variables_json = []
     for variable in dictionary.variables:
@@ -93,7 +99,9 @@ def build_dictionary_json(
             "pages_present": list(variable.pages_present),
             "observed_count": variable.observed_count,
             "pages_total": variable.pages_total,
-            "presence_ratio": (round(variable.presence_ratio, 4) if variable.presence_ratio is not None else None),
+            "presence_ratio": (
+                round(variable.presence_ratio, 4) if variable.presence_ratio is not None else None
+            ),
             "first_observed": variable.first_observed,
             "last_observed": variable.last_observed,
             "value_type_counts": [list(pair) for pair in variable.value_type_counts],
@@ -110,8 +118,7 @@ def build_dictionary_json(
             consumers = gtm_usage.consumers_for_path(variable.path)
             if consumers:
                 entry["gtm_usage"] = [
-                    {"kind": c.kind, "name": c.name, "detail": c.detail}
-                    for c in consumers
+                    {"kind": c.kind, "name": c.name, "detail": c.detail} for c in consumers
                 ]
         if purpose_by_key is not None and variable.source in _PURPOSE_ELIGIBLE_SOURCES:
             result = purpose_by_key.get(_variable_key(variable))

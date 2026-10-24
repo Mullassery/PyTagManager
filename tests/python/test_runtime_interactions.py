@@ -7,7 +7,9 @@ from __future__ import annotations
 from pytagmanager.runtime.interactions import simulate_interactions
 
 
-def test_simulate_interactions_observes_click_mutation_and_network_request(fixture_server):
+def test_simulate_interactions_observes_click_mutation_and_network_request(
+    fixture_server,
+):
     url = f"{fixture_server}/spa_client_rendered.html"
 
     observations = simulate_interactions(url, ["#cta"])
@@ -21,7 +23,9 @@ def test_simulate_interactions_observes_click_mutation_and_network_request(fixtu
     assert any("google-analytics.com/g/collect" in req for req in obs.network_requests_fired)
 
 
-def test_simulate_interactions_reports_error_for_missing_selector_without_aborting(fixture_server):
+def test_simulate_interactions_reports_error_for_missing_selector_without_aborting(
+    fixture_server,
+):
     url = f"{fixture_server}/spa_client_rendered.html"
 
     observations = simulate_interactions(url, ["#does-not-exist", "#cta"], timeout_ms=1000)

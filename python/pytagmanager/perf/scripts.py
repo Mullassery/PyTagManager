@@ -32,7 +32,6 @@ than a second, duplicate classifier.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from pytagmanager.tagexec.static_scan import classify_vendor_url
@@ -69,32 +68,38 @@ class ScriptEntry:
     is_first_party: bool
     resource_type: str  # CDP resourceType, e.g. "Script", "XHR", "Fetch", "Stylesheet", "Image"
     initiator_type: str  # CDP initiator.type: "parser" | "script" | "other" | "preload" | ...
-    initiator_url: Optional[str]  # the script/document that triggered this request, when known
-    load_mechanism: Optional[str]  # "async" | "defer" | "sync" for a <script src> element; None otherwise
-    transfer_bytes: Optional[float]
-    load_duration_ms: Optional[float]  # network fetch time (requestWillBeSent -> loadingFinished), not execution time
-    vendor: Optional[str]
-    category: Optional[str]
+    initiator_url: str | None  # the script/document that triggered this request, when known
+    load_mechanism: (
+        str | None
+    )  # "async" | "defer" | "sync" for a <script src> element; None otherwise
+    transfer_bytes: float | None
+    load_duration_ms: (
+        float | None
+    )  # network fetch time (requestWillBeSent -> loadingFinished), not execution time
+    vendor: str | None
+    category: str | None
 
 
 @dataclass(frozen=True)
 class ScriptInventory:
     page_url: str
-    scripts: Tuple[ScriptEntry, ...] = field(default_factory=tuple)
+    scripts: tuple[ScriptEntry, ...] = field(default_factory=tuple)
 
-    def by_category(self, category: str) -> Tuple[ScriptEntry, ...]:
+    def by_category(self, category: str) -> tuple[ScriptEntry, ...]:
         return tuple(s for s in self.scripts if s.category == category)
 
     @property
-    def third_party_scripts(self) -> Tuple[ScriptEntry, ...]:
-        return tuple(s for s in self.scripts if not s.is_first_party and s.resource_type == "Script")
+    def third_party_scripts(self) -> tuple[ScriptEntry, ...]:
+        return tuple(
+            s for s in self.scripts if not s.is_first_party and s.resource_type == "Script"
+        )
 
     @property
     def total_transfer_bytes(self) -> float:
         return sum(s.transfer_bytes or 0.0 for s in self.scripts)
 
 
-def _initiator_url_from(initiator: dict) -> Optional[str]:
+def _initiator_url_from(initiator: dict) -> str | None:
     if initiator.get("type") == "script":
         stack = initiator.get("stack") or {}
         frames = stack.get("callFrames") or []
@@ -123,8 +128,8 @@ def build_script_inventory(
             "`pip install pytagmanager[diagnostics]` and run `playwright install chromium` once."
         ) from exc
 
-    requests: Dict[str, dict] = {}
-    finished: Dict[str, dict] = {}
+    requests: dict[str, dict] = {}
+    finished: dict[str, dict] = {}
 
     def on_request_will_be_sent(params: dict) -> None:
         requests[params["requestId"]] = {
@@ -161,7 +166,7 @@ def build_script_inventory(
 
     script_attrs_by_url = {s["src"]: s for s in script_attrs}
 
-    entries: List[ScriptEntry] = []
+    entries: list[ScriptEntry] = []
     for request_id, req in requests.items():
         finish = finished.get(request_id, {})
         initiator = req["initiator"]
@@ -172,7 +177,9 @@ def build_script_inventory(
         dom_attrs = script_attrs_by_url.get(req_url)
         load_mechanism = None
         if dom_attrs is not None:
-            load_mechanism = "async" if dom_attrs["async"] else ("defer" if dom_attrs["defer"] else "sync")
+            load_mechanism = (
+                "async" if dom_attrs["async"] else ("defer" if dom_attrs["defer"] else "sync")
+            )
 
         vendor_category = classify_vendor_url(req_url)
         transfer_bytes = finish.get("encodedDataLength")

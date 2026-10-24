@@ -16,14 +16,13 @@ import urllib.error
 import urllib.request
 
 import pytest
-
 from pytagmanager import _core
 from pytagmanager.intent.base import IntentResult, PageContext
 from pytagmanager.intent.ollama_classifier import (
+    _TAXONOMY,
     DEFAULT_OLLAMA_BASE_URL,
     DEFAULT_OLLAMA_MODEL,
     OllamaIntentClassifier,
-    _TAXONOMY,
 )
 
 
@@ -72,7 +71,10 @@ def test_classify_returns_real_ollama_response_for_add_to_cart_button():
 
 @pytest.mark.skipif(not _ollama_reachable(), reason="Ollama is not running on localhost:11434")
 def test_classify_handles_unrelated_element_without_crashing():
-    graph = _core.parse_html("<html><body><footer>&copy; 2026 Example Corp</footer></body></html>", "https://example.com")
+    graph = _core.parse_html(
+        "<html><body><footer>&copy; 2026 Example Corp</footer></body></html>",
+        "https://example.com",
+    )
     footer = graph.nodes[0]
     classifier = OllamaIntentClassifier()
     result = classifier.classify(footer, _context())
@@ -90,13 +92,17 @@ def test_classify_falls_back_to_heuristic_when_ollama_unavailable():
     result = classifier.classify(_add_to_cart_node(), _context())
 
     assert isinstance(result, IntentResult)
-    assert result.business_objective == "Purchase Intent"  # deterministic keyword match: "add to cart"
+    assert (
+        result.business_objective == "Purchase Intent"
+    )  # deterministic keyword match: "add to cart"
     assert "Ollama unavailable" in result.rationale
 
 
 def test_classify_fallback_returns_none_objective_for_unmatched_element():
     classifier = OllamaIntentClassifier(base_url="http://127.0.0.1:1")
-    graph = _core.parse_html("<html><body><div>just some text</div></body></html>", "https://example.com")
+    graph = _core.parse_html(
+        "<html><body><div>just some text</div></body></html>", "https://example.com"
+    )
     div = graph.nodes[0]
 
     result = classifier.classify(div, _context())

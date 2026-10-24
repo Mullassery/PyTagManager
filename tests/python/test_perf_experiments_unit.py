@@ -35,10 +35,19 @@ def _script(url, category=None, initiator_type="parser", initiator_url=None):
 
 
 def _snapshot(**overrides):
-    defaults = dict(
-        lcp_ms=1000.0, lcp_url=None, cls=0.05, fcp_ms=500.0, tbt_ms=100.0, inp_ms=80.0,
-        dom_content_loaded_ms=900.0, load_event_ms=1200.0, transfer_bytes=5000.0, request_count=5, long_task_count=2,
-    )
+    defaults = {
+        "lcp_ms": 1000.0,
+        "lcp_url": None,
+        "cls": 0.05,
+        "fcp_ms": 500.0,
+        "tbt_ms": 100.0,
+        "inp_ms": 80.0,
+        "dom_content_loaded_ms": 900.0,
+        "load_event_ms": 1200.0,
+        "transfer_bytes": 5000.0,
+        "request_count": 5,
+        "long_task_count": 2,
+    }
     defaults.update(overrides)
     return PerformanceSnapshot(**defaults)
 
@@ -75,7 +84,8 @@ def test_available_groups_reflects_only_whats_present():
 
 def test_available_groups_empty_when_nothing_classifiable():
     inventory = ScriptInventory(
-        page_url=_PAGE_URL, scripts=(_script("https://shop.example.com/app.js", category=None),)
+        page_url=_PAGE_URL,
+        scripts=(_script("https://shop.example.com/app.js", category=None),),
     )
     assert available_groups(inventory) == ()
 
@@ -89,13 +99,18 @@ def test_closure_includes_downstream_scripts():
         scripts=(
             _script("https://shop.example.com/gtm.js"),
             _script(
-                "https://ga4.example.com/a.js", initiator_type="script", initiator_url="https://shop.example.com/gtm.js"
+                "https://ga4.example.com/a.js",
+                initiator_type="script",
+                initiator_url="https://shop.example.com/gtm.js",
             ),
         ),
     )
     graph = build_dependency_graph(inventory)
     blocked = _closure(["https://shop.example.com/gtm.js"], graph)
-    assert blocked == {"https://shop.example.com/gtm.js", "https://ga4.example.com/a.js"}
+    assert blocked == {
+        "https://shop.example.com/gtm.js",
+        "https://ga4.example.com/a.js",
+    }
 
 
 def test_closure_of_multiple_seed_urls_unions_their_downstream_sets():
@@ -104,12 +119,20 @@ def test_closure_of_multiple_seed_urls_unions_their_downstream_sets():
         scripts=(
             _script("https://a.example.com/a.js"),
             _script("https://b.example.com/b.js"),
-            _script("https://c.example.com/c.js", initiator_type="script", initiator_url="https://a.example.com/a.js"),
+            _script(
+                "https://c.example.com/c.js",
+                initiator_type="script",
+                initiator_url="https://a.example.com/a.js",
+            ),
         ),
     )
     graph = build_dependency_graph(inventory)
     blocked = _closure(["https://a.example.com/a.js", "https://b.example.com/b.js"], graph)
-    assert blocked == {"https://a.example.com/a.js", "https://b.example.com/b.js", "https://c.example.com/c.js"}
+    assert blocked == {
+        "https://a.example.com/a.js",
+        "https://b.example.com/b.js",
+        "https://c.example.com/c.js",
+    }
 
 
 # ---- IsolationExperimentResult ----
@@ -120,7 +143,9 @@ def test_deltas_computed_as_baseline_minus_experiment():
         target_description="script X",
         blocked_urls=("https://x.example.com/x.js",),
         baseline=PerformanceBaseline(url=_PAGE_URL, runs=(_snapshot(tbt_ms=150.0, lcp_ms=1200.0),)),
-        experiment=PerformanceBaseline(url=_PAGE_URL, runs=(_snapshot(tbt_ms=50.0, lcp_ms=1100.0),)),
+        experiment=PerformanceBaseline(
+            url=_PAGE_URL, runs=(_snapshot(tbt_ms=50.0, lcp_ms=1100.0),)
+        ),
     )
     assert result.tbt_delta_ms == 100.0  # improved (lower TBT after blocking)
     assert result.lcp_delta_ms == 100.0
@@ -149,7 +174,13 @@ def test_message_handles_no_measurable_change():
     result = IsolationExperimentResult(
         target_description="script X",
         blocked_urls=("https://x.example.com/x.js",),
-        baseline=PerformanceBaseline(url=_PAGE_URL, runs=(_snapshot(tbt_ms=50.0, lcp_ms=1000.0, cls=0.0, inp_ms=None),)),
-        experiment=PerformanceBaseline(url=_PAGE_URL, runs=(_snapshot(tbt_ms=50.0, lcp_ms=1000.0, cls=0.0, inp_ms=None),)),
+        baseline=PerformanceBaseline(
+            url=_PAGE_URL,
+            runs=(_snapshot(tbt_ms=50.0, lcp_ms=1000.0, cls=0.0, inp_ms=None),),
+        ),
+        experiment=PerformanceBaseline(
+            url=_PAGE_URL,
+            runs=(_snapshot(tbt_ms=50.0, lcp_ms=1000.0, cls=0.0, inp_ms=None),),
+        ),
     )
     assert "no measurable change" in result.message

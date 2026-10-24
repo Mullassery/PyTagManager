@@ -11,8 +11,6 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
-from pytagmanager.control.errors import ValidationError
-
 from .service import IngestService
 
 LOGGER = logging.getLogger("pytagmanager.ingest")
@@ -27,8 +25,7 @@ class IngestHTTPServer(ThreadingHTTPServer):
         self.ingest_service = service
         self.ssl_context = ssl_context
         self.trusted_proxy_networks = tuple(
-            ipaddress.ip_network(value)
-            for value in service.config.trusted_proxy_cidrs
+            ipaddress.ip_network(value) for value in service.config.trusted_proxy_cidrs
         )
         super().__init__(address, handler)
 
@@ -122,7 +119,7 @@ class IngestHandler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(body)
 
-    def do_OPTIONS(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+    def do_OPTIONS(self) -> None:
         if urllib.parse.urlsplit(self.path).path != self._service().config.path:
             self._send(404, {"error": "not_found"})
             return
@@ -131,7 +128,7 @@ class IngestHandler(BaseHTTPRequestHandler):
             self.send_header(key, value)
         self.end_headers()
 
-    def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+    def do_GET(self) -> None:
         if urllib.parse.urlsplit(self.path).path == "/healthz":
             service = self._service()
             self._send(
@@ -147,7 +144,7 @@ class IngestHandler(BaseHTTPRequestHandler):
             return
         self._send(404, {"error": "not_found"})
 
-    def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+    def do_POST(self) -> None:
         if urllib.parse.urlsplit(self.path).path != self._service().config.path:
             self._send(404, {"error": "not_found"})
             return

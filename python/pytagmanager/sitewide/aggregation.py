@@ -12,7 +12,6 @@ as `None`, not a fabricated 100%.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -42,8 +41,8 @@ class TemplateEventStat:
 @dataclass(frozen=True)
 class TemplateConsistencyReport:
     template: PageTemplate
-    event_stats: List[TemplateEventStat] = field(default_factory=list)
-    regressions: List[str] = field(default_factory=list)
+    event_stats: list[TemplateEventStat] = field(default_factory=list)
+    regressions: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -54,37 +53,37 @@ class TemplateHealth:
     warnings: int
     critical: int
     journeys_total: int
-    gtm_coverage: Optional[float] = None
-    ga4_coverage: Optional[float] = None
-    datalayer_coverage: Optional[float] = None
+    gtm_coverage: float | None = None
+    ga4_coverage: float | None = None
+    datalayer_coverage: float | None = None
     js_error_count: int = 0
 
 
 @dataclass(frozen=True)
 class SiteHealthReport:
     pages_scanned: int
-    template_healths: List[TemplateHealth]
+    template_healths: list[TemplateHealth]
     overall_score: int
-    gtm_coverage: Optional[float]
-    ga4_coverage: Optional[float]
-    datalayer_coverage: Optional[float]
-    event_coverage: Optional[float]
-    duplicate_rate: Optional[float]
-    consent_ok_rate: Optional[float]
+    gtm_coverage: float | None
+    ga4_coverage: float | None
+    datalayer_coverage: float | None
+    event_coverage: float | None
+    duplicate_rate: float | None
+    consent_ok_rate: float | None
     pages_with_js_errors: int
 
 
-def _page_has_journey_for_event(journeys: List[TrackingJourney], event_name: str) -> bool:
+def _page_has_journey_for_event(journeys: list[TrackingJourney], event_name: str) -> bool:
     return any(j.business_event == event_name for j in journeys)
 
 
-def _page_passes_for_event(journeys: List[TrackingJourney], event_name: str) -> bool:
+def _page_passes_for_event(journeys: list[TrackingJourney], event_name: str) -> bool:
     return any(j.business_event == event_name and j.status == "healthy" for j in journeys)
 
 
 def analyze_template_consistency(
     template: PageTemplate,
-    journeys_by_page: Dict[str, List[TrackingJourney]],
+    journeys_by_page: dict[str, list[TrackingJourney]],
 ) -> TemplateConsistencyReport:
     pages = template.page_urls
     total_pages = len(pages)
@@ -96,14 +95,27 @@ def analyze_template_consistency(
     stats = []
     regressions = []
     for event_name in sorted(event_names):
-        pages_with_event = [url for url in pages if _page_has_journey_for_event(journeys_by_page.get(url, []), event_name)]
+        pages_with_event = [
+            url
+            for url in pages
+            if _page_has_journey_for_event(journeys_by_page.get(url, []), event_name)
+        ]
         support_ratio = len(pages_with_event) / total_pages
         if support_ratio < _MIN_SUPPORT_RATIO or len(pages_with_event) < 2:
             continue  # one-off, not a template-wide expectation
 
-        pass_count = sum(1 for url in pages if _page_passes_for_event(journeys_by_page.get(url, []), event_name))
+        pass_count = sum(
+            1 for url in pages if _page_passes_for_event(journeys_by_page.get(url, []), event_name)
+        )
         fail_count = total_pages - pass_count
-        stats.append(TemplateEventStat(event_name=event_name, pass_count=pass_count, fail_count=fail_count, total=total_pages))
+        stats.append(
+            TemplateEventStat(
+                event_name=event_name,
+                pass_count=pass_count,
+                fail_count=fail_count,
+                total=total_pages,
+            )
+        )
 
         # Majority succeed, a minority don't: likely a shared-component
         # regression on those specific pages. If more pages fail than pass,
@@ -118,7 +130,9 @@ def analyze_template_consistency(
     return TemplateConsistencyReport(template=template, event_stats=stats, regressions=regressions)
 
 
-def compute_template_health(template: PageTemplate, journeys_by_page: Dict[str, List[TrackingJourney]]) -> TemplateHealth:
+def compute_template_health(
+    template: PageTemplate, journeys_by_page: dict[str, list[TrackingJourney]]
+) -> TemplateHealth:
     journeys = [j for url in template.page_urls for j in journeys_by_page.get(url, [])]
     healthy = sum(1 for j in journeys if j.status == "healthy")
     warnings = sum(1 for j in journeys if j.status == "warning")
@@ -127,7 +141,7 @@ def compute_template_health(template: PageTemplate, journeys_by_page: Dict[str, 
     # Healthy counts fully, warnings count half, critical counts zero.
     score = round(100 * (healthy + 0.5 * warnings) / total) if total else 100
 
-    def _coverage(stage: str) -> Optional[float]:
+    def _coverage(stage: str) -> float | None:
         return (sum(1 for j in journeys if j.stage_present(stage)) / total) if total else None
 
     return TemplateHealth(
@@ -145,9 +159,9 @@ def compute_template_health(template: PageTemplate, journeys_by_page: Dict[str, 
 
 
 def compute_site_health(
-    templates: List[PageTemplate],
-    journeys_by_page: Dict[str, List[TrackingJourney]],
-    untested_by_page: Optional[Dict[str, List[TrackingRecommendation]]] = None,
+    templates: list[PageTemplate],
+    journeys_by_page: dict[str, list[TrackingJourney]],
+    untested_by_page: dict[str, list[TrackingRecommendation]] | None = None,
 ) -> SiteHealthReport:
     untested_by_page = untested_by_page or {}
     all_journeys = [j for journeys in journeys_by_page.values() for j in journeys]
@@ -155,11 +169,17 @@ def compute_site_health(
 
     template_healths = [compute_template_health(t, journeys_by_page) for t in templates]
     overall_score = (
-        round(sum(th.score * th.journeys_total for th in template_healths) / total_journeys) if total_journeys else 100
+        round(sum(th.score * th.journeys_total for th in template_healths) / total_journeys)
+        if total_journeys
+        else 100
     )
 
-    def _coverage(stage: str) -> Optional[float]:
-        return (sum(1 for j in all_journeys if j.stage_present(stage)) / total_journeys) if total_journeys else None
+    def _coverage(stage: str) -> float | None:
+        return (
+            (sum(1 for j in all_journeys if j.stage_present(stage)) / total_journeys)
+            if total_journeys
+            else None
+        )
 
     all_untested = [r for recs in untested_by_page.values() for r in recs]
     denominator = total_journeys + len(all_untested)
@@ -167,14 +187,23 @@ def compute_site_health(
 
     consent_journeys = [j for j in all_journeys if j.events_of_type("consent_change")]
     consent_ok_rate = (
-        sum(1 for j in consent_journeys if not (j.diagnosis and j.diagnosis.root_cause == "consent_blocked"))
+        sum(
+            1
+            for j in consent_journeys
+            if not (j.diagnosis and j.diagnosis.root_cause == "consent_blocked")
+        )
         / len(consent_journeys)
         if consent_journeys
         else None
     )
 
     duplicate_rate = (
-        sum(1 for j in all_journeys if j.diagnosis and j.diagnosis.root_cause in _DUPLICATE_ROOT_CAUSES) / total_journeys
+        sum(
+            1
+            for j in all_journeys
+            if j.diagnosis and j.diagnosis.root_cause in _DUPLICATE_ROOT_CAUSES
+        )
+        / total_journeys
         if total_journeys
         else None
     )

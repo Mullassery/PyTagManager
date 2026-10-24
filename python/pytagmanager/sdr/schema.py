@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import csv
 import json
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 SDR_SCHEMA_VERSION = 1
-SUPPORTED_TYPES = frozenset(
-    {"any", "string", "number", "integer", "boolean", "array", "object"}
-)
+SUPPORTED_TYPES = frozenset({"any", "string", "number", "integer", "boolean", "array", "object"})
 _TYPE_ALIASES = {
     "str": "string",
     "text": "string",
@@ -109,10 +108,18 @@ def _merge_event(
         raise SdrFormatError(f"row {row_number}: event_name is required")
     event = events.setdefault(
         event_name,
-        {"event_name": event_name, "parameters": [], "page_contains": "", "selector": "", "require_network": False},
+        {
+            "event_name": event_name,
+            "parameters": [],
+            "page_contains": "",
+            "selector": "",
+            "require_network": False,
+        },
     )
     for key in ("page_contains", "selector"):
-        value = str(row.get(key) or (row.get("page") if key == "page_contains" else "") or "").strip()
+        value = str(
+            row.get(key) or (row.get("page") if key == "page_contains" else "") or ""
+        ).strip()
         if value:
             if event[key] and event[key] != value:
                 raise SdrFormatError(

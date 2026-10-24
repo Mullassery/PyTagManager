@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Where an observation originated (spec: browser / DOM / mutation observer /
 # dataLayer / GTM / network / JS runtime / consent management platform).
@@ -92,12 +92,12 @@ def is_sensitive_key(key: str) -> bool:
     return any(marker in key_lower for marker in _SENSITIVE_KEY_MARKERS)
 
 
-def redact_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def redact_payload(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a shallow copy of `payload` with values whose key looks
     sensitive replaced by a redaction marker. Applied by every collector
     before a raw browser/network payload becomes part of a `TrackingEvent`.
     """
-    redacted: Dict[str, Any] = {}
+    redacted: dict[str, Any] = {}
     for key, value in payload.items():
         if is_sensitive_key(key):
             redacted[key] = _REDACTED
@@ -121,9 +121,9 @@ class TrackingEvent:
     event_type: str  # one of EVENT_TYPES
     event_name: str = ""  # e.g. "add_to_cart"; "" when not applicable (a raw click)
     page_url: str = ""
-    selector: Optional[str] = None
-    payload: Dict[str, Any] = field(default_factory=dict)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    selector: str | None = None
+    payload: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def create(
@@ -133,11 +133,11 @@ class TrackingEvent:
         event_type: str,
         event_name: str = "",
         page_url: str = "",
-        selector: Optional[str] = None,
-        payload: Optional[Dict[str, Any]] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        timestamp: Optional[float] = None,
-    ) -> "TrackingEvent":
+        selector: str | None = None,
+        payload: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+        timestamp: float | None = None,
+    ) -> TrackingEvent:
         return cls(
             id=str(uuid.uuid4()),
             timestamp=timestamp if timestamp is not None else time.time(),
@@ -151,7 +151,7 @@ class TrackingEvent:
         )
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TrackingEvent":
+    def from_dict(cls, data: dict) -> TrackingEvent:
         return cls(
             id=data["id"],
             timestamp=float(data["timestamp"]),

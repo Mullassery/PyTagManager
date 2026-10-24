@@ -2,14 +2,22 @@ import uuid
 
 from pytagmanager.correlation.journey import TrackingJourney
 from pytagmanager.observability.events import TrackingEvent
-from pytagmanager.sitewide.aggregation import analyze_template_consistency, compute_site_health, compute_template_health
-from pytagmanager.sitewide.report import build_site_health_json, render_site_health_report
+from pytagmanager.sitewide.aggregation import (
+    analyze_template_consistency,
+    compute_site_health,
+    compute_template_health,
+)
+from pytagmanager.sitewide.report import (
+    build_site_health_json,
+    render_site_health_report,
+)
 from pytagmanager.sitewide.templates import PageTemplate
 
 
 def _journey(business_event, status, page_url, event_types=()):
     observations = [
-        TrackingEvent.create(source="browser", event_type=t, event_name="", page_url=page_url) for t in event_types
+        TrackingEvent.create(source="browser", event_type=t, event_name="", page_url=page_url)
+        for t in event_types
     ]
     return TrackingJourney(
         journey_id=str(uuid.uuid4()),
@@ -70,7 +78,9 @@ def test_compute_template_health_score_weighting():
 
 def test_compute_site_health_reports_none_for_unmeasured_metrics():
     template = PageTemplate(template_id="t1", label="Cart", page_urls=["https://example.com/cart"])
-    journeys_by_page = {"https://example.com/cart": [_journey("add_to_cart", "healthy", "https://example.com/cart")]}
+    journeys_by_page = {
+        "https://example.com/cart": [_journey("add_to_cart", "healthy", "https://example.com/cart")]
+    }
 
     site_health = compute_site_health([template], journeys_by_page)
     # No consent_change events were ever observed anywhere in this crawl --
@@ -81,7 +91,9 @@ def test_compute_site_health_reports_none_for_unmeasured_metrics():
 
 def test_render_and_json_report_smoke():
     template = PageTemplate(template_id="t1", label="Cart", page_urls=["https://example.com/cart"])
-    journeys_by_page = {"https://example.com/cart": [_journey("add_to_cart", "healthy", "https://example.com/cart")]}
+    journeys_by_page = {
+        "https://example.com/cart": [_journey("add_to_cart", "healthy", "https://example.com/cart")]
+    }
     site_health = compute_site_health([template], journeys_by_page)
     consistency = [analyze_template_consistency(template, journeys_by_page)]
 

@@ -14,7 +14,6 @@ from __future__ import annotations
 import socket
 
 import pytest
-
 from pytagmanager import _core
 
 

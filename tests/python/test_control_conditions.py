@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from pytagmanager.control.conditions import (
     evaluate_condition,
     pattern_matches,
@@ -78,7 +77,16 @@ def test_logical_precedence_and_nesting():
                     "op": "any",
                     "conditions": [
                         {"op": "equals", "path": "event.name", "value": "nope"},
-                        {"op": "not", "conditions": [{"op": "equals", "path": "consent.marketing", "value": True}]},
+                        {
+                            "op": "not",
+                            "conditions": [
+                                {
+                                    "op": "equals",
+                                    "path": "consent.marketing",
+                                    "value": True,
+                                }
+                            ],
+                        },
                     ],
                 },
             ],
@@ -118,7 +126,10 @@ def test_condition_depth_node_and_size_limits():
     with pytest.raises(ValidationError):
         validate_condition(nested)
 
-    too_many = {"op": "all", "conditions": [{"op": "exists", "path": "event.name"}] * 513}
+    too_many = {
+        "op": "all",
+        "conditions": [{"op": "exists", "path": "event.name"}] * 513,
+    }
     with pytest.raises(ValidationError):
         validate_condition(too_many)
 

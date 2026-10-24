@@ -16,31 +16,42 @@ _URL = "https://shop.example.com/"
 
 
 def _entry(**overrides):
-    defaults = dict(
-        timestamp="2026-01-01T00:00:00+00:00",
-        url=_URL,
-        median_lcp_ms=1000.0,
-        median_tbt_ms=100.0,
-        median_cls=0.05,
-        median_inp_ms=80.0,
-        script_urls=("https://a.example.com/a.js",),
-    )
+    defaults = {
+        "timestamp": "2026-01-01T00:00:00+00:00",
+        "url": _URL,
+        "median_lcp_ms": 1000.0,
+        "median_tbt_ms": 100.0,
+        "median_cls": 0.05,
+        "median_inp_ms": 80.0,
+        "script_urls": ("https://a.example.com/a.js",),
+    }
     defaults.update(overrides)
     return PerformanceHistoryEntry(**defaults)
 
 
 def _baseline(**overrides):
-    defaults = dict(
-        lcp_ms=1000.0, lcp_url=None, cls=0.05, fcp_ms=500.0, tbt_ms=100.0, inp_ms=80.0,
-        dom_content_loaded_ms=900.0, load_event_ms=1200.0, transfer_bytes=5000.0, request_count=5, long_task_count=2,
-    )
+    defaults = {
+        "lcp_ms": 1000.0,
+        "lcp_url": None,
+        "cls": 0.05,
+        "fcp_ms": 500.0,
+        "tbt_ms": 100.0,
+        "inp_ms": 80.0,
+        "dom_content_loaded_ms": 900.0,
+        "load_event_ms": 1200.0,
+        "transfer_bytes": 5000.0,
+        "request_count": 5,
+        "long_task_count": 2,
+    }
     defaults.update(overrides)
     return PerformanceBaseline(url=_URL, runs=(PerformanceSnapshot(**defaults),))
 
 
 def test_from_baseline_captures_medians_and_scripts():
     baseline = _baseline(lcp_ms=1200.0, tbt_ms=150.0)
-    entry = PerformanceHistoryEntry.from_baseline(baseline, script_urls=["https://b.example.com/b.js"])
+    entry = PerformanceHistoryEntry.from_baseline(
+        baseline, script_urls=["https://b.example.com/b.js"]
+    )
     assert entry.url == _URL
     assert entry.median_lcp_ms == 1200.0
     assert entry.median_tbt_ms == 150.0
@@ -76,7 +87,11 @@ def test_improvement_is_not_a_regression():
 def test_newly_introduced_script_is_correlated_in_the_message():
     previous = _entry(median_tbt_ms=100.0, script_urls=("https://a.example.com/a.js",))
     latest = _entry(
-        median_tbt_ms=300.0, script_urls=("https://a.example.com/a.js", "https://new-vendor.example.com/tag.js")
+        median_tbt_ms=300.0,
+        script_urls=(
+            "https://a.example.com/a.js",
+            "https://new-vendor.example.com/tag.js",
+        ),
     )
     alerts = detect_performance_regression([previous], latest)
     assert len(alerts) == 1

@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import List
 
 from pytagmanager.export._taxonomy import canonical_event
 from pytagmanager.recommend.models import TrackingRecommendation
@@ -48,7 +47,11 @@ _SEGMENT_EVENT_SPECS = {
         {"product_id": {"type": "string"}},
         ["product_id"],
     ),
-    "content_discovery": ("Content Discovery Used", {"content_type": {"type": "string"}}, []),
+    "content_discovery": (
+        "Content Discovery Used",
+        {"content_type": {"type": "string"}},
+        [],
+    ),
     "pagination": ("Pagination Used", {"page_number": {"type": "integer"}}, []),
     "video_engagement": ("Video Started", {"video_title": {"type": "string"}}, []),
     "navigation": ("Navigation Used", {"menu_item": {"type": "string"}}, []),
@@ -57,7 +60,7 @@ _SEGMENT_EVENT_SPECS = {
 _DEFAULT_SEGMENT_EVENT = ("Custom Event Triggered", {}, [])
 
 
-def build_segment_tracking_plan(recommendations: List[TrackingRecommendation]) -> dict:
+def build_segment_tracking_plan(recommendations: list[TrackingRecommendation]) -> dict:
     """Build a Segment Tracking Plan document: `display_name` + `rules.events[]`,
     each event carrying a JSON-Schema `rules.properties.properties` block
     (Segment's real tracking-plan validation shape) plus a `labels` map used
@@ -104,6 +107,6 @@ def build_segment_tracking_plan(recommendations: List[TrackingRecommendation]) -
     }
 
 
-def export_segment_json(recommendations: List[TrackingRecommendation], path: str) -> None:
+def export_segment_json(recommendations: list[TrackingRecommendation], path: str) -> None:
     plan = build_segment_tracking_plan(recommendations)
     Path(path).write_text(json.dumps(plan, indent=2))

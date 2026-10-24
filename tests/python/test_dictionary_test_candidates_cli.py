@@ -10,7 +10,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from click.testing import CliRunner
-
 from pytagmanager import _core, cli
 
 _FIXTURES_DIR = Path(__file__).parent / "fixtures" / "observability"
@@ -23,15 +22,21 @@ def _fake_page(fixture_server: str, filename: str):
     return SimpleNamespace(url=url, status=200, graph=graph)
 
 
-def test_regression_test_candidate_generated_for_removed_price_field(fixture_server, monkeypatch, tmp_path):
+def test_regression_test_candidate_generated_for_removed_price_field(
+    fixture_server, monkeypatch, tmp_path
+):
     runner = CliRunner()
     baseline_path = tmp_path / "baseline.json"
 
     monkeypatch.setattr(
-        "pytagmanager.cli.crawl_site", lambda *a, **k: [_fake_page(fixture_server, "runtime_state.html")]
+        "pytagmanager.cli.crawl_site",
+        lambda *a, **k: [_fake_page(fixture_server, "runtime_state.html")],
     )
     baseline_url = f"{fixture_server}/runtime_state.html"
-    result = runner.invoke(cli.main, ["dictionary", baseline_url, "--format", "json", "-o", str(baseline_path)])
+    result = runner.invoke(
+        cli.main,
+        ["dictionary", baseline_url, "--format", "json", "-o", str(baseline_path)],
+    )
     assert result.exit_code == 0, result.output
 
     monkeypatch.setattr(
@@ -41,7 +46,15 @@ def test_regression_test_candidate_generated_for_removed_price_field(fixture_ser
     new_url = f"{fixture_server}/runtime_state_regression.html"
     result = runner.invoke(
         cli.main,
-        ["dictionary", new_url, "--compare-to", str(baseline_path), "--test-candidates", "--format", "json"],
+        [
+            "dictionary",
+            new_url,
+            "--compare-to",
+            str(baseline_path),
+            "--test-candidates",
+            "--format",
+            "json",
+        ],
     )
 
     assert result.exit_code == 0, result.output
@@ -58,22 +71,31 @@ def test_regression_test_candidate_generated_for_removed_price_field(fixture_ser
     assert "raise NotImplementedError" in candidate["playwright_draft"]
 
 
-def test_without_test_candidates_flag_compare_to_omits_the_key(fixture_server, monkeypatch, tmp_path):
+def test_without_test_candidates_flag_compare_to_omits_the_key(
+    fixture_server, monkeypatch, tmp_path
+):
     runner = CliRunner()
     baseline_path = tmp_path / "baseline.json"
 
     monkeypatch.setattr(
-        "pytagmanager.cli.crawl_site", lambda *a, **k: [_fake_page(fixture_server, "runtime_state.html")]
+        "pytagmanager.cli.crawl_site",
+        lambda *a, **k: [_fake_page(fixture_server, "runtime_state.html")],
     )
     baseline_url = f"{fixture_server}/runtime_state.html"
-    runner.invoke(cli.main, ["dictionary", baseline_url, "--format", "json", "-o", str(baseline_path)])
+    runner.invoke(
+        cli.main,
+        ["dictionary", baseline_url, "--format", "json", "-o", str(baseline_path)],
+    )
 
     monkeypatch.setattr(
         "pytagmanager.cli.crawl_site",
         lambda *a, **k: [_fake_page(fixture_server, "runtime_state_regression.html")],
     )
     new_url = f"{fixture_server}/runtime_state_regression.html"
-    result = runner.invoke(cli.main, ["dictionary", new_url, "--compare-to", str(baseline_path), "--format", "json"])
+    result = runner.invoke(
+        cli.main,
+        ["dictionary", new_url, "--compare-to", str(baseline_path), "--format", "json"],
+    )
 
     assert result.exit_code == 0, result.output
     json_start = result.output.index("{")

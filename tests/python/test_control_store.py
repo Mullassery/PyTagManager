@@ -4,7 +4,6 @@ import json
 import os
 
 import pytest
-
 from pytagmanager.control.errors import (
     ConflictError,
     CorruptStoreError,

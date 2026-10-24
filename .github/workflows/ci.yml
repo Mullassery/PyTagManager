@@ -52,7 +52,8 @@ jobs:
       - name: Lint Python (ruff)
         run: |
           python -m pip install ruff
-          ruff check --select E9,F63,F7,F82 python
+          ruff check python tests/python
+          ruff format --check python tests/python
 
       - name: pytest tests/python
         run: pytest tests/python -v

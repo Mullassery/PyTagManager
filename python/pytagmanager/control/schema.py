@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from pytagmanager.control.errors import SchemaVersionError, ValidationError
 from pytagmanager.control.models import SCHEMA_VERSION
@@ -37,8 +38,7 @@ def ensure_supported_schema(value: Any) -> str:
     current = parse_schema_version(CURRENT_SCHEMA_VERSION)
     if parsed != current:
         raise SchemaVersionError(
-            f"unsupported schema_version {value!r}; this build supports "
-            f"{CURRENT_SCHEMA_VERSION!r}"
+            f"unsupported schema_version {value!r}; this build supports {CURRENT_SCHEMA_VERSION!r}"
         )
     return CURRENT_SCHEMA_VERSION
 
