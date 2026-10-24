@@ -38,7 +38,7 @@ jobs:
           echo "VIRTUAL_ENV=$PWD/.venv" >> "$GITHUB_ENV"
 
       - name: Install Python build/test tooling
-        run: python -m pip install --upgrade pip setuptools maturin pytest
+        run: python -m pip install --upgrade pip setuptools maturin pytest pytest-cov
 
       - name: Build and install the extension module (maturin develop)
         run: maturin develop
@@ -56,7 +56,7 @@ jobs:
           ruff format --check python tests/python
 
       - name: pytest tests/python
-        run: pytest tests/python -v
+        run: pytest tests/python -v --cov=pytagmanager --cov-report=term-missing
 
 
   pytagshield-contract:

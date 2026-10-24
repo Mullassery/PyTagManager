@@ -15,7 +15,7 @@ dependencies = ["click>=8.0"]
 pytagmanager = "pytagmanager.cli:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "pytest-cov>=4.0"]
 diagnostics = [
     "playwright>=1.40",
     "pyyaml>=6.0",
@@ -33,6 +33,14 @@ select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 # Broad exception handling is deliberate in best-effort diagnostics/adapters;
 # these rules are reviewed case-by-case rather than mechanically enforced.
 ignore = ["E501", "BLE001", "TRY004", "S110"]
+
+[tool.coverage.run]
+source = ["python/pytagmanager"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
 
 [tool.maturin]
 python-source = "python"

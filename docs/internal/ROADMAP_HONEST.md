@@ -374,10 +374,9 @@ to spend time on them.
   in the README/this file's Phase 1.9 section), not undisclosed rot in PyTagManager's
   own codebase. Listed here only so a future search for `TODO` in this repo isn't
   surprised by it.
-- **No coverage measurement** (`pytest-cov` or equivalent) is configured — 737 passing
-  Python tests is a real, verified count (this pass ran the full suite live), but
-  there is no line/branch coverage number backing it, so "well-tested" is a claim
-  about test *count* and CI-verified breadth, not a measured coverage percentage.
+- ~~**No coverage measurement** (`pytest-cov` or equivalent) is configured.~~
+  **Resolved:** `pytest-cov` is a dev dependency, `[tool.coverage.*]` is
+  configured, and CI runs `pytest --cov=pytagmanager --cov-report=term-missing`.
 - **`src/crawler/fetcher.rs:79`'s HTTP `User-Agent` string was stale** (`PyTagManagerBot/0.1`
   pointing at a nonexistent `github.com/pytagmanager` URL, while the crate itself was
   already at `0.2.0` under `github.com/Mullassery/PyTagManager`) — fixed in this pass to
