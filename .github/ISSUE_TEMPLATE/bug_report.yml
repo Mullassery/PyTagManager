@@ -5,7 +5,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Before filing: check `ROADMAP_HONEST.md` first — the behavior you're
+        Before filing: check `docs/internal/ROADMAP_HONEST.md` first — the behavior you're
         seeing might be a documented, known gap rather than an undiscovered bug.
 
   - type: input
