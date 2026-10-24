@@ -24,3 +24,8 @@ sdk/ios/.build/
 **/.DS_Store
 
 graphify-out/
+
+# Python coverage
+.coverage
+.coverage.*
+htmlcov/
