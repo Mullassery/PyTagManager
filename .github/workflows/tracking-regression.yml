@@ -30,7 +30,7 @@ jobs:
           python -m pip install ".[diagnostics]"
           playwright install --with-deps chromium
       - name: Restore tracking history
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: .pytagmanager/health.json
           key: tracking-history-${{ github.ref_name }}
