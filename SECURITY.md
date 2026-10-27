@@ -14,7 +14,7 @@ team and no SLA. Please do **not** open a public GitHub issue for a
 security vulnerability.
 
 Instead, report it privately via GitHub's
-[private vulnerability reporting](https://github.com/Mullassery/PyTagManager/security/advisories/new)
+[private vulnerability reporting](../PyTagManager/security/advisories/new)
 feature on this repository, if enabled, or by opening a issue titled
 "Security contact request" with no vulnerability details, so a private
 channel can be arranged.

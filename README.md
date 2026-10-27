@@ -14,7 +14,7 @@ interaction → DOM mutation → dataLayer → GTM → analytics request → des
 
 When something breaks, you get a specific finding with evidence, a confidence level, and a remediation hint — not a raw event log to interpret by hand.
 
-[![CI](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml/badge.svg)](https://github.com/Mullassery/PyTagManager/actions/workflows/ci.yml)
+[![CI](../PyTagManager/actions/workflows/ci.yml/badge.svg)](../PyTagManager/actions/workflows/ci.yml)
 [![PyPI](https://img.shields.io/pypi/v/pytagmanager)](https://pypi.org/project/pytagmanager/)
 [![Python](https://img.shields.io/pypi/pyversions/pytagmanager)](https://pypi.org/project/pytagmanager/)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
@@ -263,13 +263,13 @@ Evidence, boundaries and next steps: [`ECOSYSTEM_INTEGRATION.md`](ECOSYSTEM_INTE
 
 Part of the Mullassery open-source family — PyTagManager sits at the tagging/implementation end of the customer-data stack:
 
-- [PyTagShield](https://github.com/Mullassery/PyTagShield) — consent-aware, privacy-minimizing server-side event pipeline; can consume PyTagManager's managed revisions as startup config
-- [ClusterAudienceKit](https://github.com/Mullassery/ClusterAudienceKit) — customer segmentation and audience intelligence
-- [PyReverseETL](https://github.com/Mullassery/PyReverseETL) — quality-validated reverse ETL / data activation
-- [PyCustomerHub](https://github.com/Mullassery/PyCustomerHub) — event-driven customer data and engagement platform
-- [StatGuardian](https://github.com/Mullassery/StatGuardian) — runtime data-quality validation
-- [PyDeepMesh](https://github.com/Mullassery/PyDeepMesh) — dependency-graph and vulnerability intelligence
-- [Browse all projects](https://github.com/Mullassery?tab=repositories)
+- [PyTagShield](../PyTagShield) — consent-aware, privacy-minimizing server-side event pipeline; can consume PyTagManager's managed revisions as startup config
+- [ClusterAudienceKit](../ClusterAudienceKit) — customer segmentation and audience intelligence
+- [PyReverseETL](../PyReverseETL) — quality-validated reverse ETL / data activation
+- [PyCustomerHub](../PyCustomerHub) — event-driven customer data and engagement platform
+- [StatGuardian](../StatGuardian) — runtime data-quality validation
+- [PyDeepMesh](../PyDeepMesh) — dependency-graph and vulnerability intelligence
+- [Browse all projects](../Mullassery-profile)
 
 ## License
 

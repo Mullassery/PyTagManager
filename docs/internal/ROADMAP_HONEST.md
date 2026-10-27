@@ -381,7 +381,7 @@ to spend time on them.
 - **`src/crawler/fetcher.rs:79`'s HTTP `User-Agent` string was stale** (`PyTagManagerBot/0.1`
   pointing at a nonexistent `github.com/pytagmanager` URL, while the crate itself was
   already at `0.2.0` under `github.com/Mullassery/PyTagManager`) — fixed in this pass to
-  `PyTagManagerBot/0.2 (+https://github.com/Mullassery/PyTagManager)`. Low-impact (no
+  `PyTagManagerBot/0.2 (+../PyTagManager)`. Low-impact (no
   test asserted the old string, and it's sent on every outbound crawl request, so a
   site operator inspecting request logs would have seen a slightly wrong version/URL),
   but it's the kind of small drift worth catching in the same pass as the `Cargo.toml`
